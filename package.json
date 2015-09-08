@@ -1,0 +1,33 @@
+{
+  "name": "yalp",
+  "version": "0.0.4",
+  "description": "Yet Another Lightshow Player (this time in HTML/CSS/JavaScript and nodejs/commonjs)",
+  "main": "yalp.js",
+  "scripts": {
+    "test": "tbd",
+    "start": "SVR=http://localhost:2015; iojs ./yalp.js $SVR YALP.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com/djulien/yalp"
+  },
+  "keywords": [
+    "yalp"
+  ],
+  "author": "djulien5854@thejuliens.net",
+  "license": "tbd",
+  "dependencies": {
+    "autostrip-json-comments": "0.0.4",
+    "express": "^4.13.3",
+    "falafel": "^1.2.0",
+    "font-awesome": "^4.4.0",
+    "fs-extra": "^0.24.0",
+    "glob": "^5.0.14",
+    "insist": "^0.2.3",
+    "jquery": "^2.1.4",
+    "jquery-ui": "^1.10.5",
+    "node-hook": "^0.1.0",
+    "path": "^0.11.14",
+    "url": "^0.11.0"
+  }
+}

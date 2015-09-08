@@ -1,0 +1,6 @@
+Audacity:
+Effects -> Compressor: set threashold to -30 db
+trim out 1:42 - 2:40
+-1 sec at end
+lower pitch of wookie groan near end
+add label track, Ctrl+M during playback
