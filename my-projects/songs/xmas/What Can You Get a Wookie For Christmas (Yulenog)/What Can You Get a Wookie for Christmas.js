@@ -1,18 +1,15 @@
 'use strict';
 
-console.log("wookie load ...");
-console.timeStamp(); //shows time in FF, adds event to timeline in Chrome
-
-var Sequence = require('../../sequence.js');
-var Model = require('../../mode
+var Sequence = require('my-projects/songs/sequence.js'); //base class
+//var Model = require('my-projects/models.js'); //base class
 //var Model =
 //var Fx =
 
-var Wookie = new Sequence();
+var Wookie = module.exports = new Sequence({auto_collect: true}); //comonjs
 
-Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
-Wookie.name = 'wookie';
-Wookie.tracks = './tracks.txt'; //Audacity label file
+Wookie.name = 'Wookie';
+//Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
+//Wookie.tracks = './tracks.txt'; //Audacity label file
 Wookie.models =
 [
     'M-tree',
@@ -20,11 +17,5 @@ Wookie.models =
     'Shepherd1',
     'Shepherd2',
 ];
-
-//module.exports = THIS; //commonjs; not needed by top-level plug-ins
-//global['plst_' + __filename.replace(/^.*\//, "")] = THIS;
-
-console.timeStamp(); //shows time in FF, adds event to timeline in Chrome
-console.log("... wookie loaded");
 
 //eof

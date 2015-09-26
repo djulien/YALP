@@ -1,8 +1,10 @@
 //YALP main entry point
 //setup:
-//1. git clone TODO:url
+//1. git clone https://github.com/djulien/yalp.git
 //2. cd yalp
-//3. ./install.sh
+//3. npm install
+//4. npm run symlinks
+//5. open port in firewall if running remotely
 //usage:
 //1. npm [run-script] start
 
