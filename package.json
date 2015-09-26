@@ -54,7 +54,8 @@
     "predebug": "echo this will use node-inspector",
     "debug": "node-debug  ./index.js",
     "pretest": "echo ready to test",
-    "test": "node  ./tests"
+    "test": "node  ./tests",
+    "symlinks": "node  ./scripts/symlinks.js"
   },
   "obsolete-scripts": {
     "test": "tbd",
@@ -83,7 +84,8 @@
     "human-format": "^0.5.0",
     "nodemailer": "^1.5.0",
     "open": "0.0.5",
-    "path": "^0.11.14"
+    "path": "^0.11.14",
+    "shelljs": "^0.5.3"
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
   "xdependencies": {
