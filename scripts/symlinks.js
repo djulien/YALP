@@ -6,28 +6,25 @@ var shell = require('shelljs/global');
 //sym link my-plugins so they can be "require"d:
 console.log("sym link my-plugins ...".green);
 cd('my-plugins');
-npm('link');
+exec('npm link', exec_out);
 cd('../node_modules');
-npm('link', 'my-plugins');
+exec('npm link my-plugins', exec_out);
 cd('..');
 
 //sym link my-projects so they can be "require"d:
 console.log("sym link my-plugins ...".green);
 cd('my-projects');
-npm('link');
+exec('npm link', exec_out);
 cd('../node_modules');
-npm('link', 'my-projects');
+exec('npm link my-projects', exec_out);
 cd('..');
 
 console.log("done!".green);
 
 
-function npm(args)
+exec_out(code, output)
 {
-    exec('npm ' + args.join(' '), function(code, output)
-    {
-        console.log('code: ', code, 'output:', output);
-    });
+    console.log('code: ', code, 'output:', output);
 }
 
 //eof
