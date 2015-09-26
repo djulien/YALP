@@ -1,0 +1,20 @@
+{
+  "name": "my-plugins",
+  "version": "0.1.0",
+  "description": "dummy wrapper for YALP plug-ins",
+  "main": "none.js",
+  "private": "true",
+  "xscripts": {
+    "test": "tbd"
+  },
+  "xrepository": {
+    "type": "git",
+    "url": "github.com/djulien/yalp"
+  },
+  "xkeywords": [
+    "yalp",
+    "my-plugins"
+  ],
+  "xauthor": "djulien <djulien5854@thejuliens.net>",
+  "xlicense": "tbd"
+}

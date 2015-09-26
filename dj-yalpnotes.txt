@@ -1,0 +1,216 @@
+http://www.w3.org/html/wg/drafts/html/master/semantics.html#mediaevents
+1. media player: mp3 playback + vbl timer cb;  npm player or play-audio; node-lame + node-speaker
+https://github.com/azer/play-audio
+2. byte stream read + out; npm node-throttle, node-lame
+3. DSLOP 1 usb -> 5 ports
+4. generic fx cache
+5. fx bind + fseq gen
+6. show wav + cues   npm node-lame
+  https://gist.github.com/marchawkins/bcd43309f4da6f3784a8
+A. seq, cues, fx
+B. playlist
+C. ACE editor  https://github.com/ajaxorg/ace, https://github.com/ajaxorg/ace-builds, NPM https://github.com/ajaxorg/ace/issues/2295
+C2: noide?
+   https://www.npmjs.com/package/noide
+   https://github.com/davidjamesstone/noide
+   nide?: https://github.com/coreh/nide
+https://www.npmjs.com/browse/keyword/ide
+D. REPL
+E. gulp recipes:
+   https://github.com/gulpjs/gulp/blob/master/docs/recipes/fast-browserify-builds-with-watchify.md
+   https://github.com/gulpjs/gulp/blob/master/docs/recipes/handling-the-delete-event-on-watch.md
+   api: https://github.com/gulpjs/gulp/blob/master/docs/API.md
+F. LiveReload
+   https://www.npmjs.com/package/connect-livereload
+   https://github.com/livereload/livereload-js
+
+INITIAL CONSTRUCTION (by a nodejs nooby):
+1. download and install node.js 4.x source from https://nodejs.org/en/download/ then build: extract + cd + ./configure + make + sudo make install; http://ask.xmodulo.com/install-node-js-linux.html; NOTE: io.js merged with node.js in 4.0
+   OR download and install node.js 4.x using pre-build binary
+   log out + in, node --version to check (should be 4.x)
+NO-1. install io.js, npm, overlay iojs binaries onto node
+2. fix up global npm:
+   http://justjs.com/posts/npm-link-developing-your-own-npm-modules-without-tears
+   OR http://stackoverflow.com/questions/10081293/install-npm-into-home-directory-with-distribution-nodejs-package-ubuntu
+   ~/.nmprc  +=  prefix = ~/local-npm
+   mkdir  ~/local-npm
+   CAUTION: "npm install -g" will go there, so add "export PATH=~/npm/bin:$PATH" to ~/.bashrc
+   mv  ~/.npm  ~/old-npm
+3. create new git repo at github: add readme, add node to .gitignore
+   https://www.maketecheasier.com/6-useful-graphical-git-client-for-linux/
+   http://stackoverflow.com/questions/1516720/git-gui-client-for-linux
+4. create local dir, cd into it, git clone <https clone url from git repo>
+5. cd local dir, npm init
+6. link private YALP modules (makes unpublished local node modules look like regular node modules so relative paths are not needed):
+   get at least one dep first (creates node_modules dir)
+   create plugins dir, cd YALP/plugins, npm init to create package.json file, use name "yalp-plugins" to disambiguate from existing node package
+   npm  link   -creates symlink into ~/.npm
+   cd ../node_modules
+   npm  link  yalp-plugins  -attaches symlink into node_modules
+   create my-projects dir, cd, npm_init to create package.json
+   npm  link   -creates symlink into ~/.npm
+   cd ../node_modules
+   npm  link  my-projects  -attaches symlink into node_modules
+   start creating local files ...
+7. create new codeblocks project
+8. create main entry point in root (ref by package.json)
+9. get dependencies first time:
+   npm install <dep> --save
+     express, font-awesome, fs-extra, glob, path, url, node-hook, autostring-json-comments, jquery, jquery-ui
+     ?jsdom, nanobar, sprintf-js
+   npm install <dep>  --save-dev  for dev deps
+   npm dedupe at some point
+     manual dedup: http://stackoverflow.com/questions/13318364/how-to-deploy-node-js-application-with-deep-node-modules-structure-on-windows
+      npm ls
+      look through those modules and identify duplicate modules (version is important)
+      npm install module@version --save-dev to install those modules in the root node_modules directory and update package.json.
+      rmdir node_modules to delete the node_modules directory.
+      npm install
+   ?NOTE: install watchify first, then browserify?
+- TODO: git PUSH req for
+  NOTE: must patch node_modules/**/path-platform/path.js   return wrapper, require('path') instead of 'path-platform') in index.js
+  NOTE: must patch node_modules/**/JSONStream/index.js   !#
+http://socket.io/get-started/chat/
+   npm install socket.io --save   encounters build errors, but seems to run
+10. create other files
+11. publish back to git:
+    git status
+    git tag 0.1.0
+    git push origin master --tags
+this is an app, not an embeddable module, so don't need any devDependencies ??
+don't need template engine with express since gulp/watch is being used to pre-build bundles incrementally
+forever, gulp, browserify, livereload, etc are attractive, but that code can just be added directly into the app or use npm scripts
+http://blog.keithcirkel.co.uk/how-to-use-npm-as-a-build-tool/
+
+NPM MODS:
+1. fork on github.com
+2. cd work dir
+3. git clone <url from github clipboard>
+4. cd module dir; edit files; remember to bump semver version# in package.json
+5. git status
+6. git add <changed files>
+7. git-cola: Index -> Stage Changed Files to Commit
+8. git-cola: enter summary + description
+9. git push
+10. npm install <url from github> --save
+
+rebase:
+http://christoph.ruegg.name/blog/git-howto-revert-a-commit-already-pushed-to-a-remote-reposit.html
+ git rebase -i  <base one>
+ resolve conflict if any  (ie, del changed file)
+  git push
+
+DEV INSTALL: (all installs are dev installs - customization is a developer activity)
+1. install iojs, npm, overlay iojs binaries onto node?
+2. fix up global npm:
+   http://justjs.com/posts/npm-link-developing-your-own-npm-modules-without-tears
+   ~/.nmprc  +=  prefix = ~/local-npm
+   mkdir  ~/local-npm
+   CAUTION: "npm install -g" will go there, so add "export PATH=~/npm/bin:$PATH" to ~/.bashrc
+   mv  ~/.npm  ~/old-npm
+3. mkdir working folder, cd
+4. git clone https://github.com/djulien/yalp.git
+5. npm install   to pull in deps
+6. npm install browserify -g  (not local)
+7. link private YALP modules (makes unpublished local node modules look like regular node modules so relative paths are not needed):
+   cd YALP/plugins, npm  link   -creates symlink into ~/.npm
+   cd ../node_modules
+   npm  link  yalp-plugins  -attaches symlink into node_modules
+8. customize files as desired, add new files, etc.
+9. commit, push, pull request if desired
+10. use npm outdated to check for obsolete modules, npm update to update them
+   test asset bundling:
+   ~/local-npm/bin/browserify ./plugins/misc/uimain.js --debug --exclude ./msgbox >dj.txt
+- try sudo npm install -g --unsafe-perm <pkg> if node-gyp gives warnings/errors
+http://stackoverflow.com/questions/927358/how-do-you-undo-the-last-commit
+   git config --global alias.undo-commit 'reset --soft HEAD^'
+https://lostechies.com/derickbailey/2010/06/09/git-oops-i-forgot-to-add-those-new-files-before-committing/
+   git commit --amend –C HEAD
+http://gitready.com/advanced/2009/02/10/squashing-commits-with-rebase.html
+   git rebase -i HEAD~4
+mem usage: free -h
+npmjs.com search
+https://help.github.com/articles/merging-an-upstream-repository-into-your-fork/
+https://www.npmjs.com/browse/depended/shelljs
+http://stackoverflow.com/questions/18796890/how-do-you-find-out-which-npm-modules-depend-on-yours
+https://www.npmjs.com/search?q=pseudo+terminal
+
+DEBUG:
+https://github.com/node-inspector/node-inspector
+1. npm install -g node-inspector
+2. node-debug app.js
+  ^B breakpoints, F10 step over, F11 step into, Shift+F11 step out
+
+USAGE:
+1. npm start [http://<server>:<port>]
+2. npm start  or a variation to start YALP via package.json
+3. export mp3 as fixed 128k or 144k bps (not 256k) using Audacity
+
+TODO:
+- add unit testing with Chai and Mocha (!make)
+- add info to readme.md
+- use node-ensure, https://github.com/linkedin/inject?
+- use yabble, https://github.com/jbrantly/yabble?
+- js syntax extensions: https://github.com/bahmutov/dotdot
+- js syntax analysis: https://www.npmjs.com/package/istanbul
+- base64 decode: http://stackoverflow.com/questions/14573001/nodejs-how-to-decode-base64-encoded-string-back-to-binary
+  var buf = new Buffer(b64string, 'base64').toString("ascii")
+- check for compliance: https://devcenter.heroku.com/articles/node-best-practices
+- stream to multiple browsers (global stream): https://pedromtavares.wordpress.com/2012/12/28/streaming-audio-on-the-web-with-nodejs/
+npm gaze
+npm commander, content-disposition
+http://tutorialzine.com/2014/09/creating-your-first-node-js-command-line-application/
+g("javascript mp3 visualizer"):
+https://github.com/naomiaro/waveform-playlist/graphs/contributors
+http://naomiaro.github.io/waveform-playlist/examples/web-audio-editor.html
+node-red
+
+http://www.scriptol.com/javascript/nodejs-php.php
+https://github.com/Studio-42/elFinder/wiki
+http://www.snippetmanager.net/screenshots/
+
+https://quickleft.com/blog/creating-and-publishing-a-node-js-module/
+
+https://github.com/substack/node-browserify/wiki/list-of-transforms
+https://github.com/substack/node-browserify/wiki/browserify-tools
+
+https://strongloop.com/strongblog/comparison-tools-to-automate-restarting-node-js-server-after-code-changes-forever-nodemon-nodesupervisor-nodedev/
+http://stackoverflow.com/questions/18875674/whats-the-difference-between-dependencies-devdependencies-and-peerdependencies/22004559#22004559
+https://devcenter.heroku.com/articles/node-best-practices
+http://www.sitepoint.com/complete-guide-reducing-page-weight/
+
+pico tts?
+npm shelljs
+livereload
+jshint
+https://github.com/scripted-editor/scripted
+https://github.com/LightTable/LightTable
+
+Developer's Certificate of Origin 1.0
+==========================
+//example from https://nodejs.org/api/modules.html
+var EventEmitter = require('events').EventEmitter;
+
+module.exports = new EventEmitter();
+
+// Do some work, and after some time emit
+// the 'ready' event from the module itself.
+setTimeout(function() {
+  module.exports.emit('ready');
+}, 1000);
+Then in another file we could do
+
+var a = require('./a');
+a.on('ready', function() {
+  console.log('module a is ready');
+});
+
+======
+module.id
+module.filename
+module.loaded
+module.parent
+module.children
+require.resolve()
+require.main === module  => top-level module run by node.js !=> require()d
+require.main.filename

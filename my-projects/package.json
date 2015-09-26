@@ -1,0 +1,20 @@
+{
+  "name": "my-projects",
+  "version": "0.1.0",
+  "description": "dummy wrapper for custom YALP projects",
+  "main": "none.js",
+  "private": "true",
+  "scripts": {
+    "test": "tbd"
+  },
+  "xrepository": {
+    "type": "git",
+    "url": "github.com/djulien/yalp"
+  },
+  "xkeywords": [
+    "yalp",
+    "my-projects"
+  ],
+  "xauthor": "djulien <djulien5854@thejuliens.net>",
+  "xlicense": "tbd"
+}
