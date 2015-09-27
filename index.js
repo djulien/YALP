@@ -18,9 +18,10 @@ require('my-plugins/my-extensions'); //load custom language extensions
 var elapsed = require('my-plugins/utils/elapsed').toString;
 var opts = require('my-plugins/cmdline'); //combine command line options and config settings
 //var bool = require('my-plugins/utils/bool-checks');
+var hostname = require('os').hostname();
 
 require('colors'); //makes console messages easier to distinguish
-console.log("starting YALP server (%s) ...".green, require('os').hostname());
+console.log("starting YALP server (%s) ...".green, hostname);
 console.log("my root '%s'".blue, global.ROOTDIR);
 //console.log("config:", global.pkg.yalp);
 
@@ -64,7 +65,7 @@ var server = app.listen(opts.port || /*(new Date().getFullYear()*/ 2015, opts.ho
     var host = server.address().address; //.replace(/^::$/, "localhost");
     var port = server.address().port;
     console.log("YALP server listening at %s:%s after %s".green, host, port, elapsed());
-    if (email) email('YALP ready', 'server listening at %s:%s after %s', host, port, elapsed());
+    if (email) email('YALP ready', 'server listening at %s:%s on %s after %s', host, port, hostname, elapsed());
 
     if (/*!bool.isfalse*/(opts.ui !== false) && (opts.ui != "none")) //launch UI in browser
     {
