@@ -1,0 +1,30 @@
+/*main YALP styles/theme*/
+
+body
+{
+    xborder: none;
+    margin: 0;
+    xoverflow: hidden;
+    background: #000;
+}
+
+body, input
+{
+    color: #0f0 /*!important*/;
+    font-family: Monospace;
+    font-size: 13px;
+}
+
+.fatal
+{
+    position: absolute;
+    top: 30%;
+    left: 10%;
+}
+
+a
+{
+    color: #fff; /*since main text color is #0f0, #fff stands out better than #00f*/
+}
+
+/*eof*/

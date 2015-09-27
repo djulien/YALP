@@ -146,6 +146,59 @@ USAGE:
 2. npm start  or a variation to start YALP via package.json
 3. export mp3 as fixed 128k or 144k bps (not 256k) using Audacity
 
+
+LIGHTTABLE 0.7.2:
+http://www.ubuntubuzz.com/2015/05/how-to-install-light-table-in-ubuntu-1504.html
+-download from http://lighttable.com
+ extract
+ run LightTable/LightTable
+ add to main U menu: System -> Preferences -> Main Menu
+getting started: http://docs.lighttable.com/
+ Command pane on right, filtered
+ View Workspace
+ can add browser tab as well as local files
+ Add tab set, drag browser or console onto second panel for side-by-side
+   file://localhost/home/dj/Documents/djdev/djtest/test.html
+
+BRACKETS (works):
+https://github.com/adobe/brackets
+-download:
+ http://brackets.io/
+-install .deb file:
+ sudo dpkg -i /path/to/deb/file
+ sudo apt-get install -f .
+sample folder is in /opt/brackets/   !write perms
+
+
+CODEBOX: BROKEN BUILD (lighttable was also a good-looking choice, but it used nwjs and clojure)
+https://community.runabove.com/kb/en/instances/how-to-install-the-codebox-ide.html
+-download latest:
+  https://github.com/FriendCode/codebox/releases
+   https://github.com/CodeboxIDE/codebox/releases/tag/1.0.0-alpha.5    4/23
+-install:  (npm from repo didn't work)
+   [sudo] npm install -g codebox-1.0.0-alpha.5.tar.gz
+sudo adduser --disabled-password --gecos "Codebox IDE" codebox
+sudo -u codebox -i
+ mkdir -p Workspace/your_project_name # or git clone <url> Workspace/your_project_name
+ git init Workspace/your_project_name # skip this if you cloned from a git repository in the last command
+ ~dj/local-npm/bin/codebox run Workspace/your_project_name
+failed on missing .codebox/packages folder; created manually and retried
+can't find module shux
+ https://github.com/CodeboxIDE/codebox/issues/463
+  needs Node.js v0.10.26  or at least < 0.10.32
+http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
+ python --version
+ sudo add-apt-repository ppa:fkrull/deadsnakes
+ sudo apt-get update
+ sudo apt-get install python2.6
+ sudo update-alternatives --install /usr/bin/python python /usr/bin/python2.6 20
+ sudo update-alternatives --install /usr/bin/python python /usr/bin/python2.7 10
+ sudo add-apt-repository --remove ppa:fkrull/deadsnakes
+ sudo update-alternatives --config python
+ python --version
+ 
+
+
 TODO:
 - add unit testing with Chai and Mocha (!make)
 - add info to readme.md

@@ -7,15 +7,34 @@
     "comment": "set YALP default command line options here",
     "comment2": "any reason to change this to 'config'? so npm will set env vars?",
     "port": "2015",
-    "xui": "false",
-    "ui": "/usr/bin/google-chrome-stable",
+    "ui": "false",
+    "xui": "/usr/bin/google-chrome-stable",
     "zui": "firefox",
-    "debug": "100",
-    "loader-logging": "true",
-    "line-stamps": "true",
-    "notry": "false",
+    "debug": {
+      "level": "100",
+      "loader-logging": "true",
+      "line-stamps": "true",
+      "no-try": "false"
+    },
     "faultmon": "false",
-    "filemon": "false"
+    "filemon": "false",
+    "email": {
+      "from": "sender-email-address",
+      "to": "destination-email-address (can be a comma-separated list)",
+      "transport": {
+        "comment": "this info is passed directly to nodemailer",
+        "eg-port": "995",
+        "eg-host": "your.emailserver.com",
+        "eg-secure": "true",
+        "eg-authMethod": "LOGIN",
+        "service": "Gmail",
+        "debug": "true",
+        "auth": {
+          "user": "your email userid here",
+          "pass": "your password here"
+        }
+      }
+    }
   },
   "repository": {
     "type": "git",
@@ -81,20 +100,23 @@
     "colors": "^1.1.2",
     "commander": "git+https://github.com/djulien/commander.js.git",
     "express": "^4.13.3",
+    "falafel": "^1.2.0",
     "human-format": "^0.5.0",
+    "ip": "^1.0.1",
+    "node-glob-loader": "git+https://github.com/djulien/Loader.git",
+    "node-hook": "^0.2.0",
     "nodemailer": "^1.5.0",
     "open": "0.0.5",
     "path": "^0.11.14",
-    "shelljs": "^0.5.3"
+    "shelljs": "^0.5.3",
+    "sprintf": "^0.1.5",
+    "traverse": "^0.6.6"
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
   "xdependencies": {
     "autostrip-json-comments": "0.0.4",
-    "colors": "^1.1.2",
     "connect-livereload": "^0.5.3",
     "domready": "^1.0.8",
-    "express": "^4.13.3",
-    "falafel": "^1.2.0",
     "font-awesome": "^4.4.0",
     "forever-monitor": "^1.6.0",
     "fs-extra": "^0.24.0",
@@ -109,12 +131,8 @@
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5",
     "minimist": "^1.2.0",
-    "node-glob-loader": "git+https://github.com/djulien/Loader.git",
-    "node-hook": "^0.2.0",
     "noide": "0.0.7",
-    "open": "0.0.5",
     "packpath": "^0.1.0",
-    "path": "^0.11.14",
     "play-audio": "^0.1.0",
     "really-need": "^1.6.3",
     "require-globify": "git+https://github.com/djulien/require-globify.git",
