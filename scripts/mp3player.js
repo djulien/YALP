@@ -48,7 +48,7 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
     })
     .on('error', function(err)
     {
-        debug('Opps...!'.red, err);
+        console.log('Opps...!'.red, err);
     })
     .play(function(err, player)
     {
