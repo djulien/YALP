@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="YALP" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug-Linux">
+				<Option output="bin/Debug-Linux/YALP" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug-Linux/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<ExtraCommands>
+					<Add after="npm run build-ui" />
+					<Add after="npm run build-results" />
+				</ExtraCommands>
+			</Target>
+			<Target title="Release-Linux">
+				<Option output="bin/Release-Linux/YALP" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release-Linux/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+				<ExtraCommands>
+					<Add after="npm run build-ui" />
+					<Add after="npm run build-results" />
+				</ExtraCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+		</Compiler>
+		<Unit filename="README.md" />
+		<Unit filename="dj-yalpnotes.txt" />
+		<Unit filename="graphics/yalp-icon8.PNG" />
+		<Unit filename="graphics/yalp-icon8.bmp" />
+		<Unit filename="index.js" />
+		<Unit filename="my-plugins/cmdline.js" />
+		<Unit filename="my-plugins/fault-mon.js" />
+		<Unit filename="my-plugins/file-mon.js" />
+		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
+		<Unit filename="my-plugins/my-extensions/index.js" />
+		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
+		<Unit filename="my-plugins/my-extensions/loader-logging.js" />
+		<Unit filename="my-plugins/my-extensions/no-try.js" />
+		<Unit filename="my-plugins/my-extensions/win-control-c.js" />
+		<Unit filename="my-plugins/routes/delete/user.js" />
+		<Unit filename="my-plugins/routes/get/01-hello-world.js" />
+		<Unit filename="my-plugins/routes/get/02-pad.js" />
+		<Unit filename="my-plugins/routes/get/98-quit.js" />
+		<Unit filename="my-plugins/routes/get/99-any.js" />
+		<Unit filename="my-plugins/routes/index.js" />
+		<Unit filename="my-plugins/routes/post/hello-world.js" />
+		<Unit filename="my-plugins/routes/put/user.js" />
+		<Unit filename="my-plugins/routes/use/00-cors.js" />
+		<Unit filename="my-plugins/routes/use/98-404.js" />
+		<Unit filename="my-plugins/utils/config.js" />
+		<Unit filename="my-plugins/utils/elapsed.js" />
+		<Unit filename="my-plugins/utils/email.js" />
+		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
+		<Unit filename="my-plugins/utils/stack-trace.js" />
+		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/index.js" />
+		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.txt" />
+		<Unit filename="package.json" />
+		<Unit filename="scripts/imhere.js" />
+		<Unit filename="scripts/install-bk.sh" />
+		<Unit filename="scripts/mp3player.js" />
+		<Unit filename="tests/email-bk.js" />
+		<Unit filename="tests/email.js" />
+		<Unit filename="tests/mail.js" />
+		<Extensions>
+			<envvars />
+			<code_completion />
+			<lib_finder disable_auto="1" />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

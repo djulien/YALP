@@ -97,6 +97,7 @@
     "start": "node  ./yalp.js"
   },
   "dependencies": {
+    "audio5": "^0.1.10",
     "colors": "^1.1.2",
     "commander": "git+https://github.com/djulien/commander.js.git",
     "express": "^4.13.3",
@@ -117,6 +118,10 @@
     "traverse": "^0.6.6"
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
+  "comment2-devDependencies": "actually, push RPi-specific deps into dev so they can be excluded from generic dev machine",
+  "devDependencies": {
+    "onoff": "^1.0.2"
+  },
   "xdependencies": {
     "autostrip-json-comments": "0.0.4",
     "connect-livereload": "^0.5.3",

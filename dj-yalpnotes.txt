@@ -147,7 +147,7 @@ USAGE:
 3. export mp3 as fixed 128k or 144k bps (not 256k) using Audacity
 
 
-LIGHTTABLE 0.7.2:
+LIGHTTABLE 0.7.2 (works):
 http://www.ubuntubuzz.com/2015/05/how-to-install-light-table-in-ubuntu-1504.html
 -download from http://lighttable.com
  extract
@@ -196,7 +196,7 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  sudo add-apt-repository --remove ppa:fkrull/deadsnakes
  sudo update-alternatives --config python
  python --version
- 
+
 
 
 TODO:
@@ -232,12 +232,14 @@ http://stackoverflow.com/questions/18875674/whats-the-difference-between-depende
 https://devcenter.heroku.com/articles/node-best-practices
 http://www.sitepoint.com/complete-guide-reducing-page-weight/
 
+binaryjs?
 pico tts?
 npm shelljs
 livereload
 jshint
 https://github.com/scripted-editor/scripted
 https://github.com/LightTable/LightTable
+pixi.js?
 
 Developer's Certificate of Origin 1.0
 ==========================
