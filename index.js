@@ -28,7 +28,8 @@ console.log("my root '%s'".blue, global.ROOTDIR);
 //http://stackoverflow.com/questions/7310521/node-js-best-practice-exception-handling
 
 //try{
-console.log("TODO: run npm find-dupes, outdated, or update periodically".red);
+console.log("TODO: run npm find-dupes, outdated, or update periodically, also flatten?".red);
+console.log("TODO: convert console.log to debug".red);
 if (/*!bool.isfalse*/(opts.faultmon !== false)) require('my-plugins/fault-mon'); //notify and/or restart after crash
 
 var email = require('my-plugins/utils/email');
