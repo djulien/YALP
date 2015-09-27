@@ -29,3 +29,12 @@ node_modules
 #don't put copyright stuff in -DJ
 *.mp3
 *.mp4
+
+#exclude Audacity temp data -DJ
+*.au
+
+#exclude credentials -DJ
+credentials.*
+
+#exclude cached data -DJ
+cache
