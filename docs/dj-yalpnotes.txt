@@ -240,6 +240,12 @@ jshint
 https://github.com/scripted-editor/scripted
 https://github.com/LightTable/LightTable
 pixi.js?
+run npm link to install?
+cache clean?   "sudo npm cache clean -f" and "sudo npm install -g n"
+publish: npm publish
+wave generator functions: https://www.npmjs.com/package/easing
+example pixel fx functions: https://github.com/RussTheAerialist/node-adafruit-pixel/blob/master/adafruit_pixel.js
+color quantization: npm quantize, RgbQuant.js, etc
 
 Developer's Certificate of Origin 1.0
 ==========================
