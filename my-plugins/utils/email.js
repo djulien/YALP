@@ -52,7 +52,7 @@ function emailer(title, body)
     {
         if (err)
         {
-            console.log(("ERROR "+ error).red);
+            console.log(("ERROR "+ err).red);
 //            res.json({yo: 'error'});
         }
         else

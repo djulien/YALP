@@ -30,9 +30,9 @@ var cfg = module.exports = pkg.yalp || {};
 cfg.pkg = pkg; //give access to pkg info as well
 delete cfg.pkg.yalp; //remove circular ref
 //??if (!cfg.debug) cfg.debug = {};
-require('credentials')(cfg); //pull in private settings from a secure place
+try { require('credentials')(cfg); } catch(exc) {} //pull in optional private settings from a secure place
 
-console.log("config: ".blue, cfg);
+//console.log("config: ".blue, cfg);
 require('my-plugins/utils/json-bool-fixup')(cfg);
 
 //eof

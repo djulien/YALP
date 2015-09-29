@@ -11,16 +11,18 @@
 'use strict'; //helps catch errors
 //var path = require('path');
 global.ROOTDIR = __dirname; //path.relative(path.dirname(require.main.filename), filename); //make it easier for other modules to navigate
+var elapsed = require('my-plugins/utils/elapsed').toString;
 //require('my-plugins/config'); //load config settings (global)
 //var pkg = require('./package.json'); //introspect: read my package + config settings
+require('colors'); //makes console messages easier to distinguish
+try { require('my-plugins/check-install'); }
+catch (exc) { console.log("YALP not installed correctly (are sym links ok?)".red); process.exit(0); }
 require('my-plugins/my-extensions'); //load custom language extensions
 
-var elapsed = require('my-plugins/utils/elapsed').toString;
 var opts = require('my-plugins/cmdline'); //combine command line options and config settings
 //var bool = require('my-plugins/utils/bool-checks');
 var hostname = require('os').hostname();
 
-require('colors'); //makes console messages easier to distinguish
 console.log("starting YALP server (%s) ...".green, hostname);
 console.log("my root '%s'".blue, global.ROOTDIR);
 //console.log("config:", global.pkg.yalp);

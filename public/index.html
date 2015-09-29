@@ -31,7 +31,20 @@ possible futures:
         <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui plug-in loader; auto-generated"></script>
     </head>
     <body>
-Hello from YALP!
+        Hello from YALP!
+        <hr/>
+        <script type="text/javascript" src="/sh.js"></script>
+        <div id="terminal"></div>
+        <script>
+            var term = new Terminal({ theme: "default", cols: 80, rows: 24 });
+            term.open(document.getElementById("terminal"));
+            term.on("data", function (c) {
+                socket.emit('input', { content: c });
+            });
+            term.write("Hello World!");
+            term.sizeToFit();
+            term.focus();
+        </script> 
         <xdiv id="x-background" style="z-index: 0;" comment="bottom-most"></xdiv>
         <xdiv id="x-canvas3D" style="z-index: 1;" comment="middle layer"></xdiv>
         <xdiv id="x-layout" style="z-index: 99;" comment="top-most">

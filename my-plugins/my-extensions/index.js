@@ -10,7 +10,7 @@ require = function (path) //make it verbose
     return module.require(path);
 }
 
-console.log("my extensions: ".blue, cfg);
+console.log("my extensions config: ".blue, cfg);
 
 //module.exports = function (cfg)
 //{
