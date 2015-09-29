@@ -1,6 +1,6 @@
 var colors = require('colors');
 var glob = require("glob");
-//var path = require('path');
+var path = require('path');
 //var pkg = require('../package.json');
 //var debug = require('debug')(pkg.name);
 
@@ -37,13 +37,28 @@ var Player = require('player');
 //var pkg = require('../package.json');
 //var debug = require('debug')(pkg.name);
 
+//console.log("mp3dat", mp3dat);
+
 //var playlist = [];
 console.log("looking in %s".green, __dirname + "/*.mp3"); //path.join(__dirname, "*.mp3"));
 glob(__dirname + "/*.mp3", {}, function (err, files)
 {
+    var played = 0;
     if (err) console.log("error: ".red, err);
     console.log("files".blue, files);
 //    playlist = files;
+/*
+//var mp3dat = require('mp3dat');
+    files.forEach(function (filename)
+    {
+        var relpath = path.relative(__dirname, filename);
+        mp3dat.stat(path, function (data)
+        {
+            console.log("mp3 dat for '%s': ", relpath, data);
+        });
+    });
+*/
+//    files.push(''); //kludge: allow last song to be interrupted
   new Player(files)
     .on('downloading', function(song)
     {
@@ -51,21 +66,20 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
     })
     .on('playing', function(song)
     {
+        var player = this;
 //     var buf = ""; for (var i in song) buf += "," + i;
-        console.log("now playing %s".green, song.src);
+        console.log("now playing 5 sec of %s".green, song.src);
+        setTimeout(function(){ if (++played < files.length) player.next(); else player.stop(); }, 5000); //only first 5 sec
     })
     .on('playend', function(song)
     {
-        console.log("finished %s, Switching to next one ...".green, song.src);
+        console.log("finished %s, Switching to next one ...".yellow, song.src);
     })
     .on('error', function(err)
     {
-        console.log('Opps...!'.red, err);
+        console.log('ERROR:'.red, err);
     })
-    .play(function(err, player)
-    {
-        console.log('playend!');
-    });
+    .play();
 });
 //player.play(); // play again
 //player.next(); // play the next song, if any

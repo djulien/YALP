@@ -1,4 +1,5 @@
 {
+  "NOTE": "This file must be here for npm link to work!",
   "name": "my-plugins",
   "version": "0.1.0",
   "description": "dummy wrapper for YALP plug-ins",

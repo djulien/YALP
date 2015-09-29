@@ -40,13 +40,16 @@
 			<Add option="-Wall" />
 		</Compiler>
 		<Unit filename="README.md" />
-		<Unit filename="dj-yalpnotes.txt" />
+		<Unit filename="TODO.txt" />
+		<Unit filename="docs/dj-yalpnotes.txt" />
 		<Unit filename="graphics/yalp-icon8.PNG" />
 		<Unit filename="graphics/yalp-icon8.bmp" />
 		<Unit filename="index.js" />
+		<Unit filename="my-plugins/check-install.js" />
 		<Unit filename="my-plugins/cmdline.js" />
 		<Unit filename="my-plugins/fault-mon.js" />
 		<Unit filename="my-plugins/file-mon.js" />
+		<Unit filename="my-plugins/hw/dslop.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/index.js" />
 		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
@@ -64,19 +67,31 @@
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/utils/config.js" />
+		<Unit filename="my-plugins/utils/credentials.js" />
 		<Unit filename="my-plugins/utils/elapsed.js" />
 		<Unit filename="my-plugins/utils/email.js" />
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
+		<Unit filename="my-plugins/utils/time-scale.js" />
+		<Unit filename="my-projects/playlists/playlist.js" />
+		<Unit filename="my-projects/playlists/xmas.js" />
+		<Unit filename="my-projects/songs/sequence.js" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/index.js" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.txt" />
 		<Unit filename="package.json" />
+		<Unit filename="public/css/yalp.css" />
+		<Unit filename="public/favicon.ico" />
+		<Unit filename="public/index.html" />
+		<Unit filename="public/js/uiloader-auto.js" />
 		<Unit filename="scripts/imhere.js" />
 		<Unit filename="scripts/install-bk.sh" />
 		<Unit filename="scripts/mp3player.js" />
+		<Unit filename="scripts/symlinks.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/mail.js" />
+		<Unit filename="tests/playback.js" />
+		<Unit filename="tests/shell-repl.js" />
 		<Extensions>
 			<envvars />
 			<code_completion />

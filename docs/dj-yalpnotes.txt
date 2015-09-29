@@ -246,6 +246,21 @@ publish: npm publish
 wave generator functions: https://www.npmjs.com/package/easing
 example pixel fx functions: https://github.com/RussTheAerialist/node-adafruit-pixel/blob/master/adafruit_pixel.js
 color quantization: npm quantize, RgbQuant.js, etc
+https://github.com/substack/picture-tube
+https://github.com/atom/electron
+https://github.com/sdolard/node-crashreporter
+https://github.com/teamcarma/node-python-runner-web
+https://github.com/substack/browser-terminal
+https://github.com/black-screen/black-screen
+https://www.npmjs.com/package/sh.js
+https://github.com/chjj/pty.js
+https://help.ubuntu.com/community/AjaxTerm
+http://41j.com/hterm/
+https://github.com/krishnasrinivas/wetty
+http://www.davidpirek.com/blog/browser-based-shell-terminal-in-nodejs
+*** https://gist.github.com/mixonic/947512
+*** https://github.com/rabchev/web-terminal
+g(nodejs shell in browser)
 
 Developer's Certificate of Origin 1.0
 ==========================
