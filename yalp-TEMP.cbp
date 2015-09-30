@@ -78,6 +78,9 @@
 		<Unit filename="my-projects/playlists/playlist.js" />
 		<Unit filename="my-projects/playlists/xmas.js" />
 		<Unit filename="my-projects/songs/sequence.js" />
+		<Unit filename="my-projects/songs/xmas/Amazing Grace (Yule)/myseq.js" />
+		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/seq.js" />
+		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/What Can You Get a Wookie for Christmas.js" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/index.js" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.txt" />
 		<Unit filename="package.json" />

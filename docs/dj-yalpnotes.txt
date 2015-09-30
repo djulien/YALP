@@ -146,6 +146,8 @@ USAGE:
 2. npm start  or a variation to start YALP via package.json
 3. export mp3 as fixed 128k or 144k bps (not 256k) using Audacity
 
+git checkout <hash> to get an older copy
+git checkout master to go to latest
 
 LIGHTTABLE 0.7.2 (works):
 http://www.ubuntubuzz.com/2015/05/how-to-install-light-table-in-ubuntu-1504.html

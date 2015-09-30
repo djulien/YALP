@@ -73,7 +73,7 @@ var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, o
 {
     var host = server.address().address; //.replace(/^::$/, "localhost");
     var port = server.address().port;
-    console.log("YALP server listening at %s:%s after %s".green, host, port, elapsed());
+    console.log("YALP server listening for http at %s:%s after %s".green, host, port, elapsed());
     if (email) email('YALP ready', 'server listening at %s:%s on %s after %s', host, port, hostname, elapsed());
 
     if (/*!bool.isfalse*/(opts.ui !== false) && (opts.ui != "none")) //launch UI in browser
@@ -81,7 +81,7 @@ var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, o
         var url = 'http://' + host + ':' + port + '/'; //path.sep + 'YALP.html');
         if (!opts.ui || /*bool.istrue*/(opts.ui === true)) opts.ui = null; //"default";
         console.log("starting ui '%s' -> %s ... ".green, opts.ui || '', url);
-var launch = require('open'); //https://github.com/pwnall/node-open/blob/master/lib/open.js; NOTE: opener starts with #! (ES6), so use open instead
+        var launch = require('open'); //https://github.com/pwnall/node-open/blob/master/lib/open.js; NOTE: opener starts with #! (ES6), so use open instead
         launch(url, opts.ui, function (err)
         {
             if (err) throw err;

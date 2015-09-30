@@ -16,7 +16,7 @@ module.exports = function(obj)
 {
     traverse(obj).forEach(function (val)
     {
-        if ((typeof val === 'string') && val.match(/^ *[0-9]+ *$/))
+        if ((typeof val === 'string') && val.match(/^ *[0-9]+ *$/)) //might as well do ints also
         {
             this.update(1 * val);
             console.log("json-bool-fixup: turned %s into int %d".yellow, this.path.join('.'), 1 * val);

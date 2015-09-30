@@ -21,7 +21,8 @@ function Playlist(opts) //ctor/factory
 
     if (opts.auto_collect)
     {
-        var files = globSync(module.parent.__dirname + "/*[!-bk].mp3"); //, {}, function (err, files)
+//        var files = globSync(module.parent.__dirname + "/*[!-bk].mp3"); //, {}, function (err, files)
+        var files = globSync(module.parent.__dirname + "/!(*-bk).mp3"); //, {}, function (err, files)
         console.log("PLAYL: auto-collect got %d seq files", files.length);
         this.paths = files;
     }

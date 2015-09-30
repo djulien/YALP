@@ -36,7 +36,7 @@ module.exports = Sequence; //commonjs; returns new sequence object to caller
 
 function Sequence(opts) //ctor/factory
 {
-    if (typeof this !== 'Sequence') return new Sequence(opts); //make "new" optional; make sure "this" is set
+    if (typeof this !== 'object') { console.log(typeof this); return new Sequence(opts); } //make "new" optional; make sure "this" is set
     if (!opts) opts = {};
 
     this.isSequence = true;
@@ -46,7 +46,7 @@ function Sequence(opts) //ctor/factory
 
     if (opts.auto_collect)
     {
-        var files = globSync(module.parent.__dirname + "/*[!-bk].mp3"); //, {}, function (err, files)
+        var files = glob.sync(module.parent.__dirname + "/!(*-bk).mp3"); //, {}, function (err, files)
         console.log("SEQ: auto-collect got %d mp3 files", files.length);
         this.paths = files;
     }
