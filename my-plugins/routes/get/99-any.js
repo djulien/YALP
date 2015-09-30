@@ -61,6 +61,24 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
             if (err) return reply({ERROR: err.toString()}, 404);
             reply(); //if (timer) clearTimeout(timer);
         });
+/*
+    fs.exists(filename, function(exists) {
+      if (!exists) {
+        response.writeHead(404, {'Content-Type':'text/plain'});
+        response.end("Can''t find it...");
+      }
+      fs.readFile(filename, 'binary',function(err, file){
+        if (err) {
+          response.writeHead(500, {'Content-Type':'text/plain'});
+          response.end(err + "\n");
+          return;
+        }
+        response.writeHead(200);
+        response.write(file, 'binary');
+        response.end();
+      });
+    });
+*/
     }
 
     function reply(outbuf, code)

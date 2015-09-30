@@ -9,19 +9,10 @@
 //https://www.npmjs.com/package/ledstripe
 //https://github.com/jperkin/node-rpio
 
-Skip to content
-This repository
-Pull requests
-Issues
-Gist
- @djulien
- Watch 2
-  Star 15
-  Fork 4 RussTheAerialist/node-adafruit-pixel
-Branch: master  node-adafruit-pixel/adafruit_pixel.js
-@RussTheAerialistRussTheAerialist on Jun 9, 2012 Adding color fading
-1 contributor
-RawBlameHistory    124 lines (104 sloc)  3.14 KB
+//example at RussTheAerialist/node-adafruit-pixel
+//node-adafruit-pixel/adafruit_pixel.js
+
+
 var spi = require('spi');
 var Easing = require('easing');
 
@@ -145,5 +136,5 @@ Pixel.prototype.stop = function() {
 }
 
 module.exports.Pixel = Pixel;
-Status API Training Shop Blog About Pricing
-© 2015 GitHub, Inc. Terms Privacy Security Contact Help
+
+//eof

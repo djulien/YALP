@@ -29,22 +29,37 @@ possible futures:
         <xscript src="./bundles/shared.js" type="text/javascript" xid="main" comment="shared modules"></xscript>
         <xscript src="./bundles/yalp.js" type="text/javascript" xid="main" comment="loader for top-level plug-ins"></xscript>
         <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui plug-in loader; auto-generated"></script>
+        <script src="http://code.jquery.com/jquery-latest.min.js"></script>
+        <script src="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
+        <script type="text/javascript" charset="utf-8">
+      function add_content(str){
+        console.log(str);
+        $('#terminal').append('<p>' + $('<div/>').text(str).html() + '</p>');
+        $(window).scrollTop($('body').height() - $(window).height() + 80);
+      }
+      var socket = io.connect('localhost', {port: 2016});
+      socket.on('message', function(data) {
+        add_content(data);
+      });
+      $(function(){
+        $('form').submit(function(e){
+//        e.preventDefault(); // this will prevent from submitting the form.
+           var input = $('#cmdline');
+          socket.emit('message', input.val()); //send(input.val());
+          input.val('');
+          return false;
+        });
+        $('input').focus();
+      });
+        </script>
     </head>
     <body>
         Hello from YALP!
         <hr/>
-        <script type="text/javascript" src="/sh.js"></script>
-        <div id="terminal"></div>
-        <script>
-            var term = new Terminal({ theme: "default", cols: 80, rows: 24 });
-            term.open(document.getElementById("terminal"));
-            term.on("data", function (c) {
-                socket.emit('input', { content: c });
-            });
-            term.write("Hello World!");
-            term.sizeToFit();
-            term.focus();
-        </script> 
+    <div id="terminal"></div>
+    <form action="nothing">
+      &gt; <input id="cmdline"/>
+    </form>
         <xdiv id="x-background" style="z-index: 0;" comment="bottom-most"></xdiv>
         <xdiv id="x-canvas3D" style="z-index: 1;" comment="middle layer"></xdiv>
         <xdiv id="x-layout" style="z-index: 99;" comment="top-most">

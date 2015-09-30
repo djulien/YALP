@@ -121,6 +121,7 @@
     "player": "git+https://github.com/djulien/player.git",
     "sh.js": "^1.1.1",
     "shelljs": "^0.5.3",
+    "socket.io": "^1.3.7",
     "speaker": "^0.2.6",
     "sprintf": "^0.1.5",
     "traverse": "^0.6.6"

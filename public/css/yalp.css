@@ -5,15 +5,27 @@ body
     xborder: none;
     margin: 0;
     xoverflow: hidden;
-    background: #000;
+    background: #000; /*only do this on body; use xparent elsewhere*/
 }
 
-body, input
+body, p, input
 {
     color: #0f0 /*!important*/;
     font-family: Monospace;
     font-size: 13px;
 }
+
+x-p { white-space: pre; }
+
+input
+{
+    x-border: none;
+    background: transparent;
+}
+
+x-p, x-form, x-input { margin:0; padding:0; }
+x-input:focus { outline: none; border: none; }
+
 
 .fatal
 {

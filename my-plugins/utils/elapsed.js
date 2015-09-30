@@ -12,7 +12,7 @@ var timescale = require('./time-scale');
 //    get hr() { return 60 * this.min; },
 //    get day() { return 24 * this.hr; },
 //    get mon() { return (365.24 / 12) * this.day; }, //NOTE: approx
-/});
+//});
 
 
 elapsed(); //set time base to now

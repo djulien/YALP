@@ -20,7 +20,8 @@ function setup(app)
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
         console.log("route[%d] %s %s '%s'".blue, numroutes++, method, exported.uri || '(any)', path.relative(path.dirname(require.main.filename), filename)); //, exported);
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
-        if (exported.uri) app[method](exported.uri, exported.handler);
+        if (method == "socket") exported(app);
+        else if (exported.uri) app[method](exported.uri, exported.handler);
         else app[method](exported.handler);
     })./*done*/ then(function() { console.log("routes loaded: %d".green, numroutes); });
 

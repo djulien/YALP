@@ -1,0 +1,1 @@
+<html><body>You are being <a href="https://github.com/socketio/socket.io/raw/master/socket.io.js">redirected</a>.</body></html>

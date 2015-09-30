@@ -50,6 +50,7 @@
 		<Unit filename="my-plugins/fault-mon.js" />
 		<Unit filename="my-plugins/file-mon.js" />
 		<Unit filename="my-plugins/hw/dslop.js" />
+		<Unit filename="my-plugins/hw/pic32.cpp" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/index.js" />
 		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
@@ -64,6 +65,7 @@
 		<Unit filename="my-plugins/routes/index.js" />
 		<Unit filename="my-plugins/routes/post/hello-world.js" />
 		<Unit filename="my-plugins/routes/put/user.js" />
+		<Unit filename="my-plugins/routes/socket/repl.js" />
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/utils/config.js" />
@@ -91,7 +93,7 @@
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/mail.js" />
 		<Unit filename="tests/playback.js" />
-		<Unit filename="tests/shell-repl.js" />
+		<Unit filename="tests/shell-repl-bk.js" />
 		<Extensions>
 			<envvars />
 			<code_completion />

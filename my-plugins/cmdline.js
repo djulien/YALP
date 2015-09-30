@@ -19,7 +19,7 @@ var ipadrs = require('ip'); //https://www.npmjs.com/package/ip
 //if (!pkg.yalp) pkg.yalp = {}; //easier detection
 if (!defined(cfg.debug.level)) cfg.debug.level = 0;
 if (!defined(cfg.host)) cfg.host = ipadrs.address(); //"localhost";
-if (!defined(cfg.port)) cfg.port = 2015; //"80";
+if (!defined(cfg.port)) cfg.port = 2015; //(new Date().getFullYear(); //80
 if (!defined(cfg.ui) || /*bool.istrue*/(cfg.ui === true)) cfg.ui = "default";
 if (/*bool.isfalse*/(cfg.ui === false)) cfg.ui = "none";
 //if (pkg.yalp.serial === "undefined") pkg.yalp.serial = 1;

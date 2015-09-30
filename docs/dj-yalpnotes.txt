@@ -259,7 +259,10 @@ http://41j.com/hterm/
 https://github.com/krishnasrinivas/wetty
 http://www.davidpirek.com/blog/browser-based-shell-terminal-in-nodejs
 *** https://gist.github.com/mixonic/947512
-*** https://github.com/rabchev/web-terminal
+  https://gist.github.com/ambrosechua/8176715
+    curl -O https://github.com/LearnBoost/Socket.IO/raw/master/socket.io.min.js  => /public/js
+https://github.com/rabchev/web-terminal; requires  npm install nan & sudo apt-get install libpam0g-dev, but this piece fails to compile; has built-in http which conflicts with yalp server
+ or https://github.com/krishnasrinivas/wetty/blob/master/app.js
 g(nodejs shell in browser)
 
 Developer's Certificate of Origin 1.0

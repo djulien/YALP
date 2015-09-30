@@ -36,11 +36,16 @@ if (/*!bool.isfalse*/(opts.faultmon !== false)) require('my-plugins/fault-mon');
 
 var email = require('my-plugins/utils/email');
 //see http://expressjs.com/starter/
-var express = require('express');
-var app = express();
+//var express = require('express');
+var app = require('express')(); //express();
+//var app = require('express').createServer();
+//var http = require('http'); //NOTE: according to http://expressjs.com/guide/migrating-4.html express 4.x no longer needs this, but socket.io needs it
+//var server = http.createServer(app);
+//http.globalAgent.maxSockets = opts.max_sockets || 10; //http://webapplog.com/seven-things-you-should-stop-doing-with-node-js/
+
 // set the view engine to ejs
 //app.set('view engine', 'ejs');
-require('my-plugins/routes')(app); //set up web server routes and middleware
+require('my-plugins/routes')(app); //(server); //(app); //set up web server routes and middleware
 //require('my-plugins/auto-build'); //detect changes + re-package bundles (incremental)
 
 if (/*!bool.isfalse*/(opts.filemon !== false)) require('my-plugins/file-mon'); //file watcher + incremental bundler
@@ -63,7 +68,8 @@ process.on('SIGINT', function()
 });
 
 var timeout = setTimeout('throw "Start-up is taking too long!";', 5000);
-var server = app.listen(opts.port || /*(new Date().getFullYear()*/ 2015, opts.host || "localhost", function()
+var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, opts.host || "localhost", function()
+//server.listen(opts.port || /*(new Date().getFullYear()*/ 2015, opts.host || "localhost", function()
 {
     var host = server.address().address; //.replace(/^::$/, "localhost");
     var port = server.address().port;

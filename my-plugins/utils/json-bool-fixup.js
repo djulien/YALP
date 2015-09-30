@@ -16,6 +16,12 @@ module.exports = function(obj)
 {
     traverse(obj).forEach(function (val)
     {
+        if ((typeof val === 'string') && val.match(/^ *[0-9]+ *$/))
+        {
+            this.update(1 * val);
+            console.log("json-bool-fixup: turned %s into int %d".yellow, this.path.join('.'), 1 * val);
+            return;
+        }
         if ((val !== 'true') && (val !== 'false')) return;
         this.update(val === 'true');
         console.log("json-bool-fixup: turned %s into bool %d".yellow, this.path.join('.'), val === 'true');
