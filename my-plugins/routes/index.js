@@ -17,7 +17,7 @@ function setup(app)
 //    console.log("app.listen = " + applisten);
     app.listen = function(port, host, cb) //kludge: grab http server when created by express and reuse for socket io; should occur first since require_glob is async
     {
-        server = applisten.apply(app, arguments);
+        server = applisten.apply(app, arguments); //creates http server
 //        console.log("route index: got server");
         return server;
     };

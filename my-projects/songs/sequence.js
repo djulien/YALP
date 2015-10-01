@@ -6,6 +6,8 @@ var glob = require('glob');
 var path = require('path');
 var Player = require('player');
 var stack = require('callsite'); //https://www.npmjs.com/package/callsite
+//var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
+//var fs = require('fs');
 
 //use same player object for all songs (to make a playlist)
 var player = new Player()
@@ -45,10 +47,10 @@ function Sequence(opts) //ctor/factory
     this.models = [];
     this.paths = []; //opts.path || '';
 
-    var callerdir = path.dirname(stack()[1].getFileName()); //start searches relative to actual sequence folder
+    var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
     if (opts.auto_collect)
     {
-//        console.log("caller: " + caller);
+        console.log("caller: " + callerdir);
         var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
         console.log("SEQ: auto-collect got %d mp3 files from %s".blue, files.length, callerdir + "/!(*-bk).mp3");
         this.paths = files;
@@ -61,19 +63,30 @@ function Sequence(opts) //ctor/factory
     this.name = opts.name || (this.paths.length && path.basename(this.paths[0], path.extname(this.paths[0]))) || 'NONE';
 //    player.add(this.paths);
     this.duration = 0;
-    this.paths.forEach(function (path, inx)
+    this.paths.forEach(function (filename, inx)
     {
-        console.log("player add %s".blue, path);
+        console.log("player add %s".blue, filename);
 //the duration of MP3 files is recorded as an ID3 tag in the file header
-TODO: duration
-        this.duration += 10; //TBD
-        player.add(path);
+        var relpath = path.relative(__dirname, filename);
+//        console.log("stat:", fs.statSync(filename));
+//        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
+//        var duration = 0;
+//        var parser = mm(fs.createReadStream(filename), function (err, metadata)
+//        {
+//            if (err) console.log("mp3 data err: ".red, err);
+//            else { console.log("mp3 dat for '%s': ".green, relpath, metadata.duration); duration = metadata.duration; }
+//        });
+//        parser.on('TLEN', function (result) { console.log("TLEN: ", result); duration = result; });
+TODO: https://github.com/nikhilm/node-taglib
+        this.duration += fs.statSync(filename).size; //TBD
+        player.add(filename);
     });
     this.plinx = this.paths.length? player.playlistlen: -1;
     player.playlistlen += this.paths.length;
 
     this.play = function (duration) //player.play;
     {
+        player.stop();
         if (player.timer) { clearTimeout(player.timer); player.timer = 0; }
         if ((duration !== 'undefined') && (duration < this.duration)) //partial only
         {

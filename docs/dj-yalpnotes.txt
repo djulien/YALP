@@ -98,7 +98,7 @@ amend:
 https://nathanhoad.net/git-amend-your-last-commit
 stage: git add .
 git commit --amend
-you can check: git log --stat 
+you can check: git log --stat
 
 rebase:
 http://gitready.com/advanced/2009/02/10/squashing-commits-with-rebase.html
@@ -141,6 +141,7 @@ https://help.github.com/articles/merging-an-upstream-repository-into-your-fork/
 https://www.npmjs.com/browse/depended/shelljs
 http://stackoverflow.com/questions/18796890/how-do-you-find-out-which-npm-modules-depend-on-yours
 https://www.npmjs.com/search?q=pseudo+terminal
+http://blog.kaiserapps.com/2014/01/nodejs-id3-tag-libraries-which-is-best.html
 
 DEBUG:
 https://github.com/node-inspector/node-inspector

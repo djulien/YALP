@@ -1,1 +1,4 @@
 - dummy credentials.js overlay file
+mp3data taglib, read data stream
+playback.js threading
+mp3 playlist test + schedule -> playlist

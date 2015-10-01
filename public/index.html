@@ -30,7 +30,7 @@ possible futures:
         <xscript src="./bundles/yalp.js" type="text/javascript" xid="main" comment="loader for top-level plug-ins"></xscript>
         <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui loader; auto-generated (browserify)"></script>
         <script src="http://code.jquery.com/jquery-latest.min.js"></script>
-        <script src="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
+        <script src="/socket.io/socket.io.js" xsrc="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
         <script type="text/javascript" charset="utf-8">
 //            alert("doc href " + document.location.href);
 //TODO: browserify this
@@ -42,7 +42,16 @@ possible futures:
             }
 //      var host = document.location.href.replace(/
 //            var socket = io.connect(window.location.origin, {'connect timeout': 25000});
-            var socket = io(); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
+            var socket = io("http://localhost:2015"); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
+            socket.on('connect', function(data)
+            {
+                socket.emit('join', 'Hello World from client');
+            });
+            socket.on('messages', function(data)
+            {
+                alert(data);
+            });
+
             socket.on('message', function(data)
             {
                 add_content(data);

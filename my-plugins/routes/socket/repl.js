@@ -15,7 +15,7 @@ module.exports = function(server) //app)
 {
 //    var server = http.createServer(app);
 //    http.globalAgent.maxSockets = opts.max_sockets || 10; //http://webapplog.com/seven-things-you-should-stop-doing-with-node-js/
-    var listener = io.listen(server); //io.listen(server);
+    var listener = io(server); //io.listen(server); //??
 
 /*
     io.on('connection', function(socket)
@@ -44,6 +44,12 @@ module.exports = function(server) //app)
         var src = socket.conn; //{remoteAddress: '??'};
         console.log("a user connected from: ".yellow, src.remoteAddress, socket.handshake.headers['user-agent']);
         socket.send("Hello from YALP!");
+
+        socket.on('join', function(data)
+        {
+            console.log("JOIN:", data);
+            client.emit('messages', 'Hello from server');
+        });
 
         var sh = spawn('bash');
         socket.on('message', function(data)

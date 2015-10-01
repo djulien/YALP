@@ -43,6 +43,9 @@ var app = require('express')(); //express();
 //var server = http.createServer(app);
 //http.globalAgent.maxSockets = opts.max_sockets || 10; //http://webapplog.com/seven-things-you-should-stop-doing-with-node-js/
 
+//var server = require('http').createServer(app);
+//var io = require('socket.io')(server);
+
 // set the view engine to ejs
 //app.set('view engine', 'ejs');
 require('my-plugins/routes')(app); //(server); //(app); //set up web server routes and middleware
@@ -65,6 +68,12 @@ process.on('SIGINT', function()
     if (email) email('YALP quit', 'interrupt signal after %s', elapsed()); //no worky
 //    if (i_should_exit)
         process.exit();
+});
+
+process.on('uncaughtException', function(err)
+{
+    console.log('Exception: ' + err.stack);
+    if (email) email('YALP exc', 'uncaught exc after %s', elapsed()); //no worky?
 });
 
 var timeout = setTimeout('throw "Start-up is taking too long!";', 5000);

@@ -48,15 +48,22 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
     if (err) console.log("error: ".red, err);
     console.log("files".blue, files);
 //    playlist = files;
-var mp3dat = require('mp3dat');
+//var mp3dat = require('mp3dat');
+    var fs = require('fs');
+//http://blog.kaiserapps.com/2014/01/nodejs-id3-tag-libraries-which-is-best.html
+//    var mm = require('musicmetadata');
+TODO: https://github.com/nikhilm/node-taglib
     files.forEach(function (filename)
     {
         var relpath = path.relative(__dirname, filename);
         console.log("stat:", fs.statSync(filename));
-        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
+//        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
+        var parser = mm(fs.createReadStream(filename), function (err, metadata)
         {
-            console.log("mp3 dat for '%s': ", relpath, data);
+            if (err) console.log("mp3 data err: ".red, err);
+            else console.log("mp3 dat for '%s': ".green, relpath, metadata);
         });
+        parser.on('TLEN', function (result) { console.log("TLEN: ", result); });
     });
 //    files.push(''); //kludge: allow last song to be interrupted
   new Player(files)
