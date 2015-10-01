@@ -33,6 +33,7 @@ possible futures:
         <script src="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
         <script type="text/javascript" charset="utf-8">
 //            alert("doc href " + document.location.href);
+//TODO: browserify this
             function add_content(str)
             {
                 console.log(str);
@@ -40,7 +41,8 @@ possible futures:
                 $(window).scrollTop($('body').height() - $(window).height() + 80);
             }
 //      var host = document.location.href.replace(/
-            var socket = io.connect({path: '/'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
+//            var socket = io.connect(window.location.origin, {'connect timeout': 25000});
+            var socket = io(); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
             socket.on('message', function(data)
             {
                 add_content(data);
@@ -53,7 +55,7 @@ possible futures:
                 {
 //        e.preventDefault(); // this will prevent from submitting the form.
                     var input = $('#cmdline');
-                    socket.send(input.val()); //send = pt-to-pt, emit = broadcast
+                    socket.emit('message', input.val()); //send(input.val()); //send = pt-to-pt, emit = broadcast
                     input.val('');
                     alert("sent " + input.val());
                     return false; //prevent form from submitting

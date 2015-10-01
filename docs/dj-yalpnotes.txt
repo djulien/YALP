@@ -94,7 +94,14 @@ NPM MODS:
 9. git push
 10. npm install <url from github> --save
 
+amend:
+https://nathanhoad.net/git-amend-your-last-commit
+stage: git add .
+git commit --amend
+you can check: git log --stat 
+
 rebase:
+http://gitready.com/advanced/2009/02/10/squashing-commits-with-rebase.html
 http://christoph.ruegg.name/blog/git-howto-revert-a-commit-already-pushed-to-a-remote-reposit.html
  git rebase -i  <base one>
  resolve conflict if any  (ie, del changed file)

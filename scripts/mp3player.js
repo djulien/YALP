@@ -3,6 +3,7 @@ var glob = require("glob");
 var path = require('path');
 //var pkg = require('../package.json');
 //var debug = require('debug')(pkg.name);
+var fs = require('fs');
 
 //example1();
 example2();
@@ -47,17 +48,16 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
     if (err) console.log("error: ".red, err);
     console.log("files".blue, files);
 //    playlist = files;
-/*
-//var mp3dat = require('mp3dat');
+var mp3dat = require('mp3dat');
     files.forEach(function (filename)
     {
         var relpath = path.relative(__dirname, filename);
-        mp3dat.stat(path, function (data)
+        console.log("stat:", fs.statSync(filename));
+        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
         {
             console.log("mp3 dat for '%s': ", relpath, data);
         });
     });
-*/
 //    files.push(''); //kludge: allow last song to be interrupted
   new Player(files)
     .on('downloading', function(song)

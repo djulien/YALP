@@ -5,6 +5,7 @@
 var glob = require('glob');
 var path = require('path');
 var Player = require('player');
+var stack = require('callsite'); //https://www.npmjs.com/package/callsite
 
 //use same player object for all songs (to make a playlist)
 var player = new Player()
@@ -26,7 +27,7 @@ var player = new Player()
     {
         console.log('SEQ: ERROR'.red, err);
     });
-
+player.playlistlen = 0; //remember how many songs are queued
 
 module.exports = Sequence; //commonjs; returns new sequence object to caller
 
@@ -36,30 +37,52 @@ module.exports = Sequence; //commonjs; returns new sequence object to caller
 
 function Sequence(opts) //ctor/factory
 {
-    if (typeof this !== 'object') { console.log(typeof this); return new Sequence(opts); } //make "new" optional; make sure "this" is set
-    if (!opts) opts = {};
+    if (!(this instanceof Sequence)) { console.log(typeof this); return new Sequence(opts); } //make "new" optional; make sure "this" is set
+    opts = Object.assign({auto_collect: true, reqd: true, limit: 1}, opts);
 
     this.isSequence = true;
     this.cues = [];
     this.models = [];
     this.paths = []; //opts.path || '';
 
+    var callerdir = path.dirname(stack()[1].getFileName()); //start searches relative to actual sequence folder
     if (opts.auto_collect)
     {
-        var files = glob.sync(module.parent.__dirname + "/!(*-bk).mp3"); //, {}, function (err, files)
-        console.log("SEQ: auto-collect got %d mp3 files", files.length);
+//        console.log("caller: " + caller);
+        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
+        console.log("SEQ: auto-collect got %d mp3 files from %s".blue, files.length, callerdir + "/!(*-bk).mp3");
         this.paths = files;
     }
-    if (opts.paths) this.paths.push(opts.path);
-    if (this.paths.length > 1) throw "too many paths (" + this.paths.length + "), first was: '" + this.paths[0] + "'"; //TODO: support multiple media files?
-    this.name = opts.name || path.basename(this.paths[0], path.extname(this.paths[0])) || 'NONE';
-    this.paths.forEach(function (path, inx) { player.add(path); });
-
+    if (opts.path)
+        if (opts.path.length) this.paths.push.apply(this.paths, opts.path); //this.paths.splice(this.paths.length, 0, this.paths);
+        else this.paths.push(opts.path);
+    if (opts.reqd && (this.paths.length < 1)) throw "missing media file(s) in " + callerdir;
+    if (this.paths.length > opts.limit) throw "too many media files (" + this.paths.length + " vs. " + opts.limit + "), last was: '" + path.relative(callerdir, this.paths[this.paths.length - 1]) + "'"; //TODO: support multiple media files?
+    this.name = opts.name || (this.paths.length && path.basename(this.paths[0], path.extname(this.paths[0]))) || 'NONE';
+//    player.add(this.paths);
+    this.duration = 0;
+    this.paths.forEach(function (path, inx)
+    {
+        console.log("player add %s".blue, path);
 //the duration of MP3 files is recorded as an ID3 tag in the file header
-    this.duration = 10; //TBD
+TODO: duration
+        this.duration += 10; //TBD
+        player.add(path);
+    });
+    this.plinx = this.paths.length? player.playlistlen: -1;
+    player.playlistlen += this.paths.length;
 
+    this.play = function (duration) //player.play;
+    {
+        if (player.timer) { clearTimeout(player.timer); player.timer = 0; }
+        if ((duration !== 'undefined') && (duration < this.duration)) //partial only
+        {
+            player.timer = setTimeout(function() { player.stop(); player.timer = null; }, duration);
+        }
+        if (this.plinx != -1) player.play(this.plinx);
+        else player.next();
+    };
 //pass-thru methods to shared player object:
-    this.play = player.play;
     this.stop = player.stop;
     this.next = player.next;
     this.on = player.on;

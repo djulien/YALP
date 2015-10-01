@@ -13,7 +13,7 @@ module.exports = Playlist; //commonjs; returns new sequence object to caller
 
 function Playlist(opts) //ctor/factory
 {
-    if (typeof this !== 'Playlist') return new Playlist(opts); //make "new" optional; make sure "this" is set
+    if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
     if (!opts) opts = {};
 
     this.isPlaylist = true;

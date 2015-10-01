@@ -14,11 +14,11 @@ function setup(app)
 {
     var server = null;
     var applisten = app.listen;
-    console.log("app.listen = " + applisten);
-    app.listen = function(port, host, cb) //kludge: grab http server when created and reuse for socket io; should occur first since require_glob is async
+//    console.log("app.listen = " + applisten);
+    app.listen = function(port, host, cb) //kludge: grab http server when created by express and reuse for socket io; should occur first since require_glob is async
     {
         server = applisten.apply(app, arguments);
-        console.log("route index: got server");
+//        console.log("route index: got server");
         return server;
     };
 //    require_glob(__dirname + '/**/*[!-bk].js', {strict: true, noself: true}, function(exported, filename)

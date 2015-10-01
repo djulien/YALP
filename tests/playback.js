@@ -1,6 +1,7 @@
 'use strict';
 
 require('colors');
+require('my-plugins/my-extensions'); //load custom language extensions
 var path = require('path');
 var require_glob = require('node-glob-loader').load; //https://www.npmjs.com/package/node-glob-loader
 var timescale = require('my-plugins/utils/time-scale');
@@ -15,6 +16,8 @@ console.log("candidate files: ".blue, files);
 //require_glob(ROOTDIR + '/my-plugins/ui/*[!-bk].js', {strict: true, noself: true}, function(exported, filename)
 console.log("pattern %s".blue, path.normalize(__dirname + '/../my-projects/songs/**/!(*-bk).js'));
 
+var numseq = 0;
+
 //require_glob(path.normalize(__dirname + '../my-projects/songs/**/!(*-bk).js'), {strict: true}, function(exported, filename)
 require_glob('my-projects/songs/**/!(*-bk).js', {strict: true}, function(exported, filename)
 {
@@ -22,14 +25,15 @@ require_glob('my-projects/songs/**/!(*-bk).js', {strict: true}, function(exporte
 //        console.log("route", filename, __filename);
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
     if (/*typeof exported !== 'Sequence'*/ !exported.isSequence) { console.log("not a seq: %s".red, relpath); return; }
-    console.log("found song '%s'".green, relpath); //, exported);
+    console.log("found seq '%s'".green, relpath); //, exported);
     console.log("duration %s".blue, timescale(exported.duration));
     exported
-        .on('PB: playing', function(song) { console.log("now playing %s".green, song.src); })
-        .on('PB: playend', function(song) { console.log("finished %s, Switching to next one ...".green, song.src); })
-        .on('PB: error', function(err) { console.log('Opps...!'.red, err); })
+        .on('playing', function(song) { console.log("PB: now playing %s".green, song.src); })
+        .on('playend', function(song) { console.log("PB: finished %s, Switching to next one ...".green, song.src); })
+        .on('error', function(err) { console.log('PB: Opps...!'.red, err); })
         .play(5000);
-})./*done*/ then(function() { console.log("ui-plugins found: %d".green, numfiles); });
+    ++numseq;
+})./*done*/ then(function() { console.log("PB: seq found: %d".green, numseq); });
 
 
 //eof

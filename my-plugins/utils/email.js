@@ -52,12 +52,12 @@ function emailer(title, body)
     {
         if (err)
         {
-            console.log(("ERROR "+ err).red);
+            console.log(("email ERROR: " + err).red);
 //            res.json({yo: 'error'});
         }
         else
         {
-            console.log(('Message sent: ' + info.response).green);
+            console.log(('email Message sent: ' + info.response).green);
 //            res.json({yo: info.response});
         }
     });

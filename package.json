@@ -104,6 +104,7 @@
   },
   "dependencies": {
     "audio5": "^0.1.10",
+    "callsite": "^1.0.0",
     "colors": "^1.1.2",
     "commander": "git+https://github.com/djulien/commander.js.git",
     "express": "^4.13.3",
