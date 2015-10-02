@@ -65,6 +65,7 @@
 		<Unit filename="my-plugins/routes/get/99-any.js" />
 		<Unit filename="my-plugins/routes/index.js" />
 		<Unit filename="my-plugins/routes/post/hello-world-bk.js" />
+		<Unit filename="my-plugins/routes/process/exit.js" />
 		<Unit filename="my-plugins/routes/put/user-bk.js" />
 		<Unit filename="my-plugins/routes/socket/repl.js" />
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
@@ -74,6 +75,7 @@
 		<Unit filename="my-plugins/utils/elapsed.js" />
 		<Unit filename="my-plugins/utils/email.js" />
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
+		<Unit filename="my-plugins/utils/mem-scale.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/playlists/playlist.js" />

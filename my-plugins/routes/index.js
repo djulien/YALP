@@ -30,10 +30,11 @@ function setup(app)
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
         console.log("route[%d] %s %s '%s'".blue, numroutes++, method, exported.uri || '(any)', path.relative(path.dirname(require.main.filename), filename)); //, exported);
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
-        if (method == "socket") //exported(app);
+//        if ("socket,process".indexOf(method) != -1) //exported(app);
+        if (!app[method])
         {
 //            console.log("starting socket io with server? %d", !!server);
-            if (!server) throw "Tried to open sockets before http server created";
+            if (!server) throw "Tried to open non-http route before http server created";
             exported(server); //reuse http server for socket io; http://stackoverflow.com/questions/17696801/express-js-app-listen-vs-server-listen/17697134#17697134
         }
         else if (exported.uri) app[method](exported.uri, exported.handler);

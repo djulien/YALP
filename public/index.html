@@ -34,27 +34,28 @@ possible futures:
         <script type="text/javascript" charset="utf-8">
 //            alert("doc href " + document.location.href);
 //TODO: browserify this
-            function add_content(str)
+//            var ESCAPEs = {'<': '&lt;', '&': '&amp;', '>': '&gt;'}; //, '\n': '<br/>\n'};
+            function transcript(str, style)
             {
-                console.log(str);
-                $('#terminal').append('<p>' + $('<div/>').text(str).html() + '</p>');
-                $(window).scrollTop($('body').height() - $(window).height() + 80);
+                console.log(style, str);
+//                $('#terminal').append('<p>' + $('<div/>').text(str).html() + '</p>');
+                $('<p>')
+                    .text(str) //.replace(/[<&>]/g, function(special) { return ESCAPEs[special] || special; })) //replace not needed with white-space:pre
+                    .addClass(style) //css({class: style})
+                    .appendTo('#tty-log');
+//                $(window).scrollTop($('body').height() - $(window).height() + 80);
+//                $('body').scrollTo('#cmdline'); //http://lions-mark.com/jquery/scrollTo/
             }
 //      var host = document.location.href.replace(/
 //            var socket = io.connect(window.location.origin, {'connect timeout': 25000});
-            var socket = io("http://localhost:2015"); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
-            socket.on('connect', function(data)
+            var socket = io.connect(); //"http://localhost:2015"); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
+//            socket.on('connect', function(data)
+//            {
+//                socket.emit('join', 'Hello World from client');
+//            });
+            socket.on('tty', function(data)
             {
-                socket.emit('join', 'Hello World from client');
-            });
-            socket.on('messages', function(data)
-            {
-                alert(data);
-            });
-
-            socket.on('message', function(data)
-            {
-                add_content(data);
+                transcript(data.text, data.style || '');
             });
 //alert("here1");
             $( document ).ready(function()
@@ -63,22 +64,22 @@ possible futures:
                 $('form').submit(function(e)
                 {
 //        e.preventDefault(); // this will prevent from submitting the form.
-                    var input = $('#cmdline');
-                    socket.emit('message', input.val()); //send(input.val()); //send = pt-to-pt, emit = broadcast
-                    input.val('');
-                    alert("sent " + input.val());
+                    var cmdline = $('#cmdline');
+                    transcript(cmdline.val(), 'stdin');
+                    socket.emit('tty', {text: cmdline.val()}); //send(input.val()); //send = pt-to-pt, emit = broadcast
+                    cmdline.val('');
+//                    alert("sent " + input.val());
                     return false; //prevent form from submitting
                 });
-                $('input').focus();
-                console.log( "ready!" );
+                $('#cmdline').focus();
+                console.log( "dom ready!" );
             });
-//alert("here2");
+console.log("this message should be present if javascript compiled okay");
         </script>
     </head>
     <body>
-<!--    Hello from YALP!
-        <hr/> -->
-        <div id="terminal"></div>
+<!--    Hello from YALP! <hr/> -->
+        <div id="tty-log"></div>
         <form>
             &gt; <input id="cmdline" type="text" size="10" />
         </form>

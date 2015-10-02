@@ -18,6 +18,8 @@ require('colors'); //makes console messages easier to distinguish
 try { require('my-plugins/check-install'); }
 catch (exc) { console.log("YALP not installed correctly (are sym links ok?)".red); process.exit(0); }
 require('my-plugins/my-extensions'); //load custom language extensions
+//console.log("env: ", process.env);
+console.log("versions: ".blue, process.versions);
 
 var opts = require('my-plugins/cmdline'); //combine command line options and config settings
 //var bool = require('my-plugins/utils/bool-checks');
@@ -53,29 +55,6 @@ require('my-plugins/routes')(app); //(server); //(app); //set up web server rout
 
 if (/*!bool.isfalse*/(opts.filemon !== false)) require('my-plugins/file-mon'); //file watcher + incremental bundler
 
-process.on('SIGTERM', function()
-{
-    console.log("terminating ...".red);
-    if (email) email('YALP crash', 'terminate after %s', elapsed()); //no worky
-//    app.close();
-    server.close();
-});
-
-//http://stackoverflow.com/questions/20165605/detecting-ctrlc-in-node-js
-process.on('SIGINT', function()
-{
-    console.log("Caught interrupt signal".red);
-    if (email) email('YALP quit', 'interrupt signal after %s', elapsed()); //no worky
-//    if (i_should_exit)
-        process.exit();
-});
-
-process.on('uncaughtException', function(err)
-{
-    console.log('Exception: ' + err.stack);
-    if (email) email('YALP exc', 'uncaught exc after %s', elapsed()); //no worky?
-});
-
 var timeout = setTimeout('throw "Start-up is taking too long!";', 5000);
 var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, opts.host || "localhost", function()
 //server.listen(opts.port || /*(new Date().getFullYear()*/ 2015, opts.host || "localhost", function()
@@ -83,7 +62,7 @@ var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, o
     var host = server.address().address; //.replace(/^::$/, "localhost");
     var port = server.address().port;
     console.log("YALP server listening for http at %s:%s after %s".green, host, port, elapsed());
-    if (email) email('YALP ready', 'server listening at %s:%s on %s after %s', host, port, hostname, elapsed());
+    if (email) email('YALP ready', 'server listening at %s:%s on %s pid %d after %s', host, port, hostname, process.pid, elapsed());
 
     if (/*!bool.isfalse*/(opts.ui !== false) && (opts.ui != "none")) //launch UI in browser
     {

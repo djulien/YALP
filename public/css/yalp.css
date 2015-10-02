@@ -39,4 +39,35 @@ a
     color: #fff; /*since main text color is #0f0, #fff stands out better than #00f*/
 }
 
+#tty-log
+{
+    white-space: pre;
+}
+
+#tty-log p
+{
+    padding: 1px 1px 1px 4px;
+    margin: 0;
+}
+
+#tty-log .stdin
+{
+    color: #0ff;
+}
+
+#tty-log .stdout
+{
+    color: #0f0;
+}
+
+#tty-log .stderr
+{
+    color: #f00;
+}
+
+#tty-log .status
+{
+    color: #ff0;
+}
+
 /*eof*/

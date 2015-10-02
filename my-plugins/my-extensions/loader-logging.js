@@ -3,6 +3,7 @@
 
 var EXT = '.js';
 var WANT_NODE = false;
+var WANT_MEM = true;
 var WANT_TIMES = false;
 var WANT_COLOR = '.magenta'; //null
 var SELECTIVE = null; //use regex here to select files
@@ -19,8 +20,10 @@ hook.hook(EXT, function(src, fullpath)
     var relpath = path.relative(__dirname, fullpath);
 //    console.log("loader-logging parsing " + relpath); //fullpath);
 
-    return (WANT_COLOR? 'require("colors");\n': '')
+    return ((WANT_COLOR || WANT_MEM)? 'require("colors");\n': '')
+        + (WANT_MEM? 'var meminfo = process.memoryUsage(); function memfmt(bytes) { var hfmt = require("human-format"); return hfmt(bytes, new hfmt.Scale({B: 0, KB: 1024, get MB() { return 1024 * this.KB; }, get GB() { return 1024 * this.MB; }, get TB() { return 1024 * this.GB; },})); }\n': '')
         + 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');\n'
+        + (WANT_MEM? 'console.log("memory: %s resident, %s heap total, %s heap used"' + WANT_COLOR + ', memfmt(meminfo.rss), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));\n': '')
         + timestamp
         + src
         + timestamp

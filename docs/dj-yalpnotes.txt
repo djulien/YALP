@@ -142,6 +142,8 @@ https://www.npmjs.com/browse/depended/shelljs
 http://stackoverflow.com/questions/18796890/how-do-you-find-out-which-npm-modules-depend-on-yours
 https://www.npmjs.com/search?q=pseudo+terminal
 http://blog.kaiserapps.com/2014/01/nodejs-id3-tag-libraries-which-is-best.html
+http://expressjs.com/guide/debugging.html
+  https://github.com/visionmedia/debug
 
 DEBUG:
 https://github.com/node-inspector/node-inspector
@@ -227,6 +229,7 @@ g("javascript mp3 visualizer"):
 https://github.com/naomiaro/waveform-playlist/graphs/contributors
 http://naomiaro.github.io/waveform-playlist/examples/web-audio-editor.html
 node-red
+javascript loaders comparison: https://spreadsheets.google.com/lv?key=tDdcrv9wNQRCNCRCflWxhYQ
 
 http://www.scriptol.com/javascript/nodejs-php.php
 https://github.com/Studio-42/elFinder/wiki

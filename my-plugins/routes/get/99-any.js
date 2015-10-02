@@ -2,8 +2,10 @@
 var url = require('url');
 var path = require('path');
 
+var ASSETDIR = "public";
+
 //var seqnum = 0;
-var ROOTDIR = path.join(require.main.filename, "../public");
+//var ROOTDIR = path.join(require.main.filename, "..", ASSETDIR);
 //console.log("root dir", ROOTDIR);
 //console.log("parent ", module.parent); //node-glob-loader, not useful
 //console.log("main ", require.main.filename); //server.js
@@ -27,6 +29,7 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
         req.url =  "/index.html"; //"/YALP.html";
 //        global.seqnum = 0; //easier session debug
     }
+//    req.url = path.join(ASSETDIR, req.url); //rebase to public (assets) folder
     var parsed = url.MyParse(req.url, true); //true = want query string
     resp.shouldKeepAlive = false;
 //    req.on("close", function() { console.log("request close.blue"); });
@@ -55,8 +58,8 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
         var timeout = {mp3: 15000, wav: 15000, mp4: 60000, webm: 60000, wmv: 60000}[filetype] || 5000; //msec; bigger files take longer
         console.log(/*sprintf(*/"GET req# %d: %s, writable? %d, file type '%s', timeout %d".blue, parsed.seqnum, parsed.urlparts, writable, filetype, timeout); //, mypath(req.url)));
 //        timer = setTimeout(function() { reply({ERROR: "timeout"}, 500); }, timeout); //msec
-        console.log("serve file %s".blue, parsed.pathname); //path.join(ROOTDIR, parsed.pathname));
-        resp.sendFile(path.join(ROOTDIR, parsed.pathname), function(err)
+        console.log("serve file %s".blue, path.join(ASSETDIR, parsed.pathname)); //path.join(ROOTDIR, parsed.pathname));
+        resp.sendFile(path.join(global.ROOTDIR, ASSETDIR, parsed.pathname), function(err)
         {
             if (err) return reply({ERROR: err.toString()}, 404);
             reply(); //if (timer) clearTimeout(timer);
