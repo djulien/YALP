@@ -6,7 +6,7 @@ var io = require('socket.io'); //http://socket.io/docs/
 //var opts = require('my-plugins/cmdline'); //combine command line options and config settings
 
 var spawn = require('child_process').spawn;
-    
+
 //https://gist.github.com/ambrosechua/8176715
 //https://github.com/rauchg/chat-example
 //http://danielnill.com/nodejs-tutorial-with-socketio/
@@ -59,6 +59,9 @@ module.exports = function(server) //app)
 //        });
 
         var sh = spawn('bash'); //https://nodejs.org/api/child_process.html
+        sh.stdout.setEncoding("utf8"); //from https://github.com/rabchev/web-terminal/blob/master/lib/terminal.js
+        sh.stderr.setEncoding("utf8");
+
         sh.prompt = function()
         {
             if (!this.linenum) this.linenum = 0;
@@ -96,6 +99,7 @@ module.exports = function(server) //app)
         socket.on('disconnect', function()
         {
             console.log("user disconnected".yellow);
+            if (sh) sh.stdin.end();
         });
     });
 //    server.listen(opts.port + 1); //TODO: do we need to keep it separate from http traffic?

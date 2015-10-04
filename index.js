@@ -79,6 +79,25 @@ var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, o
     clearTimeout(timeout);
 });
 
+
+/////////////////////////////////////////
+var tty = require('tty.js'); //https://github.com/chjj/tty.js/
+
+var app = tty.createServer({
+  shell: 'bash',
+  users: {
+    foo: 'bar'
+  },
+  port: 8000
+});
+
+app.get('/foo', function(req, res, next) {
+  res.send('bar');
+});
+
+app.listen();
+//////////////////////////////////////////
+
 //} catch (exc) { console.log("ERROR:".red, exc, '@' + require('my-plugins/utils/stack-trace')()); }
 
 console.log("YALP server init complete after %s".blue, elapsed());

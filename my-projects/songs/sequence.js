@@ -4,10 +4,10 @@
 //var fileio = require('fileio'); //'../plugins/services/fileio');
 var glob = require('glob');
 var path = require('path');
-var Player = require('player');
+var Player = require('my-plugins/media/my-player');
 var stack = require('callsite'); //https://www.npmjs.com/package/callsite
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
-//var fs = require('fs');
+var fs = require('fs');
 
 //use same player object for all songs (to make a playlist)
 var player = new Player()
@@ -18,8 +18,8 @@ var player = new Player()
     .on('playing', function(song)
     {
 //     var buf = ""; for (var i in song) buf += "," + i;
-        console.log("SEQ: now playing %s for 5 sec".green, song.src);
-        setTimeout(function(){ player.next(); }, 5000); //only first 5 sec
+        console.log("SEQ: now playing %s".green, path.relative(__dirname, song.src));
+//        setTimeout(function(){ player.next(); }, 5000); //only first 5 sec
     })
     .on('playend', function(song)
     {
@@ -27,9 +27,9 @@ var player = new Player()
     })
     .on('error', function(err)
     {
+//??        if (!this.busy) throw "Player didn't know it was busy";
         console.log('SEQ: ERROR'.red, err);
     });
-player.playlistlen = 0; //remember how many songs are queued
 
 module.exports = Sequence; //commonjs; returns new sequence object to caller
 
@@ -39,8 +39,8 @@ module.exports = Sequence; //commonjs; returns new sequence object to caller
 
 function Sequence(opts) //ctor/factory
 {
-    if (!(this instanceof Sequence)) { console.log(typeof this); return new Sequence(opts); } //make "new" optional; make sure "this" is set
-    opts = Object.assign({auto_collect: true, reqd: true, limit: 1}, opts);
+    if (!(this instanceof Sequence)) return new Sequence(opts); //make "new" optional; make sure "this" is set
+    opts = Object.assign({auto_collect: true, reqd: true, limit: 1, playlist: true}, opts);
 
     this.isSequence = true;
     this.cues = [];
@@ -50,7 +50,7 @@ function Sequence(opts) //ctor/factory
     var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
     if (opts.auto_collect)
     {
-        console.log("caller: " + callerdir);
+        console.log("caller dir: " + path.relative(__dirname, callerdir));
         var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
         console.log("SEQ: auto-collect got %d mp3 files from %s".blue, files.length, callerdir + "/!(*-bk).mp3");
         this.paths = files;
@@ -65,9 +65,9 @@ function Sequence(opts) //ctor/factory
     this.duration = 0;
     this.paths.forEach(function (filename, inx)
     {
-        console.log("player add %s".blue, filename);
 //the duration of MP3 files is recorded as an ID3 tag in the file header
         var relpath = path.relative(__dirname, filename);
+        console.log("player add %s".blue, relpath); //filename);
 //        console.log("stat:", fs.statSync(filename));
 //        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
 //        var duration = 0;
@@ -79,26 +79,37 @@ function Sequence(opts) //ctor/factory
 //        parser.on('TLEN', function (result) { console.log("TLEN: ", result); duration = result; });
 TODO: https://github.com/nikhilm/node-taglib
         this.duration += fs.statSync(filename).size; //TBD
-        player.add(filename);
-    });
-    this.plinx = this.paths.length? player.playlistlen: -1;
-    player.playlistlen += this.paths.length;
-
-    this.play = function (duration) //player.play;
-    {
-        player.stop();
-        if (player.timer) { clearTimeout(player.timer); player.timer = 0; }
-        if ((duration !== 'undefined') && (duration < this.duration)) //partial only
+        if (opts.playlist)
         {
-            player.timer = setTimeout(function() { player.stop(); player.timer = null; }, duration);
+            console.log("pl len ", player.playlistlen, inx);
+            if (!inx) /*if (this.paths.length)*/ this.plinx = player.playlistlen; //remember index in play list of first file for this seq
+            player.add(filename);
         }
-        if (this.plinx != -1) player.play(this.plinx);
-        else player.next();
-    };
+    }, this); //CAUTION: need to preserve context within forEach loop
+    if (opts.playlist && this.paths.length)
+    {
+        this.play = function (duration) //player.play;
+        {
+//            if (this.plinx === 'undefined') return; //not playable (not on play list)
+            console.log("seq[%d] %s play %d", this.plinx, this.paths[0], duration);
+//            player.stop();
+/*
+            if (player.timer) { clearTimeout(player.timer); player.timer = null; }
+            if ((duration !== 'undefined') && (duration < this.duration)) //partial only
+            {
+                player.timer = setTimeout(function() { player.stop(); player.timer = null; }, duration);
+            }
+            player.play(this.plinx);
+//            else player.next();
+*/
+            return player.play(this.plinx, duration);
+        };
 //pass-thru methods to shared player object:
-    this.stop = player.stop;
-    this.next = player.next;
-    this.on = player.on;
+//        this.play = player.playPartial;
+        this.stop = player.stop;
+        this.next = player.next;
+        this.on = player.on;
+    }
 
     return this;
 };

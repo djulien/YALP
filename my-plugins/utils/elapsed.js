@@ -15,20 +15,27 @@ var timescale = require('./time-scale');
 //});
 
 
-elapsed(); //set time base to now
+//elapsed(); //set time base to now
 
-module.exports = elapsed; //commonjs
+module.exports = Elapsed; //commonjs
 
-elapsed.toString = function ()
+function Elapsed(reset) //factory
 {
-    return timescale(elapsed());
+    if (!(this instanceof Elapsed)) return new Elapsed(reset);
+    this.now = function()
+    {
+        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
+    }
+    this.start = /*reset ||*/ this.now(); //set time base
+    this.scaled = function(msec)
+    {
+        return timescale(msec || this.now());
+    }
+//    return (when || now) - elapsed.start; //msec
 }
-
-function elapsed(when)
-{
-    var now = (new Date()).getTime(); //TODO: use process.hrtime (nsec)?
-    if (!elapsed.start) elapsed.start = now; //set time base (static var)
-    return (when || now) - elapsed.start; //msec
-}
+//Object.defineProperty(Elapsed.prototype, "now",
+//{
+//    get: function() { return (new Date()).getTime(); }}, //TODO: use process.hrtime (nsec)?
+//});
 
 //eof

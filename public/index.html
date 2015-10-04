@@ -53,6 +53,7 @@ possible futures:
 //            {
 //                socket.emit('join', 'Hello World from client');
 //            });
+            if (false) socket.disconnect(); //avoid retries while connection not needed
             socket.on('tty', function(data)
             {
                 transcript(data.text, data.style || '');

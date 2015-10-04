@@ -156,8 +156,31 @@ USAGE:
 2. npm start  or a variation to start YALP via package.json
 3. export mp3 as fixed 128k or 144k bps (not 256k) using Audacity
 
+to auto-run on startup:
+  sudo npm install wetty -g
+  $ sudo cp /usr/local/lib/node_modules/wetty/bin/wetty.conf /etc/init
+-----
+# Upstart script
+# /etc/init/wetty.conf
+description "Web TTY"
+author      "Wetty"
+start on started mountall
+stop on shutdown
+respawn
+respawn limit 20 5
+exec sudo -u root wetty -p 3000
+-----
+  $ sudo start wetty
+
 git checkout <hash> to get an older copy
 git checkout master to go to latest
+
+CONFIG:
+list ports:
+  dmesg | grep tty
+
+
+node tty.js (works!)
 
 LIGHTTABLE 0.7.2 (works):
 http://www.ubuntubuzz.com/2015/05/how-to-install-light-table-in-ubuntu-1504.html
@@ -210,6 +233,25 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  python --version
 
 
+* https://github.com/substack/stream-handbook
+ https://github.com/Raynos/delta-stream
+ https://github.com/substack/oppressor
+ src.pipe(dest)
+
+SERIAL PORT:
+https://www.npmjs.com/search?q=serial%20port
+https://github.com/voodootikigod/node-serialport -broken in Node 4.1.1
+   https://github.com/voodootikigod/node-serialport/issues/578
+   https://github.com/voodootikigod/node-serialport/issues/579
+   https://github.com/voodootikigod/node-serialport/pull/566
+* https://github.com/bminer/trivial-port
+* https://github.com/nathan7/serialport-stream
+https://github.com/johnlauer/serial-port-json-server
+* https://github.com/RIAEvangelist/serialport-js
+https://github.com/thewebface/soundweb
+
+ndarrays:
+http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
 
 TODO:
 - add unit testing with Chai and Mocha (!make)

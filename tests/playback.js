@@ -30,9 +30,9 @@ require_glob('my-projects/songs/**/!(*-bk).js', {strict: true}, function(exporte
     exported
         .on('playing', function(song) { console.log("PB: now playing %s".green, song.src); })
         .on('playend', function(song) { console.log("PB: finished %s, Switching to next one ...".green, song.src); })
-        .on('error', function(err) { console.log('PB: Opps...!'.red, err); })
-        .play(5000);
-    ++numseq;
+        .on('error', function(err) { console.log('PB: Opps...!'.red, err); });
+//        .play(5000);
+    if (!numseq++) exported.play(); //(2000); //play first one; will auto-play remaining songs in playlist then stop at end
 })./*done*/ then(function() { console.log("PB: seq found: %d".green, numseq); });
 
 
