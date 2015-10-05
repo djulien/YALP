@@ -180,7 +180,18 @@ list ports:
   dmesg | grep tty
 
 
-node tty.js (works!)
+modeler/ide:
+**http://paperjs.org/examples/hit-testing/
+
+image manip:
+ https://github.com/oliver-moran/jimp
+ https://github.com/EyalAr/lwip
+ https://github.com/lovell/sharp
+ https://github.com/niegowski/node-pngjs
+
+IDE:
+node tty.js (it works!)
+screen command?
 
 LIGHTTABLE 0.7.2 (works):
 http://www.ubuntubuzz.com/2015/05/how-to-install-light-table-in-ubuntu-1504.html
@@ -272,6 +283,13 @@ https://github.com/naomiaro/waveform-playlist/graphs/contributors
 http://naomiaro.github.io/waveform-playlist/examples/web-audio-editor.html
 node-red
 javascript loaders comparison: https://spreadsheets.google.com/lv?key=tDdcrv9wNQRCNCRCflWxhYQ
+http://nvie.com/posts/a-successful-git-branching-model/
+  $ git checkout -b myfeature develop
+  (feature develop)
+  $ git checkout develop
+  $ git merge --no-ff myfeature
+  $ git branch -d myfeature
+  $ git push origin develop
 
 http://www.scriptol.com/javascript/nodejs-php.php
 https://github.com/Studio-42/elFinder/wiki

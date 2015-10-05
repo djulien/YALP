@@ -1,12 +1,14 @@
 'use strict';
 
 //from https://github.com/bminer/trivial-port/blob/master/test.js
+//CAUTION: messes up xterm afterward
 
-var SerialPort = require("trivial-port");
 var util = require('util');
+var SerialPort = require("trivial-port");
 
+//to list ports: dmesg | grep tty
 var port = new SerialPort({"baudRate": 115200, "serialPort": "/dev/ttyUSB0"});
-console.log(util.inspect(port));
+//console.log(util.inspect(port));
 
 port.initialize();
 port.on("data", function(chunk)
