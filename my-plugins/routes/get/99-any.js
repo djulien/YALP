@@ -1,6 +1,7 @@
 
 var url = require('url');
 var path = require('path');
+var contentDisposition = require('content-disposition'); //https://www.npmjs.com/package/content-disposition
 
 var ASSETDIR = "public";
 
@@ -59,7 +60,12 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
         console.log(/*sprintf(*/"GET req# %d: %s, writable? %d, file type '%s', timeout %d".blue, parsed.seqnum, parsed.urlparts, writable, filetype, timeout); //, mypath(req.url)));
 //        timer = setTimeout(function() { reply({ERROR: "timeout"}, 500); }, timeout); //msec
         console.log("serve file %s".blue, path.join(ASSETDIR, parsed.pathname)); //path.join(ROOTDIR, parsed.pathname));
-        resp.sendFile(path.join(global.ROOTDIR, ASSETDIR, parsed.pathname), function(err)
+        var abspath = path.join(global.ROOTDIR, ASSETDIR, parsed.pathname);
+        resp.setHeader('Content-Disposition', contentDisposition(absath));
+//        var stream = fs.createReadStream(absath);
+//        stream.pipe(reso);
+//        onFinished(resp, function (err) { destroy(stream); })
+        resp.sendFile(abspath, function(err)
         {
             if (err) return reply({ERROR: err.toString()}, 404);
             reply(); //if (timer) clearTimeout(timer);

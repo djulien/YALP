@@ -1,4 +1,4 @@
-//YALP formatter plug-in to turn on strict mode in other plug-ins
+//YALP formatter plug-in to expand macros in other plug-ins
 'use strict';
 
 var EXT = '.js';
@@ -13,7 +13,8 @@ hook.hook(EXT, function(src, fullpath)
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
 
-    return '\'use strict\'; ' + src; //don't alter line#s
+//    return src.replace(/(?<![A-Za-z0-9$_])global\.return(?![A-Za-z0-9$_])/, "return"); //turn hidden return into real one
+    return src.replace(/([^A-Za-z0-9$_])global\.return([^A-Za-z0-9$_])/, "$1return$2"); //turn hidden return into real one
 });
 
 function unhook()

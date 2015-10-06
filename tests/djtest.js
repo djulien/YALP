@@ -1,6 +1,15 @@
 //basic functionality tests
 'use strict';
 
+//if (!global.has_ext)
+//{
+//    global.has_ext = require('my-plugins/my-extensions/');
+//    delete require.cache[require.resolve(__filename)];
+//    require(__filename); //re-load myself with language extensions enabled
+//}
+//else { ... }
+//console.log("START UP");
+
 require('colors');
 var fs = require('fs');
 var util = require('util');
@@ -160,7 +169,7 @@ function MyStream(name, opts) //factory, not ctor
         },
         warn: function(msg, args)
         {
-//            if (typeof chunk !== 'object') { chunk = null; 
+//            if (typeof chunk !== 'object') { chunk = null;
             if (arguments.length > 1) msg = vsprintf(msg, Array.prototype.slice.call(arguments).slice(1));
         //    outs.emit('warning', msg);
 //            if (this.eof) //return; //avoid infinite loop
@@ -316,10 +325,10 @@ var playlist = //require('my-projects/playlists/xmas2015a');
 //    islast: function(frinx) { return !this.exists(frinx + 1); },
     get duration() { return 26 * 50 - 10; }, //msec; EXAMPLE ONLY
     get numframes() { return this.msec2fr(this.duration); },
-    getFrame: function(frnum)
+    getFrame: function(frnum, outs)
     {
         var data = this.frame(frnum);
-        return {frnum: frnum || 1, time: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
+        return {frnum: frnum || 1, actual: outs.elapsed.now(), scheduled: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
     },
     frame: function(frnum) //raw data only
     {
@@ -337,7 +346,7 @@ var playlist = //require('my-projects/playlists/xmas2015a');
             var now = outs.elapsed.now(), expected = [this.msec2fr(now * (1 - this.MAXERR)), this.msec2fr(now * (1 + this.MAXERR))];
             if ((frnum < expected[0]) || (frnum > expected[1])) outs.warn("playback out of sync: at %s should be frame# [%d..%d], but frame# %d was requested", outs.elapsed.scaled(), expected[0], expected[1], frnum);
         }
-        var data = this.getFrame(frnum); //just send what caller requested (no timing correction)
+        var data = this.getFrame(frnum, outs); //just send what caller requested (no timing correction)
         if (frnum)
         {
             if (Math.abs(data.time - outs.elapsed.now()) > this.INTERVAL * this.MAXERR) outs.warn("playback timing is off: at frame# %d now %s, target %s", frnum, outs.elapsed.scaled(), outs.elapsed.scaled(data.time)); //allow 10% mistiming
@@ -402,11 +411,14 @@ var outhw = MyStream("outhw");
 //    new stream.PassThrough();
 var iostats = MyStream("iostats");
 
-/*
 iostats.onmsg = function(msg)
 {
 //    console.dir("trace: %s got: ".cyan, name, buf);
-    if (msg.from == "playlist")
+    if (!this.all) this.all = {msg: 0, evt: 0, cmd: 0};
+    if (msg.evt) ++this.all.evt;
+    else if (msg.cmd) ++this.all.cmd;
+    else ++this.all.msg;
+    if (msg.sentby == "playlist")
     {
         var stats = this.playlist || {count: 0, data_min: msg.datalen || 0, data_max: 0, data_total: 0, hdr_total: 0};
         ++stats.count;
@@ -421,6 +433,7 @@ iostats.onmsg = function(msg)
 }
 iostats.onevt = function(msg) //, propagate)
 {
+    console.log("iostats.evt".red, msg);
     switch (msg.evt)
     {
         case "evt":
@@ -437,7 +450,6 @@ iostats.onevt = function(msg) //, propagate)
             break;
     }
 }
-*/
 
 
 //=============================================================================
@@ -462,6 +474,7 @@ var viewer3d = MyStream("viewer3d");
 var trace = MyStream("trace");
 
 trace.logfile = fs.createWriteStream('yalp-trace.log'); //TODO: use SQLite database instead?
+trace.on('close', function() { this.logfile.end(); });
 trace.onmsg = function(msg)
 {
 //    console.log("trace: ".cyan, msg); //console.dir doesn't handle objects?
@@ -473,7 +486,6 @@ trace.onevt = function(evt) //, propagate)
     this.logfile.write("evt: " + JSON.stringify(evt) + '\n');
 //    if (evt.evt == "eof") this.logfile.end();
 }
-trace.on('close', function() { this.logfile.end(); });
 
 
 //=============================================================================
