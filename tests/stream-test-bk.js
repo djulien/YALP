@@ -4,8 +4,7 @@
 require('colors');
 var fs = require('fs');
 var util = require('util');
-//var sprintf = require('sprintf').sprintf;
-var vsprintf = require("sprintf-js").vsprintf;
+var sprintf = require('sprintf');
 var sizeof = require('object-sizeof');
 var elapsed = require('my-plugins/utils/elapsed');
 //var timescale = require('my-plugins/utils/time-scale');
@@ -78,10 +77,6 @@ upper.end();  // finish
 */
 
 
-//function MyMsg(data) //ctor
-//{
-//}
-
 //simplified stream:
 //instances should:
 //- override onmsg() to receive/propagate messages; response can transform message as desired; respond with null to eat the message (no propagation)
@@ -93,111 +88,79 @@ function MyStream(name, opts) //factory, not ctor
     if (!MyStream.elapsed) MyStream.elapsed = new elapsed(); //static var
 //    if (!this instanceof MyStream)) return new MyStream(opts);
     if (this instanceof MyStream) throw "Don't use \"new\" with MyStream";
-    opts = asObject(opts /*|| {}*/, {objectMode: true}); //.assign(opts || {}, {objectMode: true, }); //allow binary data
+    opts = asObject(opts || {}, {objectMode: true}); //.assign(opts || {}, {objectMode: true, }); //allow binary data
 //    xform.call(this, opts);
     var stream = Object.assign(new xform(opts),
     {
-        _transform: function(chunk, encoding, done) //in binary mode, each chunk is a separate message; overrides default stream method
+        _transform: function(chunk, encoding, done) //in binary mode, each chunk is a separate message
         {
-            chunk = asObject(chunk, {'?age': 0, '?seenby': name, '?seenat': MyStream.elapsed.now(), '?sentby': "unknown", }); //tomsg(chunk, in);
-            if (chunk.sentby == name) { done(); return; } //don't re-circulate my past messages
-            if (++chunk.age > 10) { this.sendevt("expired", chunk); done(); return; } //message has been circulating too long; drop it
+            if (chunk && chunk.seenby && (chunk.seenby == name)) { done(); return; } //don't re-circulate past messages
+            chunk = asObject(chunk || {}, {'?age': 0, '?seenby': name, '?seenat': MyStream.elapsed.now(), });
 //            chunk.seenby = chunk.seenby || {};
 //            if (chunk.seenby[name]) { done(); return; } //don't re-circulate past messages
 //            if (chunk.seenby == name) { done(); return; } //don't re-circulate past messages
 //            if (!chunk.seenby) chunk.seenby = name;
 //            chunk.seenby[name] = true;
-//            var reply = this.onmsg(chunk);
+            var reply = stream.onmsg(chunk);
+            if (++chunk.age > 10) { chunk.evt = "age"; stream.onevt(chunk); reply = null; } //message has been circulating too long; drop it
 //            setTimeout(function() //use this for delayed propagation
 //            {
-//                if (reply) this.send(reply); //propagate thru chain
+                if (reply) stream.send(reply); //propagate thru chain
 //            }, 200);
-            this.send(this.onmsg(chunk)); //give parent a chance to alter or cancel
             done();
         },
-        _flush: function(done) //overrides default stream method
+        _flush: function(done)
         {
 //            console.log("%s @%s: eof".yellow, name, MyStream.elapsed.scaled());
-            this.sendevt("eof");
+            stream.onevt({evt: "flush"});
             done();
         },
-//custom convenience functions and wrappers around default stream methods:
+        quit: function() //signal eof
+        {
+            console.log("%s: send eof".red, name);
+            stream.onevt({evt: "eof"});
+            stream.send(null);
+        },
         /*safepush*/ send: function(data) //in binary mode, each chunk is a separate message
         {
-            if (data === null) return; //only allow quit() to close pipe
-            if (this.sendbusy) { console.log("recursion %s".red, name); return; } //kludge: avoid infinite loops from callbacks
-            this.sendbusy = true;
-            if (this.eof) { this.sendevt("eofwrite", data); return; } //avoid throwing exception if stream already closed
-            this.push(asObject(data, {'?sentby': name, '?sentat': MyStream.elapsed.now(), })); //this.push(tomsg(data, out));
-            this.sendbusy = false;
-//            return data; //allow it to be passed to onevt as well
+            if (stream.eof) { this.warn("tried to send after eof: " + JSON.stringify(data)); return; } //avoid throwing exception if stream already closed
+            stream.push(asObject(data, {'?from': name}));
         },
 //        push_debug(msg)
 //        {
 //            console.log("%s push: ", name, msg || "(null)");
 //            stream.push(msg);
 //        },
-        sendevt: function(type, data)
-        {
-//            if (this.evtbusy) { console.log("recursion %s".red, name); return; } //kludge: avoid infinite loop during error or readable
-            var msg = asObject(data, {evt: type, sentby: name, sentat: MyStream.elapsed.now(), }); //tomsg(data, in); msg.evt = type;
-    console.log("SENDEVT %s: ", name, JSON.stringify(msg));
-//            this.evtbusy = true;
-            if (!this.eof) //avoid infinite loop or exception on sending to closed pipe
-                this.send(this.onmsg(msg)); //give parent the option of propagating it
-            this.onevt(msg); //make parent aware of evt
-//            this.evtbusy = false;
-        },
-        quit: function(why) //allow external process to request eof
-        {
-            this.isquitting = true;
-            console.log("%s: eof %s".magenta, name, why || '');
-//NO            stream.onevt({evt: "eof", }); //redundant
-//????????            this.sendevt("eof", {why: why});
-            console.log("%s sent eof".magenta, name);
-            this.push(null); //.send(null); //close pipe; should generate flush callback
-            console.log("%s complete? %d".magenta, name, this.eof);
-        },
         warn: function(msg, args)
         {
-//            if (typeof chunk !== 'object') { chunk = null; 
-            if (arguments.length > 1) msg = vsprintf(msg, Array.prototype.slice.call(arguments).slice(1));
+            if (arguments.length > 1) msg = vsprintf(msg, arguments.slice(1));
         //    outs.emit('warning', msg);
-//            if (this.eof) //return; //avoid infinite loop
-//                console.log("%s WARN: ".yellow, name, msg);
-//            else this.sendevt(asObject(chunk, {warn: msg, })); //send it downstream to catch by monitoring stage
-            this.sendevt("warn", msg);
+            this.send({warn: msg}); //send it downstream for monitor to catch
         },
-//event handlers (intended to be overridden by parent):
-        onmsg: function(data) //return response (maybe transformed) to propagate or null to hold back
+        onmsg: function(data) //overridable; return response (maybe transformed) to propagate or null to hold back
         {
-            if (!data.reported) //data.age || 0 <= 1) //only show new messages once
-            {
+            if (data.age < 1) //only show new messages here
                 console.log("%s MSG@%s: ".blue, name, MyStream.elapsed.scaled(), JSON.stringify(data)); //NOTE: console.dir doesn't work for this?
-                data.reported = true;
-            }
             return data; //propagate as-is
         },
-        onevt: function(data) //, propagate) //informational only; no response needed
+        onevt: function(data) //overridable; informational only; no response needed
         {
             console.log("%s EVT@%s: %s".cyan, name, MyStream.elapsed.scaled(), JSON.stringify(data));
         },
     })
 //        .on('data', function(chunk) {}) //old read or write way
 //        .on('end', function() {}) //old way
-        .on('finish', function() { stream.eof = true; console.log("finish %s", name); }) //all data has been flushed (downstream transformations complete)
-        .on('close', function() { stream.eof = true; console.log("close %s", name); })
-        .on('error', function(err) { stream.sendevt("error", err); })
-        .on('readable', function () //NOTE: this event occurs after a .push(); only get this if there are no other stream readers?
+        .on('finish', function() { stream.eof = true; })
+        .on('close', function() { stream.eof = true; })
+        .on('error', function(err) { stream.onevt(asObject(err, {evt: "error"})); })
+        .on('readable', function () //NOTE: only get this if there are no other stream readers?
         {
             for (;;)
             {
                 if (stream.eof) break;
                 var chunk = stream.read(); //in binary mode, each chunk is a separate message
                 if (chunk === null) break; //eof
-//                if ((chunk.sentby || '') == name) { console.log("SKIP MINE".red); continue; } //kludge: skip stuff I created
-//                stream.sendevt("readable", chunk);
-                console.log("ignore readable %s".magenta, name);
+                stream.onevt(asObject(chunk, {evt: "readable"}));
             }
         });
     return stream; //factory retval
@@ -266,10 +229,9 @@ var feedback = MyStream("feedback");
 //setTimeout(function() { feedback.end(); }, 45000); //stop after 45 sec
 feedback.onmsg = function(msg)
 {
-    if (feedback.timeout) { clearTimeout(feedback.timeout); feedback.timeout = null; }
-    if (!feedback.isquitting) feedback.timeout = setTimeout(function() { feedback.quit("inactive 10 sec"); }, 10000); //close pipeline if no activity after 10 sec; NOTE: need to use anon func here
-    else console.log("ignore feedback > quit", JSON.stringify(msg));
-    return !feedback.isquitting? msg: null; //propagate all
+    if (feedback.timeout) clearTimeout(feedback.timeout);
+    feedback.timeout = setTimeout(function() { feedback.end(); }, 10000); //close pipeline if no activity after 10 sec; NOTE: need to use anon func here
+    return msg; //propagate all
 }
 
 
@@ -338,12 +300,9 @@ var playlist = //require('my-projects/playlists/xmas2015a');
             if ((frnum < expected[0]) || (frnum > expected[1])) outs.warn("playback out of sync: at %s should be frame# [%d..%d], but frame# %d was requested", outs.elapsed.scaled(), expected[0], expected[1], frnum);
         }
         var data = this.getFrame(frnum); //just send what caller requested (no timing correction)
-        if (frnum)
-        {
-            if (Math.abs(data.time - outs.elapsed.now()) > this.INTERVAL * this.MAXERR) outs.warn("playback timing is off: at frame# %d now %s, target %s", frnum, outs.elapsed.scaled(), outs.elapsed.scaled(data.time)); //allow 10% mistiming
-//            outs.write(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
-            outs.send(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
-        }
+        if (frnum && (Math.abs(data.time - outs.elapsed.now()) > this.INTERVAL * this.MAXERR)) outs.warn("playback timing is off: at frame# %d now %s, target %s", frnum, outs.elapsed.scaled(), outs.elapsed.scaled(data.time)); //allow 10% mistiming
+//        outs.write(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
+        outs.send(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
         if (!this.exists(frnum + 1)) return -1; //outs.push(); //caller decides whether to rewind or terminate
         if (frnum) //prefetch next frame
         {
@@ -419,7 +378,7 @@ iostats.onmsg = function(msg)
     }
     return msg; //propagate this msg as-is
 }
-iostats.onevt = function(msg) //, propagate)
+iostats.onevt = function(msg)
 {
     switch (msg.evt)
     {
@@ -468,12 +427,11 @@ trace.onmsg = function(msg)
     this.logfile.write("msg: " + JSON.stringify(msg) + '\n');
     return msg; //propagate all
 }
-trace.onevt = function(evt) //, propagate)
+trace.onevt = function(evt)
 {
-    this.logfile.write("evt: " + JSON.stringify(evt) + '\n');
-//    if (evt.evt == "eof") this.logfile.end();
+    this.logfile.write("evt: " + JSON.stringify(evt));
+    if (evt.evt == "eof") this.logfile.end();
 }
-trace.on('close', function() { this.logfile.end(); });
 
 
 //=============================================================================
@@ -511,12 +469,12 @@ process.on('exit', function (code) //reader doesn't want any more data
 //force value to object, add (optionally) props:
 function asObject(thing, more)
 {
-    if (thing === null) thing = {};
-//    {
-//        if (more) throw "Can't add props to null";
-//        return null; //preserve null-ness
-//    }
-    else if (typeof thing === 'undefined') thing = {};
+    if (thing === null)
+    {
+        if (more) throw "Can't add props to null";
+        return null; //preserve null-ness
+    }
+    if (typeof thing === 'undefined') thing = {};
     else if (typeof thing !== 'object') thing = {data: thing}; //turn it into object so props can be attached
 //    return more? Object.assign(thing, more): thing;
 //    if (more)
