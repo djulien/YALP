@@ -244,19 +244,19 @@ setTimeout(function() { playlist.quit(); }, 3000);
 var motion = MyStream("motion");
 
 //simulate someone passing by:
-setTimeout(function() { motion.send("zone1"); }, 5000);
-setTimeout(function() { motion.send("zone2"); }, 6000);
-setTimeout(function() { motion.send("zone3"); }, 7000);
-setTimeout(function() { motion.send("zone4"); }, 8000);
-setTimeout(function() { motion.send("zone5"); }, 9000);
+setTimeout(function() { motion.send("zone1"); }, 5000); //1500);
+setTimeout(function() { motion.send("zone2"); }, 6000); //1800);
+setTimeout(function() { motion.send("zone3"); }, 7000); //1900);
+setTimeout(function() { motion.send("zone4"); }, 8000); //2000);
+setTimeout(function() { motion.send("zone5"); }, 9000); //2100);
 
 //simulate someone walking by and stopping to watch:
-setTimeout(function() { motion.send("zone1"); }, 15000);
-setTimeout(function() { motion.send("zone2"); }, 16000);
-setTimeout(function() { motion.send("zone3"); }, 17000);
+setTimeout(function() { motion.send("zone1"); }, 15000); //3000);
+setTimeout(function() { motion.send("zone2"); }, 16000); //3100);
+setTimeout(function() { motion.send("zone3"); }, 17000); //3200);
 
 //simulate random artifact:
-setTimeout(function() { motion.send("zone2"); }, 20000);
+setTimeout(function() { motion.send("zone2"); }, 20000); //9000);
 
 
 //var uictls = //require('my-plugins/preview/ui-controls');
@@ -264,9 +264,9 @@ setTimeout(function() { motion.send("zone2"); }, 20000);
 var uictls = MyStream("uictls");
 
 //simulate user clicking play + pause buttons:
-setTimeout(function() { uictls.send({cmd: "play"}); }, 19000);
-setTimeout(function() { uictls.send({cmd: "pause"}); }, 25000);
-setTimeout(function() { uictls.send({cmd: "play"}); }, 27000);
+setTimeout(function() { uictls.send({cmd: "play"}); }, 19000); //5000);
+setTimeout(function() { uictls.send({cmd: "pause"}); }, 25000); //7000);
+setTimeout(function() { uictls.send({cmd: "play"}); }, 27000); //8000);
 
 
 //allow selective results to influence subsequent data:
@@ -302,8 +302,8 @@ triggers.append(uictls);
 var scheduler = MyStream("scheduler");
 
 //simulate start + stop schedule:
-setTimeout(function() { scheduler.send({cmd: "play"}); }, 33000);
-setTimeout(function() { scheduler.send({cmd: "stop"}); }, 37000);
+setTimeout(function() { scheduler.send({cmd: "play"}); }, 33000); //12000);
+setTimeout(function() { scheduler.send({cmd: "stop"}); }, 37000); //15000);
 
 
 //=============================================================================
@@ -328,13 +328,13 @@ var playlist = //require('my-projects/playlists/xmas2015a');
     getFrame: function(frnum, outs)
     {
         var data = this.frame(frnum);
-        return {frnum: frnum || 1, actual: outs.elapsed.now(), scheduled: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
+        return {frnum: frnum /*|| 1*/, actual: outs.elapsed.now(), scheduled: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
     },
     frame: function(frnum) //raw data only
     {
         if (!this.exists(frnum)) throw "Frame# " + frnum + " not in range [1.." + this.numframes + "]";
         var rndlen = 1; //Math.floor(Math.random() * 1024);
-        return str_repeat(String.fromCharCode('A'.charCodeAt(0) + (frnum? frnum - 1: 0)), rndlen); //TODO: pull from cache or generate on demand
+        return frnum? str_repeat(String.fromCharCode('A'.charCodeAt(0) + frnum), rndlen): ''; //TODO: pull from cache or generate on demand
     },
  //TODO: use https://github.com/dominictarr/from?
     playback: function(outs, frnum)
@@ -353,10 +353,10 @@ var playlist = //require('my-projects/playlists/xmas2015a');
 //            outs.write(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
             outs.send(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
         }
-        if (!this.exists(frnum + 1)) return -1; //outs.push(); //caller decides whether to rewind or terminate
+        if (!this.exists(frnum + 1)) return -1; //outs.push(); //caller decides whether to rewind or terminate at eof
         if (frnum) //prefetch next frame
         {
-            data = this.getFrame(frnum + 1); //pre-load or generate on demand
+            data = this.getFrame(frnum + 1, outs); //pre-load or generate on demand
             var this_playlist = this; //save context for setTimeout()
             setTimeout(function() { this_playlist.playback(outs, frnum + 1); }, data.time - outs.elapsed.now()); //use relative time to auto-correct timing errors
         }
@@ -373,7 +373,7 @@ var outs = MyStream("playlist");
 playlist = Object.assign(outs, {playlist: playlist});
 playlist.playback = function(frnum)
 {
-    if (frnum) outs.elapsed = new elapsed(playlist.playlist.fr2msec(frnum)); //elapsed time tracking from start of playback
+    /*if (frnum)*/ outs.elapsed = new elapsed(playlist.playlist.fr2msec(frnum)); //elapsed time tracking from start of playback
 //        outs.elapsed.scaled = function(msec) { return ((typeof msec === 'undefined')? outs.elapsed.now(): msec) + ''; };
 //        console.log("playback %s @%s".cyan, outs.elapsed.scaled(), MyStream.elapsed.scaled());
 //        }

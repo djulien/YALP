@@ -183,6 +183,9 @@ list ports:
 modeler/ide:
 **http://paperjs.org/examples/hit-testing/
 
+motion det:
+ (RSSC post)
+ 
 image manip:
  https://github.com/oliver-moran/jimp
  https://github.com/EyalAr/lwip

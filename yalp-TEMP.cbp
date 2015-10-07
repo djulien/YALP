@@ -57,7 +57,6 @@
 		<Unit filename="my-plugins/hw/pic32.cpp" />
 		<Unit filename="my-plugins/hw/serial.js" />
 		<Unit filename="my-plugins/media/my-player.js" />
-		<Unit filename="my-plugins/media/my-player.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/expand-macros-bk.js" />
 		<Unit filename="my-plugins/my-extensions/expand-suffix.js" />
@@ -80,6 +79,7 @@
 		<Unit filename="my-plugins/routes/socket/repl.js" />
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
+		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/utils/config.js" />
 		<Unit filename="my-plugins/utils/credentials.js" />
 		<Unit filename="my-plugins/utils/elapsed.js" />
@@ -95,6 +95,7 @@
 		<Unit filename="my-projects/playlists/even-test.js" />
 		<Unit filename="my-projects/playlists/playlist.js" />
 		<Unit filename="my-projects/playlists/xmas.js" />
+		<Unit filename="my-projects/playlists/xmas2015/index.js" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2011a-Emmanuel (Amy Grant).cue" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2012a-Emmanuel (Amy Grant).vix" />
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/Label Track.txt" />
@@ -133,15 +134,16 @@
 		<Unit filename="scripts/node-jig.js" />
 		<Unit filename="scripts/notilde.sh" />
 		<Unit filename="scripts/symlinks.js" />
-		<Unit filename="tests/djtest.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/index.js" />
 		<Unit filename="tests/mail.js" />
 		<Unit filename="tests/pi-led.js" />
 		<Unit filename="tests/playback.js" />
+		<Unit filename="tests/playlist-test.js" />
 		<Unit filename="tests/serial-port.js" />
 		<Unit filename="tests/shell-repl-bk.js" />
+		<Unit filename="tests/streams-main.js" />
 		<Unit filename="tests/test-canvas.js" />
 		<Extensions>
 			<envvars />

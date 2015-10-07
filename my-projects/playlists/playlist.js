@@ -1,48 +1,161 @@
+//YALP playlist streamer
+//play/pause commands can be sent into player to control it manually (or use automated scheduler)
+//h/w output commands are sent from player to downstream hardware output
 'use strict';
 
-//var $ = require('jquery');
-//var domready = require('domready');
-//var layout = require('../../plugins/services/layout.js');
-//var debug = require('debug');
-//var settings = require('settings');
+var path = require('path');
+var EventEmitter = require('events').EventEmitter;
+var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
+var fs = require('fs');
+var lame = require('lame');
+var Speaker = require('speaker');
+var PoolStream = require('pool_stream');
+var elapsed = require('my-plugins/utils/elapsed');
 
-module.exports = Playlist; //commonjs; returns new sequence object to caller
+
+module.exports = Playlist; //commonjs; returns new playlist object to caller
 
 //var YALP = YALP || {}; //namespace
 ///*YALP.*/ sequence = function(path, name) //ctor
 
-function Playlist(opts) //ctor/factory
+//http://www.crockford.com/javascript/inheritance.html
+
+function Playlist(opts) //factory/ctor
 {
     if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
-    if (!opts) opts = {};
+    xform.call(this, Object.assign(opts || {}, {objectMode: true, }); //pass options to base class; allow binary data
+//    var m_stream = new xform({ objectMode: true, });
+//    var m_evte = new EventEmitter;
+    var m_duration = 0; //this.duration = 0;
+    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
+    opts = opts || {};
 
+    this.songs = [];
     this.isPlaylist = true;
-    this.songs = []; //opts.path || '';
+    this.path = module.parent.filename; //already known by caller, but set it anyway
+    if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
+    this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
+    if (this.name == 'index') this.name = 
+    this.current = null;
+    this.next = null;
+    this.scheduler = null; //TODO
+    Object.defineProperty(this, "duration",
+    {
+        get: function() //read-only, computed, cached
+        {
+            if (!m_duration)
+                this.songs.forEach(function (song, inx)
+                {
+                    m_duration += song.duration;
+                });
+            return m_duration;
+        },
+        set: function(newval)
+        {
+            if (newval) throw "Playlist.duration is read-only";
+            m_duration = newval; //only allow it to be cleared
+        },
+    });
 
     if (opts.auto_collect)
     {
-//        var files = globSync(module.parent.__dirname + "/*[!-bk].mp3"); //, {}, function (err, files)
-        var files = globSync(module.parent.__dirname + "/!(*-bk).mp3"); //, {}, function (err, files)
+        var files = globSync(path.dirname(this.path) + "/**/!(*-bk).mp3"); //, {}, function (err, files)
         console.log("PLAYL: auto-collect got %d seq files", files.length);
-        this.paths = files;
+        files.forEach(function(file, inx) { this.addSong(file); });
     }
-    if (opts.paths) this.paths.push(opts.path);
-    this.name = opts.name || 'NONE';
-//    this.paths.forEach(function (path, inx) { player.add(path); });
+    (opts.paths || []).forEach(function(file, inx) { this.addSong(file); });
+//    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; });
 
-    this.duration = 0;
-    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; });
+    this.addSong = function(opts) //TODO: refactor
+    {
+        var song =
+        {
+            index: this.songs.length,
+            path: opts.path || opts, //= path.absolute(path);
+            name: opts.name || path.basename(path, path.extname(path)),
+            get duration() { return 12; }, //TODO
+        };
+        this.songs.push(song);
+        this.duration = 0; //invalidate cached value
+    }
+
+    m_stream._transform = function (chunk, encoding, done)
+    {
+        console.log("playlist stream in: ".blue, JSON.stringify(chunk));
+        switch (chunk.cmd || '')
+        {
+            case "play": this.play(); return;
+            case "pause": this.pause(); return;
+            case "next": this.next(); return;
+            case "stop": this.stop(); return;
+            default: console.log("unknown command: '%s'".red, chunk.cmd || '');
+        }
+        done();
+    }
+    m_stream._flush = function (done)
+    {
+        console.log("playlist stream in EOF".blue);
+        this.stop();
+        done();
+    }
+
+//example mp3 player from https://gist.github.com/TooTallNate/3947591
+//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
+//fancier example from https://www.npmjs.com/package/pool_stream
+//this is impressively awesome - 6 lines of portable code!
+    this.play = function(from_start)
+    {
+        if (
+        if (this.active === 'undefined
+        if (this.next || 0 >= this.songs.length
+        fs.createReadStream(this.songs[this.current].path)
+            .pipe(new lame.Decoder())
+            .on('format', function (format)
+            {
+                this.pipe(new Speaker(format));
+            });
+// following events will tell you why need pool:
+            .on('end', function ()
+            {
+                console.log('audio end time is: %s', new Date());
+            });
+pool.on('end', function () {
+  console.log('pool end time is: %s', new Date());
+});
+pool.on('finish', function () {
+  console.log('pool finish time is: %s', new Date());
+});
+writable.on('finish', function () {
+  console.log('writable finish time is: %s', new Date());
+});
+    }
+===
+var readable = fs.createReadStream('a_file');
+var pool = new PoolStream();
+var writable = fs.createWriteStream('b_file');
+
+readable.pipe(pool).pipe(writable);
+
+===
 
 //pass-thru methods to shared player object:
-    this.play = this.paths[0].play;
-    this.stop = this.paths[0].stop;
-    this.next = this.paths[0].next;
-    this.on = this.paths[0].on;
+    this.on = m_evte.on;
+//    this.play = this.paths[0].play;
+//    this.stop = this.paths[0].stop;
+//    this.next = this.paths[0].next;
+    this.pipe = m_stream.pipe;
 
-    return this;
-};
+//    return this; //not needed for ctor
+}
+util.inherits(Playlist, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+//Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
+//????Door.prototype.__proto__ = events.EventEmitter.prototype;
+//MyStream.prototype._read = function () {
 
-TODO: merge code
+
+//eof
+/*
+TODO: merge scheduler code
 
 Date.prototype.mmdd = function() { return 100 * (this.getMonth() + 1) + this.getDate(); }
 Date.prototype.hhmm = function() { return 100 * this.getHour() + this.getMinute(); }
@@ -138,7 +251,7 @@ function playback(song)
     console.log("playback " + song);
 }
 
-/*
+/-*
     var mon = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(',')[now.getMonth()];
     var mday = now.getDate(); //1..31
 
@@ -169,13 +282,5 @@ function playback(song)
     if (now.var is_active = (now.getTime() >= starttime
     if (now.getHours() < 5) return false;
     if (now
+*-/
 */
-
-module.exports = THIS; //commonjs; not needed by top-level plug-ins
-global['plst_' + __filename.replace(/^.*\//, "")] = THIS;
-
-console.timeStamp(); //shows time in FF, adds event to timeline in Chrome
-console.log("... xmas playlist loaded");
-
-//return module.exports; //send api back to caller
-//eof
