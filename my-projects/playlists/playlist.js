@@ -20,6 +20,7 @@ module.exports = Playlist; //commonjs; returns new playlist object to caller
 
 //http://www.crockford.com/javascript/inheritance.html
 
+//options: auto_play (schedule or loop), auto_next, loop
 function Playlist(opts) //factory/ctor
 {
     if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
@@ -31,13 +32,12 @@ function Playlist(opts) //factory/ctor
     opts = opts || {};
 
     this.songs = [];
+    this.selected = 0;
     this.isPlaylist = true;
     this.path = module.parent.filename; //already known by caller, but set it anyway
     if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
-    if (this.name == 'index') this.name = 
-    this.current = null;
-    this.next = null;
+    if (this.name == 'index') this.name =
     this.scheduler = null; //TODO
     Object.defineProperty(this, "duration",
     {
@@ -75,13 +75,14 @@ function Playlist(opts) //factory/ctor
             name: opts.name || path.basename(path, path.extname(path)),
             get duration() { return 12; }, //TODO
         };
+        propagate(song, this);
         this.songs.push(song);
         this.duration = 0; //invalidate cached value
     }
 
     m_stream._transform = function (chunk, encoding, done)
     {
-        console.log("playlist stream in: ".blue, JSON.stringify(chunk));
+        console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
         switch (chunk.cmd || '')
         {
             case "play": this.play(); return;
@@ -94,7 +95,7 @@ function Playlist(opts) //factory/ctor
     }
     m_stream._flush = function (done)
     {
-        console.log("playlist stream in EOF".blue);
+        console.log("playlist in-stream: EOF".blue);
         this.stop();
         done();
     }
@@ -103,8 +104,29 @@ function Playlist(opts) //factory/ctor
 //more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
 //fancier example from https://www.npmjs.com/package/pool_stream
 //this is impressively awesome - 6 lines of portable code!
-    this.play = function(from_start)
+    this.play = function(opts) //manual start
     {
+//        opts = opts || {};
+        if (!this.songs.length) throw "No songs to play";
+        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
+        if (opts.shuffle) //rearrange list in-place; index prop indicates original order
+        {
+            this.songs.forEach(function(song, inx) { song.order = Math.random(); });
+            this.songs.sort(function(lhs, rhs) { return (lhs.order < rhs.order)? -1: (lhs.order > rhs.order)? 1: 0; });
+        }
+        this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
+//        if (this.selected < 0) throw "Can't find currently selected song";
+        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
+        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
+        this.emit('begin', evtinfo); //playlist
+        this.songs[this.selected].play()
+            .once('start', function() { this.emit('start', evtinfo); }) //song
+            .on('progress', function() { this.emit('start', evtinfo); })
+            .once('stop', function()
+            {
+                this.emit('stop', evtinfo); //song
+                if (opts.single && opts.loop) this.songs[this.selected].play()
+                if (opts.loop) this.play(
         if (
         if (this.active === 'undefined
         if (this.next || 0 >= this.songs.length

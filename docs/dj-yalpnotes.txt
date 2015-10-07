@@ -184,8 +184,10 @@ modeler/ide:
 **http://paperjs.org/examples/hit-testing/
 
 motion det:
- (RSSC post)
- 
+ http://franklinta.com/2014/11/30/image-diffing-using-css/
+ -webkit-filter: invert(100%) opacity(50%);
+ https://drafts.fxtf.org/compositing-1/#blendingdifference
+
 image manip:
  https://github.com/oliver-moran/jimp
  https://github.com/EyalAr/lwip
@@ -266,6 +268,12 @@ https://github.com/thewebface/soundweb
 
 ndarrays:
 http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+
+docgen:
+https://www.npmjs.com/package/wavi
+http://smartcomments.github.io/
+http://www.markupjavascript.com/2014/02/js-documentation-generator-tools-jsdoc-yuidoc-docco.html
+http://yui.github.io/yuidoc/
 
 TODO:
 - add unit testing with Chai and Mocha (!make)
