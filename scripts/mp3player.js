@@ -55,7 +55,7 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
 TODO: https://github.com/nikhilm/node-taglib
     files.forEach(function (filename)
     {
-        var relpath = path.relative(__dirname, filename);
+        var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
         console.log("stat:", fs.statSync(filename));
 //        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
         var parser = mm(fs.createReadStream(filename), function (err, metadata)

@@ -119,6 +119,7 @@
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.timing" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.txt" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/wookie.js" />
+		<Unit filename="node-jig.js" />
 		<Unit filename="package.json" />
 		<Unit filename="public/css/yalp.css" />
 		<Unit filename="public/favicon.ico" />
@@ -130,7 +131,6 @@
 		<Unit filename="scripts/imhere.js" />
 		<Unit filename="scripts/install-bk.sh" />
 		<Unit filename="scripts/mp3player.js" />
-		<Unit filename="scripts/node-jig.js" />
 		<Unit filename="scripts/notilde.sh" />
 		<Unit filename="scripts/symlinks.js" />
 		<Unit filename="tests/email-bk.js" />

@@ -4,7 +4,7 @@ require('colors');
 var fs = require('fs');
 var path = require('path');
 //var pkgpath = path.join(global.ROOTDIR, 'package.json');
-console.log("config: cwd %s".blue, process.cwd());
+//console.log("config: cwd %s".blue, process.cwd());
 //console.log("config: pkg path %s".blue, pkgpath);
 //console.log("THIS?".cyan, path.resolve(pkgpath, '../../package.json'));
 //var pkg; //kludge: js parsers want static string, so hard-code expected case here

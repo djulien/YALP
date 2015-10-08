@@ -58,7 +58,7 @@ function Playlist(opts) //factory/ctor
 
     if (opts.auto_collect)
     {
-        var files = globSync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
+        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
         console.log("PLAYL: auto-collect got %d candidate seq files", files.length);
         files.forEach(function(file, inx) { this.addSong(path.dirname(file)); });
     }
@@ -144,7 +144,7 @@ function Playlist(opts) //factory/ctor
             .on('error', function(errinfo) { this.emit('error', errinfo); });
     }
 
-    this.resume = function()
+    this.resume = function() //TODO: is this really useful?
     {
         this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
         this.songs[this.selected].play()
@@ -152,7 +152,7 @@ function Playlist(opts) //factory/ctor
             .on('error', function(errinfo) { this.emit('error', errinfo); });
     }
 
-    this.stop = function()
+    this.stop = function() //TODO: is this really useful?
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
         this.songs[this.selected].stop()

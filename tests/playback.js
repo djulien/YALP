@@ -21,7 +21,7 @@ var numseq = 0;
 //require_glob(path.normalize(__dirname + '../my-projects/songs/**/!(*-bk).js'), {strict: true}, function(exported, filename)
 require_glob('my-projects/songs/**/!(*-bk).js', {strict: true}, function(exported, filename)
 {
-    var relpath = path.relative(__dirname, filename);
+    var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
 //        console.log("route", filename, __filename);
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
     if (/*typeof exported !== 'Sequence'*/ !exported.isSequence) { console.log("not a seq: %s".red, relpath); return; }

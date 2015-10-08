@@ -1,5 +1,14 @@
 'use strict';
 
+//if (!global.has_ext)
+//{
+//    global.has_ext = require('my-plugins/my-extensions/');
+//    delete require.cache[require.resolve(__filename)];
+//    require(__filename); //re-load myself with language extensions enabled
+//}
+//else { ... }
+console.log("START UP");
+
 require('colors');
 var scaled = require('my-plugins/utils/time-scale');
 
@@ -23,7 +32,7 @@ console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(p
 
 playlist.pipe(outhw);
 playback(playlist.play()); //play once
-//playback(playlist.scheduler.play()); //play according to schedule
+//playback(playlist.scheduled()); //play according to schedule
 
 
 function playback(player)

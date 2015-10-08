@@ -8,7 +8,7 @@
 //    require(__filename); //re-load myself with language extensions enabled
 //}
 //else { ... }
-//console.log("START UP");
+console.log("START UP");
 
 require('colors');
 var fs = require('fs');
@@ -108,7 +108,7 @@ function MyStream(name, opts) //factory, not ctor
     {
         _transform: function(chunk, encoding, done) //in binary mode, each chunk is a separate message; overrides default stream method
         {
-            chunk = asObject(chunk, {'?age': 0, '?seenby': name, '?seenat': MyStream.elapsed.now(), '?sentby': "unknown", }); //tomsg(chunk, in);
+            chunk = asObject(chunk, {'?age': 0, '?seenby': name, '?seenat': MyStream.elapsed.now, '?sentby': "unknown", }); //tomsg(chunk, in);
             if (chunk.sentby == name) { done(); return; } //don't re-circulate my past messages
             if (++chunk.age > 10) { this.sendevt("expired", chunk); done(); return; } //message has been circulating too long; drop it
 //            chunk.seenby = chunk.seenby || {};
@@ -137,7 +137,7 @@ function MyStream(name, opts) //factory, not ctor
             if (this.sendbusy) { console.log("recursion %s".red, name); return; } //kludge: avoid infinite loops from callbacks
             this.sendbusy = true;
             if (this.eof) { this.sendevt("eofwrite", data); return; } //avoid throwing exception if stream already closed
-            this.push(asObject(data, {'?sentby': name, '?sentat': MyStream.elapsed.now(), })); //this.push(tomsg(data, out));
+            this.push(asObject(data, {'?sentby': name, '?sentat': MyStream.elapsed.now, })); //this.push(tomsg(data, out));
             this.sendbusy = false;
 //            return data; //allow it to be passed to onevt as well
         },
@@ -149,7 +149,7 @@ function MyStream(name, opts) //factory, not ctor
         sendevt: function(type, data)
         {
 //            if (this.evtbusy) { console.log("recursion %s".red, name); return; } //kludge: avoid infinite loop during error or readable
-            var msg = asObject(data, {evt: type, sentby: name, sentat: MyStream.elapsed.now(), }); //tomsg(data, in); msg.evt = type;
+            var msg = asObject(data, {evt: type, sentby: name, sentat: MyStream.elapsed.now, }); //tomsg(data, in); msg.evt = type;
     console.log("SENDEVT %s: ", name, JSON.stringify(msg));
 //            this.evtbusy = true;
             if (!this.eof) //avoid infinite loop or exception on sending to closed pipe
@@ -328,7 +328,7 @@ var playlist = //require('my-projects/playlists/xmas2015a');
     getFrame: function(frnum, outs)
     {
         var data = this.frame(frnum);
-        return {frnum: frnum /*|| 1*/, actual: outs.elapsed.now(), scheduled: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
+        return {frnum: frnum /*|| 1*/, actual: outs.elapsed.now, scheduled: this.fr2msec(frnum), next: this.exists(frnum + 1)? this.fr2msec(frnum + 1): -1, datalen: data.length, data: data};
     },
     frame: function(frnum) //raw data only
     {
@@ -343,13 +343,13 @@ var playlist = //require('my-projects/playlists/xmas2015a');
         frnum = frnum || 0; //optional param during pre-playback
         if (frnum)
         {
-            var now = outs.elapsed.now(), expected = [this.msec2fr(now * (1 - this.MAXERR)), this.msec2fr(now * (1 + this.MAXERR))];
+            var now = outs.elapsed.now, expected = [this.msec2fr(now * (1 - this.MAXERR)), this.msec2fr(now * (1 + this.MAXERR))];
             if ((frnum < expected[0]) || (frnum > expected[1])) outs.warn("playback out of sync: at %s should be frame# [%d..%d], but frame# %d was requested", outs.elapsed.scaled(), expected[0], expected[1], frnum);
         }
         var data = this.getFrame(frnum, outs); //just send what caller requested (no timing correction)
         if (frnum)
         {
-            if (Math.abs(data.time - outs.elapsed.now()) > this.INTERVAL * this.MAXERR) outs.warn("playback timing is off: at frame# %d now %s, target %s", frnum, outs.elapsed.scaled(), outs.elapsed.scaled(data.time)); //allow 10% mistiming
+            if (Math.abs(data.time - outs.elapsed.now) > this.INTERVAL * this.MAXERR) outs.warn("playback timing is off: at frame# %d now %s, target %s", frnum, outs.elapsed.scaled(), outs.elapsed.scaled(data.time)); //allow 10% mistiming
 //            outs.write(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
             outs.send(data); //send requested data down stream; no timing correction; NOTE: write goes to self, push goes to next
         }
@@ -358,7 +358,7 @@ var playlist = //require('my-projects/playlists/xmas2015a');
         {
             data = this.getFrame(frnum + 1, outs); //pre-load or generate on demand
             var this_playlist = this; //save context for setTimeout()
-            setTimeout(function() { this_playlist.playback(outs, frnum + 1); }, data.time - outs.elapsed.now()); //use relative time to auto-correct timing errors
+            setTimeout(function() { this_playlist.playback(outs, frnum + 1); }, data.time - outs.elapsed.now); //use relative time to auto-correct timing errors
         }
         return frnum + 1; //tell caller next frame#
     },
@@ -374,7 +374,7 @@ playlist = Object.assign(outs, {playlist: playlist});
 playlist.playback = function(frnum)
 {
     /*if (frnum)*/ outs.elapsed = new elapsed(playlist.playlist.fr2msec(frnum)); //elapsed time tracking from start of playback
-//        outs.elapsed.scaled = function(msec) { return ((typeof msec === 'undefined')? outs.elapsed.now(): msec) + ''; };
+//        outs.elapsed.scaled = function(msec) { return ((typeof msec === 'undefined')? outs.elapsed.now: msec) + ''; };
 //        console.log("playback %s @%s".cyan, outs.elapsed.scaled(), MyStream.elapsed.scaled());
 //        }
     return playlist.playlist.playback(outs, frnum);

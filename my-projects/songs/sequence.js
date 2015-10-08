@@ -13,6 +13,7 @@ var EventEmitter = require('events').EventEmitter;
 var PoolStream = require('pool_stream');
 var Speaker = require('speaker');
 var lame = require('lame');
+var promisedio = require("promised-io/promise"); //https://github.com/kriszyp/promised-io
 
 module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
 
@@ -28,7 +29,6 @@ function Sequence(opts) //factory/ctor
     xform.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
-    var m_duration = 0; //this.duration = 0;
 //    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
 //    opts = opts || {};
     opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
@@ -40,10 +40,17 @@ function Sequence(opts) //factory/ctor
 //    this.selected = 0;
     this.isSequence = true;
     this.elapsed = new elapsed(); //from creation until played
-    this.path = module.parent.filename; //already known by caller, but set it anyway
-    if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
-    this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
+    this.path = module.parent.filename; //already known by caller, but set it anyway in case wild card used
+    this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
+    if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
 
+//    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (file, index)
+//    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
+    try { this.cache = require(path.dirname(this.path) + "/cache"); } //.json"); }
+    catch (exc) { this.cache = {}; }; //NOTE: https://nodejs.org/api/fs.html#fs_fs_exists_path_callback recommends just trying it rather than fstat first
+
+    var m_duration = 0; //this.duration = 0;
+//    var duration_known = promisedio.Deferred;
     Object.defineProperty(this, "duration",
     {
         get: function() //read-only, computed, cached
@@ -51,14 +58,9 @@ function Sequence(opts) //factory/ctor
             if (!m_duration)
                 this.media.forEach(function (file, inx)
                 {
-                    var timer = new elapsed();
-//kludge: the only reliable way to get audio duration seems to be to decode it all
-                    fs.createReadStream(file)
-                        .pipe(new lame.Decoder())
-//                        .on('format', function (format) { this.pipe(new Speaker(format)); })
-                        .on('end', function() { m_duration += timer.now; //});
-                            console.log("decoded %s: duration %s".blue, path.relative(__dirname, file), scaled(timer.now)); });
-//                    m_duration += music.duration;
+                    var cache = this.cache[file] || {};
+                    if (!cache.duration) throw "Async scan of '" + path.relative(/*__dirname*/ process.cwd(), file) + "' not completed yet.";
+                    m_duration += cache.duration;
                 });
             return m_duration;
         },
@@ -72,8 +74,11 @@ function Sequence(opts) //factory/ctor
     var AUDIO_EXT = ".(mp3|mp4|wav|ogg|webm)";
     if (opts.auto_collect)
     {
-        var files = globSync(path.dirname(this.path) + "/**/!(*-bk)" + AUDIO_EXT); //, {}, function (err, files)
-        console.log("SEQ: auto-collect got %d candidate media files", files.length);
+//        var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
+//        console.log("caller dir: " + path.relative(__dirname, callerdir));
+//        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
+        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk)" + AUDIO_EXT); //, {}, function (err, files)
+        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.relative(/*__dirname*/ process.cwd(), path.dirname(this.path)));
         files.forEach(function(file, inx) { this.addMedia(path.dirname(file)); });
 
         files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
@@ -81,7 +86,7 @@ function Sequence(opts) //factory/ctor
         files.forEach(function(file, inx) { this.addCue(file); });
 //TODO: auto-collect models? they are likely in different folder - how to find?
     }
-    (opts.paths || (opts.path? [opts.path]: []).forEach(function(file, inx)
+    (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
     {
         if (file.match(AUDIO_EXT)) this.addMedia(file);
         else this.addCue(file);
@@ -91,7 +96,25 @@ function Sequence(opts) //factory/ctor
     {
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
-        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(__dirname, file)); return; }
+        var fstat = fs.statSync(file);
+        if (!fstat.isFile()) { console.log("not a file: %s".red, path.relative(/*__dirname*/ process.cwd(), file)); return; }
+        var cache = this.cache[file] || {};
+        if (!cache.duration || (cache.timestamp < fstat.mtime)) //start reading file to get duration
+        {
+            var timer = new elapsed();
+//kludge: the only reliable way to get audio duration seems to be to decode it all
+            fs.createReadStream(file)
+                .pipe(new lame.Decoder())
+//                        .on('format', function (format) { this.pipe(new Speaker(format)); })
+                .on('end', function()
+                {
+                    cache.timestamp = fstat.mtime;
+                    cache.duration = timer.now;
+                    cache_dirty();
+                    console.log("decoded %s: duration %s".blue, path.relative(/*__dirname*/ process.cwd(), file), scaled(timer.now));
+//                    cb(timer.now);
+                });
+        }
         this.media.push(file);
         this.duration = 0; //invalidate cached value
     }
@@ -99,7 +122,7 @@ function Sequence(opts) //factory/ctor
     {
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
-        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(__dirname, file)); return; }
+        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(/*__dirname*/ process.cwd(), file)); return; }
         this.cues.push(file);
     }
 
@@ -134,14 +157,13 @@ function Sequence(opts) //factory/ctor
 //        opts = opts || {};
         this.elapsed = new elapsed();
         if (!this.media.length) throw "No media to play";
-//        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
+        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
         this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
 //        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
 //        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
         this.emit('start', this.media[this.selected]);
         var this_seq = this;
-
-        var pool = new PoolStream()
+        var pool = new PoolStream() //TODO: is pool useful here?
             .on('end', function ()
             {
                 console.log('pool end time is: %s', scaled(this_seq.elapsed.now));
@@ -172,11 +194,12 @@ function Sequence(opts) //factory/ctor
     this.pause = function()
     {
         this.interrupt = true; //async
-        if (this.interrupted) this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-            .once('pause', function() { this.emit('pause', null, evtinfo); })
-            .on('error', function(errinfo) { this.emit('error', errinfo); });
+        if (this.interrupted) this.elapsed = {now: this.elapsed.now, } //freeze elapsed timer
+//TODO            .once('pause', function() { this.emit('pause', null, evtinfo); })
+//TODO            .on('error', function(errinfo) { this.emit('error', errinfo); });
     }
 
+/*TODO: are stop + resume useful?
     this.resume = function()
     {
         this.interrupt = true; //async
@@ -192,11 +215,28 @@ function Sequence(opts) //factory/ctor
             .once('stop', function() { this.emit('stop', null, evtinfo); })
             .on('error', function(errinfo) { this.emit('error', errinfo); });
     }
+*/
+
+    function cache_dirty()
+    {
+//        this.cache.dirty = true;
+        if (this.cache_delaywr) clearTimeout(this.cache_delaywr);
+        var cachefile = path.dirname(this.path) + "/cache.json";
+        this.cache_delaywr = setTimeout(function()
+        {
+            fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
+            {
+                if (err) throw "SEQ: Can't write '" + path.relative(/*__dirname*/ process.cwd(), cachefile) + "': " + err;
+                else console.log("SEQ: wrote cache file '%s'".cyan, path.relative(/*__dirname*/ process.cwd(), cachefile));
+            });
+        }, 20000); //start writing in 20 sec if no other changes
+    }
 
 //    return this; //not needed for ctor
 }
 //for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
 inherits(Sequence, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+
 
 //eof
 
@@ -210,7 +250,7 @@ var player = new Player()
     .on('playing', function(song)
     {
 //     var buf = ""; for (var i in song) buf += "," + i;
-        console.log("SEQ: now playing %s".green, path.relative(__dirname, song.src));
+        console.log("SEQ: now playing %s".green, path.relative(/-*__dirname*-/ process.cwd(), song.src));
 //        setTimeout(function(){ player.next(); }, 5000); //only first 5 sec
     })
     .on('playend', function(song)
@@ -226,14 +266,6 @@ var player = new Player()
 
 
 /*
-    var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
-    if (opts.auto_collect)
-    {
-        console.log("caller dir: " + path.relative(__dirname, callerdir));
-        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
-        console.log("SEQ: auto-collect got %d mp3 files from %s".blue, files.length, callerdir + "/!(*-bk).mp3");
-        this.paths = files;
-    }
     if (opts.path)
         if (opts.path.length) this.paths.push.apply(this.paths, opts.path); //this.paths.splice(this.paths.length, 0, this.paths);
         else this.paths.push(opts.path);
@@ -245,7 +277,7 @@ var player = new Player()
     this.paths.forEach(function (filename, inx)
     {
 //the duration of MP3 files is recorded as an ID3 tag in the file header
-        var relpath = path.relative(__dirname, filename);
+        var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
         console.log("player add %s".blue, relpath); //filename);
 //        console.log("stat:", fs.statSync(filename));
 //        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)

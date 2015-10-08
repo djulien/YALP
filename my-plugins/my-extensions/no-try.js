@@ -13,7 +13,7 @@ hook.hook(EXT, function(src, fullpath)
 {
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
-    var relpath = path.relative(__dirname, fullpath);
+    var relpath = path.relative(/*__dirname*/ process.cwd(), fullpath);
 
 //    return src.replaceAll(/(?<![A-Za-z0-9$_])try(?>![A-Za-z0-9$_])/, "/*try*/").replaceAll(/(?<![A-Za-z0-9$_])catch(?>![A-Za-z0-9$_])/, "function no_catch");
 //    var newsrc = src.replace(/\Btry\B/g, "/*try*/").replace(/\Bcatch\B/g, "function no_catch"); //http://stackoverflow.com/questions/22999999/negative-lookbehind-regex-in-javascript

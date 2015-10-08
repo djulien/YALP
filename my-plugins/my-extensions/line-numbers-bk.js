@@ -13,7 +13,7 @@ hook.hook(EXT, function(src, fullpath)
 {
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
-    var relpath = path.relative(__dirname, fullpath);
+    var relpath = path.relative(/*__dirname*/ process.cwd(), fullpath);
 //    console.log("loader-logging parsing " + relpath); //fullpath);
 
     var lines = src.split('\n');

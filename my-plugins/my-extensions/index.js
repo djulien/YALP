@@ -10,7 +10,7 @@ require = function (path) //make it verbose
     return module.require(path);
 }
 
-console.log("my extensions config: ".blue, cfg);
+//console.log("my extensions config: ".blue, JSON.stringify(cfg));
 
 module.exports = true; //dummy ret val in case caller needs a real value
 
@@ -26,7 +26,8 @@ module.exports = true; //dummy ret val in case caller needs a real value
 //}
 
 
-console.log("called from ".blue, module.parent.filename);
+//console.log("called from ".blue, module.parent.filename);
+
 //delete module.parent.require.cache[module.parent.require.resolve(module.parent.filename)]; //remove caller from cache (force reload)
 //require(module.parent.filename); //re-include caller with language extensions turned on
 

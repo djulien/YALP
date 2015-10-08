@@ -17,7 +17,7 @@ hook.hook(EXT, function(src, fullpath)
 {
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
-    var relpath = path.relative(__dirname, fullpath);
+    var relpath = path.relative(process.cwd() /*__dirname*/, fullpath);
 //    console.log("loader-logging parsing " + relpath); //fullpath);
 
     return ((WANT_COLOR || WANT_MEM)? 'require("colors");\n': '')

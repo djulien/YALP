@@ -13,7 +13,7 @@ hook.hook(EXT, function(src, fullpath)
 {
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
-    var relpath = path.relative(__dirname, fullpath);
+    var relpath = path.relative(/*__dirname*/ process.cwd(), fullpath);
 
     var newsrc = src.replace(/[0-9]+[KM]/g, function(str)
     {
