@@ -7,13 +7,11 @@ var path = require('path');
 var EventEmitter = require('events').EventEmitter;
 var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 var fs = require('fs');
-var lame = require('lame');
-var Speaker = require('speaker');
-var PoolStream = require('pool_stream');
+var glob = require('glob');
 var elapsed = require('my-plugins/utils/elapsed');
+var inherits = require('inherits');
 
-
-module.exports = Playlist; //commonjs; returns new playlist object to caller
+module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
 
 //var YALP = YALP || {}; //namespace
 ///*YALP.*/ sequence = function(path, name) //ctor
@@ -24,21 +22,22 @@ module.exports = Playlist; //commonjs; returns new playlist object to caller
 function Playlist(opts) //factory/ctor
 {
     if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
-    xform.call(this, Object.assign(opts || {}, {objectMode: true, }); //pass options to base class; allow binary data
+    xform.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
     var m_duration = 0; //this.duration = 0;
-    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
+//    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
     opts = opts || {};
+//    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
 
     this.songs = [];
     this.selected = 0;
     this.isPlaylist = true;
+    this.elapsed = new elapsed(); //from creation until played
     this.path = module.parent.filename; //already known by caller, but set it anyway
     if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
-    if (this.name == 'index') this.name =
-    this.scheduler = null; //TODO
+    this.schedule = null; //TODO
     Object.defineProperty(this, "duration",
     {
         get: function() //read-only, computed, cached
@@ -59,28 +58,30 @@ function Playlist(opts) //factory/ctor
 
     if (opts.auto_collect)
     {
-        var files = globSync(path.dirname(this.path) + "/**/!(*-bk).mp3"); //, {}, function (err, files)
-        console.log("PLAYL: auto-collect got %d seq files", files.length);
-        files.forEach(function(file, inx) { this.addSong(file); });
+        var files = globSync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
+        console.log("PLAYL: auto-collect got %d candidate seq files", files.length);
+        files.forEach(function(file, inx) { this.addSong(path.dirname(file)); });
     }
     (opts.paths || []).forEach(function(file, inx) { this.addSong(file); });
 //    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; });
 
-    this.addSong = function(opts) //TODO: refactor
+    this.addSong = function(seqpath) //song is a sequence folder
     {
-        var song =
+        console.log("PL add song %s".blue, seqpath);
+//        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
+        glob.sync(seqpath).forEach(function (file, index)
         {
-            index: this.songs.length,
-            path: opts.path || opts, //= path.absolute(path);
-            name: opts.name || path.basename(path, path.extname(path)),
-            get duration() { return 12; }, //TODO
-        };
-        propagate(song, this);
-        this.songs.push(song);
+            console.log("PL resolved candidate %s".blue, file);
+            var seq = require(file); //seqpath);
+            if (!seq.isSequence) return;
+//        propagate(song, this);
+            seq.index = this.songs.length;
+            this.songs.push(seq);
+        });
         this.duration = 0; //invalidate cached value
     }
 
-    m_stream._transform = function (chunk, encoding, done)
+    this._transform = function (chunk, encoding, done)
     {
         console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
         switch (chunk.cmd || '')
@@ -93,7 +94,7 @@ function Playlist(opts) //factory/ctor
         }
         done();
     }
-    m_stream._flush = function (done)
+    this._flush = function (done)
     {
         console.log("playlist in-stream: EOF".blue);
         this.stop();
@@ -107,6 +108,7 @@ function Playlist(opts) //factory/ctor
     this.play = function(opts) //manual start
     {
 //        opts = opts || {};
+        this.elapsed = new elapsed();
         if (!this.songs.length) throw "No songs to play";
         opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
         if (opts.shuffle) //rearrange list in-place; index prop indicates original order
@@ -117,59 +119,57 @@ function Playlist(opts) //factory/ctor
         this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
 //        if (this.selected < 0) throw "Can't find currently selected song";
         var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
-        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
-        this.emit('begin', evtinfo); //playlist
-        this.songs[this.selected].play()
-            .once('start', function() { this.emit('start', evtinfo); }) //song
-            .on('progress', function() { this.emit('start', evtinfo); })
+        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
+        this.emit('begin', null, evtinfo); //playlist
+
+        this.songs[this.selected].play(0)
+            .once('start', function() { this.emit('start', null, evtinfo); }) //song
+            .on('progress', function() { this.emit('progress', null, evtinfo); })
+            .once('pause', function() { this.emit('pause', null, evtinfo); })
+            .once('resume', function() { this.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); })
             .once('stop', function()
             {
-                this.emit('stop', evtinfo); //song
-                if (opts.single && opts.loop) this.songs[this.selected].play()
-                if (opts.loop) this.play(
-        if (
-        if (this.active === 'undefined
-        if (this.next || 0 >= this.songs.length
-        fs.createReadStream(this.songs[this.current].path)
-            .pipe(new lame.Decoder())
-            .on('format', function (format)
-            {
-                this.pipe(new Speaker(format));
+                this.emit('stop', null, evtinfo); //song
+                if (opts.loop && (opts.single || (this.selected < this.songs.length - 1))) this.write({cmd: "play", index: next, }); //avoid recursion
+                else this.emit('end', null, evtinfo); //playlist
             });
-// following events will tell you why need pool:
-            .on('end', function ()
-            {
-                console.log('audio end time is: %s', new Date());
-            });
-pool.on('end', function () {
-  console.log('pool end time is: %s', new Date());
-});
-pool.on('finish', function () {
-  console.log('pool finish time is: %s', new Date());
-});
-writable.on('finish', function () {
-  console.log('writable finish time is: %s', new Date());
-});
     }
-===
-var readable = fs.createReadStream('a_file');
-var pool = new PoolStream();
-var writable = fs.createWriteStream('b_file');
 
-readable.pipe(pool).pipe(writable);
+    this.pause = function()
+    {
+        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+        this.songs[this.selected].pause()
+            .once('pause', function() { this.emit('pause', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
 
-===
+    this.resume = function()
+    {
+        this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
+        this.songs[this.selected].play()
+            .once('play', function() { this.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
+
+    this.stop = function()
+    {
+        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+        this.songs[this.selected].stop()
+            .once('stop', function() { this.emit('stop', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
 
 //pass-thru methods to shared player object:
-    this.on = m_evte.on;
+//    this.on = m_evte.on;
 //    this.play = this.paths[0].play;
 //    this.stop = this.paths[0].stop;
 //    this.next = this.paths[0].next;
-    this.pipe = m_stream.pipe;
+//    this.pipe = m_stream.pipe;
 
 //    return this; //not needed for ctor
 }
-util.inherits(Playlist, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+inherits(Playlist, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 //Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
 //????Door.prototype.__proto__ = events.EventEmitter.prototype;
 //MyStream.prototype._read = function () {

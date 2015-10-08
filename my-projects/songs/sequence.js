@@ -2,14 +2,206 @@
 //base class behavior for sequenced songs
 
 //var fileio = require('fileio'); //'../plugins/services/fileio');
+//var Player = require('my-plugins/media/my-player');
+var fs = require('fs');
 var glob = require('glob');
 var path = require('path');
-var Player = require('my-plugins/media/my-player');
+var inherits = require('inherits');
 var stack = require('callsite'); //https://www.npmjs.com/package/callsite
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
-var fs = require('fs');
+var EventEmitter = require('events').EventEmitter;
+var PoolStream = require('pool_stream');
+var Speaker = require('speaker');
+var lame = require('lame');
+
+module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+
+//var YALP = YALP || {}; //namespace
+///*YALP.*/ sequence = function(path, name) //ctor
+
+//http://www.crockford.com/javascript/inheritance.html
+
+//options: auto_collect
+function Sequence(opts) //factory/ctor
+{
+    if (!(this instanceof Sequence)) return new Sequence(opts); //make "new" optional; make sure "this" is set
+    xform.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+//    var m_stream = new xform({ objectMode: true, });
+//    var m_evte = new EventEmitter;
+    var m_duration = 0; //this.duration = 0;
+//    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
+//    opts = opts || {};
+    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
+//    opts = Object.assign({auto_collect: true, reqd: true, limit: 1, playlist: true}, opts);
+
+    this.cues = [];
+    this.models = [];
+    this.media = []; //opts.path || ''; //TODO: allow > 1?
+//    this.selected = 0;
+    this.isSequence = true;
+    this.elapsed = new elapsed(); //from creation until played
+    this.path = module.parent.filename; //already known by caller, but set it anyway
+    if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
+    this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
+
+    Object.defineProperty(this, "duration",
+    {
+        get: function() //read-only, computed, cached
+        {
+            if (!m_duration)
+                this.media.forEach(function (file, inx)
+                {
+                    var timer = new elapsed();
+//kludge: the only reliable way to get audio duration seems to be to decode it all
+                    fs.createReadStream(file)
+                        .pipe(new lame.Decoder())
+//                        .on('format', function (format) { this.pipe(new Speaker(format)); })
+                        .on('end', function() { m_duration += timer.now; //});
+                            console.log("decoded %s: duration %s".blue, path.relative(__dirname, file), scaled(timer.now)); });
+//                    m_duration += music.duration;
+                });
+            return m_duration;
+        },
+        set: function(newval)
+        {
+            if (newval) throw "Sequence.duration is read-only";
+            m_duration = newval; //only allow it to be cleared
+        },
+    });
+
+    var AUDIO_EXT = ".(mp3|mp4|wav|ogg|webm)";
+    if (opts.auto_collect)
+    {
+        var files = globSync(path.dirname(this.path) + "/**/!(*-bk)" + AUDIO_EXT); //, {}, function (err, files)
+        console.log("SEQ: auto-collect got %d candidate media files", files.length);
+        files.forEach(function(file, inx) { this.addMedia(path.dirname(file)); });
+
+        files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
+        console.log("SEQ: auto-collect got %d candidate timing files", files.length);
+        files.forEach(function(file, inx) { this.addCue(file); });
+//TODO: auto-collect models? they are likely in different folder - how to find?
+    }
+    (opts.paths || (opts.path? [opts.path]: []).forEach(function(file, inx)
+    {
+        if (file.match(AUDIO_EXT)) this.addMedia(file);
+        else this.addCue(file);
+    });
+
+    this.addMedia = function(file)
+    {
+//        if (player.canPlay(file)
+//        seq.index = this.songs.length;
+        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(__dirname, file)); return; }
+        this.media.push(file);
+        this.duration = 0; //invalidate cached value
+    }
+    this.addCue = function(file)
+    {
+//        if (player.canPlay(file)
+//        seq.index = this.songs.length;
+        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(__dirname, file)); return; }
+        this.cues.push(file);
+    }
+
+/*
+    m_stream._transform = function (chunk, encoding, done)
+    {
+        console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
+        switch (chunk.cmd || '')
+        {
+            case "play": this.play(); return;
+            case "pause": this.pause(); return;
+            case "next": this.next(); return;
+            case "stop": this.stop(); return;
+            default: console.log("unknown command: '%s'".red, chunk.cmd || '');
+        }
+        done();
+    }
+    m_stream._flush = function (done)
+    {
+        console.log("playlist in-stream: EOF".blue);
+        this.stop();
+        done();
+    }
+*/
+
+//example mp3 player from https://gist.github.com/TooTallNate/3947591
+//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
+//fancier example from https://www.npmjs.com/package/pool_stream
+//this is impressively awesome - 6 lines of portable code!
+    this.play = function(opts) //manual start
+    {
+//        opts = opts || {};
+        this.elapsed = new elapsed();
+        if (!this.media.length) throw "No media to play";
+//        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
+        this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
+//        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
+//        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
+        this.emit('start', this.media[this.selected]);
+        var this_seq = this;
+
+        var pool = new PoolStream()
+            .on('end', function ()
+            {
+                console.log('pool end time is: %s', scaled(this_seq.elapsed.now));
+            })
+            .on('finish', function ()
+            {
+                console.log('pool finish time is: %s', scaled(this_seq.elapsed.now));
+            });
+        fs.createReadStream(this.media[this.selected])
+            .pipe(pool)
+            .pipe(new lame.Decoder())
+            .on('format', function (format)
+            {
+                this.pipe(new Speaker(format));
+            })
+// following events will tell you why need pool:
+            .on('end', function ()
+            {
+                this_seq.emit('stop', this_seq.media[this_seq.selected]);
+                console.log('audio end time is: %s', scaled(this_seq.elapsed.now));
+            })
+            .on('finish', function ()
+            {
+                console.log('writable finish time is: %s', scaled(this_seq.elapsed.now));
+            });
+    }
+
+    this.pause = function()
+    {
+        this.interrupt = true; //async
+        if (this.interrupted) this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+            .once('pause', function() { this.emit('pause', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
+
+    this.resume = function()
+    {
+        this.interrupt = true; //async
+        this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
+            .once('play', function() { this.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
+
+    this.stop = function()
+    {
+        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+        this.songs[this.selected].stop()
+            .once('stop', function() { this.emit('stop', null, evtinfo); })
+            .on('error', function(errinfo) { this.emit('error', errinfo); });
+    }
+
+//    return this; //not needed for ctor
+}
+//for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
+inherits(Sequence, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+
+//eof
 
 //use same player object for all songs (to make a playlist)
+/*
 var player = new Player()
     .on('downloading', function(song)
     {
@@ -30,23 +222,10 @@ var player = new Player()
 //??        if (!this.busy) throw "Player didn't know it was busy";
         console.log('SEQ: ERROR'.red, err);
     });
+*/
 
-module.exports = Sequence; //commonjs; returns new sequence object to caller
 
-//var YALP = YALP || {}; //namespace
-///*YALP.*/ sequence = function(path, name) //ctor
-//YALP.Sequence.prototype.load = function()
-
-function Sequence(opts) //ctor/factory
-{
-    if (!(this instanceof Sequence)) return new Sequence(opts); //make "new" optional; make sure "this" is set
-    opts = Object.assign({auto_collect: true, reqd: true, limit: 1, playlist: true}, opts);
-
-    this.isSequence = true;
-    this.cues = [];
-    this.models = [];
-    this.paths = []; //opts.path || '';
-
+/*
     var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
     if (opts.auto_collect)
     {
@@ -93,7 +272,7 @@ TODO: https://github.com/nikhilm/node-taglib
 //            if (this.plinx === 'undefined') return; //not playable (not on play list)
             console.log("seq[%d] %s play %d", this.plinx, this.paths[0], duration);
 //            player.stop();
-/*
+/-*
             if (player.timer) { clearTimeout(player.timer); player.timer = null; }
             if ((duration !== 'undefined') && (duration < this.duration)) //partial only
             {
@@ -101,7 +280,7 @@ TODO: https://github.com/nikhilm/node-taglib
             }
             player.play(this.plinx);
 //            else player.next();
-*/
+*-/
             return player.play(this.plinx, duration);
         };
 //pass-thru methods to shared player object:
@@ -113,23 +292,4 @@ TODO: https://github.com/nikhilm/node-taglib
 
     return this;
 };
-
-
-//for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
-/*not needed
-function Wookie(path, name) //ctor
-{
-    base.call(this, arguments); //parent ctor
-    this.cues =
-    [
-    ];
-    this.models =
-    [
-    ];
-    return this;
-};
-Wookie.prototype = Object.create(base.prototype); //inherit from base class
-Wookie.prototype.constructor = Wookie; //set ctor back to child class
 */
-
-//eof

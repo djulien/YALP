@@ -19,17 +19,21 @@ var timescale = require('./time-scale');
 
 module.exports = Elapsed; //commonjs
 
-function Elapsed(reset) //factory
+function Elapsed(reset) //factory/ctor
 {
     if (!(this instanceof Elapsed)) return new Elapsed(reset);
-    this.now = function()
+//    this.now = function()
+//    {
+//        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
+//    }
+    Object.defineProperty(this, "now",
     {
-        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
-    }
-    this.start = /*reset ||*/ this.now(); //set time base
+        get: function() { return (new Date()).getTime() - (this.start || reset || 0); }, //TODO: use process.hrtime (nsec)?
+    });
+    this.start = /*reset ||*/ this.now; //set time base
     this.scaled = function(msec)
     {
-        return timescale(msec || this.now());
+        return timescale(msec || this.now);
     }
 //    return (when || now) - elapsed.start; //msec
 }
