@@ -5,6 +5,7 @@ require('my-plugins/my-extensions'); //load custom language extensions
 var path = require('path');
 var require_glob = require('node-glob-loader').load; //https://www.npmjs.com/package/node-glob-loader
 var timescale = require('my-plugins/utils/time-scale');
+var relpath = require('my-plugins/utils/relpath');
 var glob = require('glob');
 
 //var playlist = [];
@@ -21,11 +22,11 @@ var numseq = 0;
 //require_glob(path.normalize(__dirname + '../my-projects/songs/**/!(*-bk).js'), {strict: true}, function(exported, filename)
 require_glob('my-projects/songs/**/!(*-bk).js', {strict: true}, function(exported, filename)
 {
-    var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
+//    var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
 //        console.log("route", filename, __filename);
 //        if (path.basename(filename) == path.basename(__filename)) return; //skip self
-    if (/*typeof exported !== 'Sequence'*/ !exported.isSequence) { console.log("not a seq: %s".red, relpath); return; }
-    console.log("found seq '%s'".green, relpath); //, exported);
+    if (/*typeof exported !== 'Sequence'*/ !exported.isSequence) { console.log("not a seq: %s".red, relpath(filename)); return; }
+    console.log("found seq '%s'".green, relpath(filename)); //, exported);
     console.log("duration %s".blue, timescale(exported.duration));
     exported
         .on('playing', function(song) { console.log("PB: now playing %s".green, song.src); })

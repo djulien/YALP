@@ -59,7 +59,7 @@
 		<Unit filename="my-plugins/media/my-player.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/expand-macros-bk.js" />
-		<Unit filename="my-plugins/my-extensions/expand-suffix.js" />
+		<Unit filename="my-plugins/my-extensions/expand-suffix-bk.js" />
 		<Unit filename="my-plugins/my-extensions/index.js" />
 		<Unit filename="my-plugins/my-extensions/line-numbers-bk.js" />
 		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
@@ -87,6 +87,7 @@
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
 		<Unit filename="my-plugins/utils/make-global.js" />
 		<Unit filename="my-plugins/utils/mem-scale.js" />
+		<Unit filename="my-plugins/utils/relpath.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />

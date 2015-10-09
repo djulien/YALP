@@ -4,6 +4,7 @@ var path = require('path');
 //var pkg = require('../package.json');
 //var debug = require('debug')(pkg.name);
 var fs = require('fs');
+var relpath = require('my-plugins/utils/relpath');
 
 //example1();
 example2();
@@ -55,13 +56,13 @@ glob(__dirname + "/*.mp3", {}, function (err, files)
 TODO: https://github.com/nikhilm/node-taglib
     files.forEach(function (filename)
     {
-        var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
+//        var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
         console.log("stat:", fs.statSync(filename));
 //        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
         var parser = mm(fs.createReadStream(filename), function (err, metadata)
         {
             if (err) console.log("mp3 data err: ".red, err);
-            else console.log("mp3 dat for '%s': ".green, relpath, metadata);
+            else console.log("mp3 dat for '%s': ".green, relpath(filename), metadata);
         });
         parser.on('TLEN', function (result) { console.log("TLEN: ", result); });
     });

@@ -13,7 +13,7 @@ hook.hook(EXT, function(src, fullpath)
     if (!WANT_NODE && (fullpath.indexOf('node_modules') != -1)) return src;
     if (SELECTIVE && !fullpath.match(SELECTIVE)) return src;
 
-    return '\'use strict\'; ' + src; //don't alter line#s
+    return '\'use strict\'; ' + src; //no newline; don't alter line#s
 });
 
 function unhook()

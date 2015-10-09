@@ -38,6 +38,7 @@ function Playlist(opts) //factory/ctor
     if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
     this.schedule = null; //TODO
+    var this_playlist = this;
     Object.defineProperty(this, "duration",
     {
         get: function() //read-only, computed, cached
@@ -56,15 +57,6 @@ function Playlist(opts) //factory/ctor
         },
     });
 
-    if (opts.auto_collect)
-    {
-        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
-        console.log("PLAYL: auto-collect got %d candidate seq files", files.length);
-        files.forEach(function(file, inx) { this.addSong(path.dirname(file)); });
-    }
-    (opts.paths || []).forEach(function(file, inx) { this.addSong(file); });
-//    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; });
-
     this.addSong = function(seqpath) //song is a sequence folder
     {
         console.log("PL add song %s".blue, seqpath);
@@ -72,12 +64,12 @@ function Playlist(opts) //factory/ctor
         glob.sync(seqpath).forEach(function (file, index)
         {
             console.log("PL resolved candidate %s".blue, file);
-            var seq = require(file); //seqpath);
+            var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
             if (!seq.isSequence) return;
 //        propagate(song, this);
             seq.index = this.songs.length;
             this.songs.push(seq);
-        });
+        }, this); //CAUTION: need to preserve context within forEach loop
         this.duration = 0; //invalidate cached value
     }
 
@@ -116,48 +108,49 @@ function Playlist(opts) //factory/ctor
             this.songs.forEach(function(song, inx) { song.order = Math.random(); });
             this.songs.sort(function(lhs, rhs) { return (lhs.order < rhs.order)? -1: (lhs.order > rhs.order)? 1: 0; });
         }
-        this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
+        this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.songs.length - 1); //clamp to end of list
 //        if (this.selected < 0) throw "Can't find currently selected song";
         var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
         var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
         this.emit('begin', null, evtinfo); //playlist
 
-        this.songs[this.selected].play(0)
-            .once('start', function() { this.emit('start', null, evtinfo); }) //song
-            .on('progress', function() { this.emit('progress', null, evtinfo); })
-            .once('pause', function() { this.emit('pause', null, evtinfo); })
-            .once('resume', function() { this.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { this.emit('error', errinfo); })
+        return this.songs[this.selected].play(0)
+            .once('start', function() { this_playlist.emit('start', null, evtinfo); }) //song
+            .on('progress', function() { this_playlist.emit('progress', null, evtinfo); })
+            .once('pause', function() { this_playlist.emit('pause', null, evtinfo); })
+            .once('resume', function() { this_playlist.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); })
             .once('stop', function()
             {
-                this.emit('stop', null, evtinfo); //song
-                if (opts.loop && (opts.single || (this.selected < this.songs.length - 1))) this.write({cmd: "play", index: next, }); //avoid recursion
-                else this.emit('end', null, evtinfo); //playlist
+                this_playlist.emit('stop', null, evtinfo); //song
+                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1))) this_playlist.write({cmd: "play", index: next, }); //avoid recursion
+                else this_playlist.emit('end', null, evtinfo); //playlist
             });
     }
 
     this.pause = function()
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-        this.songs[this.selected].pause()
-            .once('pause', function() { this.emit('pause', null, evtinfo); })
-            .on('error', function(errinfo) { this.emit('error', errinfo); });
+        return this.songs[this.selected].pause()
+            .once('pause', function() { this_playlist.emit('pause', null, evtinfo); })
+            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
     }
 
+//TODO: are resume + stop needed?
     this.resume = function() //TODO: is this really useful?
     {
         this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
-        this.songs[this.selected].play()
-            .once('play', function() { this.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { this.emit('error', errinfo); });
+        return this.songs[this.selected].play()
+            .once('play', function() { this_playlist.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
     }
 
     this.stop = function() //TODO: is this really useful?
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-        this.songs[this.selected].stop()
-            .once('stop', function() { this.emit('stop', null, evtinfo); })
-            .on('error', function(errinfo) { this.emit('error', errinfo); });
+        return this.songs[this.selected].stop()
+            .once('stop', function() { this_playlist.emit('stop', null, evtinfo); })
+            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
     }
 
 //pass-thru methods to shared player object:
@@ -166,6 +159,16 @@ function Playlist(opts) //factory/ctor
 //    this.stop = this.paths[0].stop;
 //    this.next = this.paths[0].next;
 //    this.pipe = m_stream.pipe;
+
+    if (opts.auto_collect)
+    {
+        console.log("PL auto-collect: %s".blue, path.dirname(this.path) + "/**/!(*-bk).js");
+        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
+        console.log("PL: auto-collect got %d candidate seq files", files.length);
+        files.forEach(function(file, inx) { this.addSong(path.dirname(file)); }, this); //CAUTION: need to preserve context within forEach loop
+    }
+    (opts.paths || []).forEach(function(file, inx) { this.addSong(file); }, this); //CAUTION: need to preserve context within forEach loop
+//    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; }, this); //CAUTION: need to preserve context within forEach loop
 
 //    return this; //not needed for ctor
 }

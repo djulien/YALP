@@ -28,11 +28,16 @@ outhw._flush = function (done)
 
 
 var playlist = require('my-projects/playlists/xmas2015');
-console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
-
 playlist.pipe(outhw);
-playback(playlist.play()); //play once
+
+setTimeout(test, 21000); //give async scan time to run and cache time to write
+
+function test()
+{
+    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
+    playback(playlist.play()); //play once
 //playback(playlist.scheduled()); //play according to schedule
+}
 
 
 function playback(player)

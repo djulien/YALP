@@ -15,7 +15,7 @@ var traverse = require('traverse');
 
 module.exports = function(obj)
 {
-    traverse(obj).forEach(function (val)
+    traverse(obj).forEach(function (val) //NOTE: this == node in obj
     {
         if ((typeof val === 'string') && val.match(/^ *[0-9]+ *$/)) //might as well do ints also
         {

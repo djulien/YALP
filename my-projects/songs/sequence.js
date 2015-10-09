@@ -7,8 +7,11 @@ var fs = require('fs');
 var glob = require('glob');
 var path = require('path');
 var inherits = require('inherits');
-var stack = require('callsite'); //https://www.npmjs.com/package/callsite
+var elapsed = require('my-plugins/utils/elapsed');
+var relpath = require('my-plugins/utils/relpath');
+var scaled = require('my-plugins/utils/time-scale');
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
+var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 var EventEmitter = require('events').EventEmitter;
 var PoolStream = require('pool_stream');
 var Speaker = require('speaker');
@@ -40,9 +43,14 @@ function Sequence(opts) //factory/ctor
 //    this.selected = 0;
     this.isSequence = true;
     this.elapsed = new elapsed(); //from creation until played
-    this.path = module.parent.filename; //already known by caller, but set it anyway in case wild card used
+//NO    this.path = module.parent.filename; //already known by caller, but set it anyway in case wild card was used
+    var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
+//    stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
+//NOTE: can't use module.parent because it will be the same for all callers (due to module caching)
+    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
     this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
     if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
+    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);
 
 //    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (file, index)
 //    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
@@ -59,9 +67,9 @@ function Sequence(opts) //factory/ctor
                 this.media.forEach(function (file, inx)
                 {
                     var cache = this.cache[file] || {};
-                    if (!cache.duration) throw "Async scan of '" + path.relative(/*__dirname*/ process.cwd(), file) + "' not completed yet.";
+                    if (!cache.duration) throw "Async scan of '" + relpath(file) + "' not completed yet.";
                     m_duration += cache.duration;
-                });
+                }, this); //CAUTION: need to preserve context within forEach loop
             return m_duration;
         },
         set: function(newval)
@@ -71,36 +79,18 @@ function Sequence(opts) //factory/ctor
         },
     });
 
-    var AUDIO_EXT = ".(mp3|mp4|wav|ogg|webm)";
-    if (opts.auto_collect)
-    {
-//        var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
-//        console.log("caller dir: " + path.relative(__dirname, callerdir));
-//        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
-        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk)" + AUDIO_EXT); //, {}, function (err, files)
-        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.relative(/*__dirname*/ process.cwd(), path.dirname(this.path)));
-        files.forEach(function(file, inx) { this.addMedia(path.dirname(file)); });
-
-        files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
-        console.log("SEQ: auto-collect got %d candidate timing files", files.length);
-        files.forEach(function(file, inx) { this.addCue(file); });
-//TODO: auto-collect models? they are likely in different folder - how to find?
-    }
-    (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
-    {
-        if (file.match(AUDIO_EXT)) this.addMedia(file);
-        else this.addCue(file);
-    });
-
     this.addMedia = function(file)
     {
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
+        console.log("add media %s".blue, file);
         var fstat = fs.statSync(file);
-        if (!fstat.isFile()) { console.log("not a file: %s".red, path.relative(/*__dirname*/ process.cwd(), file)); return; }
+        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
         var cache = this.cache[file] || {};
         if (!cache.duration || (cache.timestamp < fstat.mtime)) //start reading file to get duration
         {
+//TODO: bkg watcher to do this when music first added to dir
+            console.log("scan '%s' for duration".cyan, relpath(file));
             var timer = new elapsed();
 //kludge: the only reliable way to get audio duration seems to be to decode it all
             fs.createReadStream(file)
@@ -111,7 +101,7 @@ function Sequence(opts) //factory/ctor
                     cache.timestamp = fstat.mtime;
                     cache.duration = timer.now;
                     cache_dirty();
-                    console.log("decoded %s: duration %s".blue, path.relative(/*__dirname*/ process.cwd(), file), scaled(timer.now));
+                    console.log("scan complete; decoded %s: duration %s".cyan, relpath(file), scaled(timer.now));
 //                    cb(timer.now);
                 });
         }
@@ -122,7 +112,9 @@ function Sequence(opts) //factory/ctor
     {
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
-        if (!fs.statSync(file).isFile()) { console.log("not a file: %s".red, path.relative(/*__dirname*/ process.cwd(), file)); return; }
+        console.log("add cue %s".blue, file);
+        var fstat = fs.statSync(file);
+        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
         this.cues.push(file);
     }
 
@@ -156,9 +148,9 @@ function Sequence(opts) //factory/ctor
     {
 //        opts = opts || {};
         this.elapsed = new elapsed();
-        if (!this.media.length) throw "No media to play";
+        if (!this.media.length) throw "No '" + this.name + "' media to play";
         opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
-        this.selected = Math.min(opts.rewind? 0: (index in opts)? 1 * opts.index: this.selected, this.songs.length - 1); //clamp to end of list
+        this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.media.length - 1); //clamp to end of list
 //        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
 //        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
         this.emit('start', this.media[this.selected]);
@@ -172,7 +164,8 @@ function Sequence(opts) //factory/ctor
             {
                 console.log('pool finish time is: %s', scaled(this_seq.elapsed.now));
             });
-        fs.createReadStream(this.media[this.selected])
+        console.log("open [%d/%d] '%s' for playback".cyan, this.selected, this.media.length, relpath(this.media[this.selected]));
+        return fs.createReadStream(this.media[this.selected])
             .pipe(pool)
             .pipe(new lame.Decoder())
             .on('format', function (format)
@@ -226,11 +219,32 @@ function Sequence(opts) //factory/ctor
         {
             fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
             {
-                if (err) throw "SEQ: Can't write '" + path.relative(/*__dirname*/ process.cwd(), cachefile) + "': " + err;
-                else console.log("SEQ: wrote cache file '%s'".cyan, path.relative(/*__dirname*/ process.cwd(), cachefile));
+                if (err) throw "SEQ: Can't write '" + relpath(cachefile) + "': " + err;
+                else console.log("SEQ: wrote cache file '%s'".cyan, relpath(cachefile));
             });
         }, 20000); //start writing in 20 sec if no other changes
     }
+
+    var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";
+    if (opts.auto_collect)
+    {
+//        var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
+//        console.log("caller dir: " + relpath(callerdir));
+//        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
+        var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //, {}, function (err, files)
+        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //relpath(path.dirname(this.path)));
+        files.forEach(function(file, inx) { this.addMedia(file); }, this); //CAUTION: need to preserve context within forEach loop
+
+        files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
+        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
+        files.forEach(function(file, inx) { this.addCue(file); }, this); //CAUTION: need to preserve context within forEach loop
+//TODO: auto-collect models? they are likely in different folder - how to find?
+    }
+    (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
+    {
+        if (file.match('/(' + AUDIO_EXTs.replace(/,/g, '|') + ')$/i')) this.addMedia(file);
+        else this.addCue(file);
+    }, this); //CAUTION: need to preserve context within forEach loop
 
 //    return this; //not needed for ctor
 }
@@ -250,7 +264,7 @@ var player = new Player()
     .on('playing', function(song)
     {
 //     var buf = ""; for (var i in song) buf += "," + i;
-        console.log("SEQ: now playing %s".green, path.relative(/-*__dirname*-/ process.cwd(), song.src));
+        console.log("SEQ: now playing %s".green, relpath(song.src));
 //        setTimeout(function(){ player.next(); }, 5000); //only first 5 sec
     })
     .on('playend', function(song)
@@ -270,22 +284,22 @@ var player = new Player()
         if (opts.path.length) this.paths.push.apply(this.paths, opts.path); //this.paths.splice(this.paths.length, 0, this.paths);
         else this.paths.push(opts.path);
     if (opts.reqd && (this.paths.length < 1)) throw "missing media file(s) in " + callerdir;
-    if (this.paths.length > opts.limit) throw "too many media files (" + this.paths.length + " vs. " + opts.limit + "), last was: '" + path.relative(callerdir, this.paths[this.paths.length - 1]) + "'"; //TODO: support multiple media files?
+    if (this.paths.length > opts.limit) throw "too many media files (" + this.paths.length + " vs. " + opts.limit + "), last was: '" + relpath(this.paths[this.paths.length - 1]) + "'"; //TODO: support multiple media files?
     this.name = opts.name || (this.paths.length && path.basename(this.paths[0], path.extname(this.paths[0]))) || 'NONE';
 //    player.add(this.paths);
     this.duration = 0;
     this.paths.forEach(function (filename, inx)
     {
 //the duration of MP3 files is recorded as an ID3 tag in the file header
-        var relpath = path.relative(/*__dirname*/ process.cwd(), filename);
-        console.log("player add %s".blue, relpath); //filename);
+//        var relpath = relpath(filename);
+        console.log("player add %s".blue, relpath(filename)); //filename);
 //        console.log("stat:", fs.statSync(filename));
 //        mp3dat.stat({stream: fs.createReadStream(filename), size: fs.statSync(filename).size}, function (data)
 //        var duration = 0;
 //        var parser = mm(fs.createReadStream(filename), function (err, metadata)
 //        {
 //            if (err) console.log("mp3 data err: ".red, err);
-//            else { console.log("mp3 dat for '%s': ".green, relpath, metadata.duration); duration = metadata.duration; }
+//            else { console.log("mp3 dat for '%s': ".green, relpath(filename), metadata.duration); duration = metadata.duration; }
 //        });
 //        parser.on('TLEN', function (result) { console.log("TLEN: ", result); duration = result; });
 TODO: https://github.com/nikhilm/node-taglib
@@ -293,7 +307,7 @@ TODO: https://github.com/nikhilm/node-taglib
         if (opts.playlist)
         {
             console.log("pl len ", player.playlistlen, inx);
-            if (!inx) /*if (this.paths.length)*/ this.plinx = player.playlistlen; //remember index in play list of first file for this seq
+            if (!inx) /-*if (this.paths.length)*-/ this.plinx = player.playlistlen; //remember index in play list of first file for this seq
             player.add(filename);
         }
     }, this); //CAUTION: need to preserve context within forEach loop
