@@ -27,15 +27,53 @@ outhw._flush = function (done)
 }
 
 
-var playlist = require('my-projects/playlists/xmas2015');
-playlist.pipe(outhw);
+/*
+var fs = require('fs');
+var glob = {sync: function(pattern) { console.log("glob(%s)".blue, pattern); return require('glob').sync(pattern); }, };
+var relpath = require('my-plugins/utils/relpath');
+var elapsed = require('my-plugins/utils/elapsed');
+var Speaker = require('speaker');
+var lame = require('lame');
+this.media = glob.sync(process.cwd() + '/my-projects/songs/xmas/Amaz* / *.mp3');
+console.log("media: ", JSON.stringify(this.media));
+this.selected = 0;
+var this_seq = this;
+this.elapsed = new elapsed();
+        console.log("open [%d/%d] '%s' for playback".cyan, this.selected, this.media.length, relpath(this.media[this.selected]));
+        fs.createReadStream(this.media[this.selected])
+//            .pipe(pool)
+            .pipe(new lame.Decoder())
+            .on('format', function (format)
+            {
+                console.log("raw_encoding: %d, sampleRate: %d, channels: %d, signed? %d, float? %d, ulaw? %d, alaw? %d, bitDepth: %d".cyan, format.raw_encoding, format.sampleRate, format.channels, format.signed, format.float, format.ulaw, format.alaw, format.bitDepth);
+                console.log("fmt @%s: ", this_seq.elapsed.scaled(), JSON.stringify(format));
+                console.log(this.media || "not there".red);
+                this.pipe(new Speaker(format));
+            })
+// following events will tell you why need pool:
+            .on('end', function ()
+            {
+//                this_seq.emit('stop', this_seq.media[this_seq.selected]);
+                console.log('audio end time is: %s', this_seq.elapsed.scaled());
+            })
+            .on('finish', function ()
+            {
+                console.log('writable finish time is: %s', this_seq.elapsed.scaled());
+            });
+*/
 
-setTimeout(test, 21000); //give async scan time to run and cache time to write
 
-function test()
+
+//function test()
 {
-    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
-    playback(playlist.play()); //play once
+    var playlist = require('my-projects/playlists/xmas2015');
+    playlist.pipe(outhw);
+
+//    setTimeout(test, 21000); //give async scan time to run and cache time to write
+
+//    return;
+//    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
+//    playback(playlist.play()); //play once
 //playback(playlist.scheduled()); //play according to schedule
 }
 

@@ -9,7 +9,7 @@ var path = require('path');
 var inherits = require('inherits');
 var elapsed = require('my-plugins/utils/elapsed');
 var relpath = require('my-plugins/utils/relpath');
-var scaled = require('my-plugins/utils/time-scale');
+//var scaled = require('my-plugins/utils/time-scale');
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
 var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 var EventEmitter = require('events').EventEmitter;
@@ -67,7 +67,7 @@ function Sequence(opts) //factory/ctor
                 this.media.forEach(function (file, inx)
                 {
                     var cache = this.cache[file] || {};
-                    if (!cache.duration) throw "Async scan of '" + relpath(file) + "' not completed yet.";
+                    if (!cache.duration || (cache.timestamp < fstat.mtime)) throw "Async scan of '" + relpath(file) + "' needed.";
                     m_duration += cache.duration;
                 }, this); //CAUTION: need to preserve context within forEach loop
             return m_duration;
@@ -86,6 +86,7 @@ function Sequence(opts) //factory/ctor
         console.log("add media %s".blue, file);
         var fstat = fs.statSync(file);
         if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
+/*TODO
         var cache = this.cache[file] || {};
         if (!cache.duration || (cache.timestamp < fstat.mtime)) //start reading file to get duration
         {
@@ -101,10 +102,11 @@ function Sequence(opts) //factory/ctor
                     cache.timestamp = fstat.mtime;
                     cache.duration = timer.now;
                     cache_dirty();
-                    console.log("scan complete; decoded %s: duration %s".cyan, relpath(file), scaled(timer.now));
+                    console.log("scan complete; decoded %s: duration %s".cyan, relpath(file), timer.scaled());
 //                    cb(timer.now);
                 });
         }
+*/
         this.media.push(file);
         this.duration = 0; //invalidate cached value
     }
@@ -153,35 +155,44 @@ function Sequence(opts) //factory/ctor
         this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.media.length - 1); //clamp to end of list
 //        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
 //        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
+        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
         this.emit('start', this.media[this.selected]);
         var this_seq = this;
+/*is this useful?
         var pool = new PoolStream() //TODO: is pool useful here?
             .on('end', function ()
             {
-                console.log('pool end time is: %s', scaled(this_seq.elapsed.now));
+                console.log('pool end time is: %s', this_seq.elapsed.scaled());
             })
             .on('finish', function ()
             {
-                console.log('pool finish time is: %s', scaled(this_seq.elapsed.now));
+                console.log('pool finish time is: %s', this_seq.elapsed.scaled());
             });
+*/
         console.log("open [%d/%d] '%s' for playback".cyan, this.selected, this.media.length, relpath(this.media[this.selected]));
         return fs.createReadStream(this.media[this.selected])
-            .pipe(pool)
+//            .pipe(pool)
             .pipe(new lame.Decoder())
             .on('format', function (format)
             {
                 this.pipe(new Speaker(format));
             })
 // following events will tell you why need pool:
-            .on('end', function ()
+            .on('end', function () //playback ended
             {
-                this_seq.emit('stop', this_seq.media[this_seq.selected]);
-                console.log('audio end time is: %s', scaled(this_seq.elapsed.now));
-            })
-            .on('finish', function ()
-            {
-                console.log('writable finish time is: %s', scaled(this_seq.elapsed.now));
+                var filename = this_seq.media[this_seq.selected];
+                this_seq.emit('stop', filename);
+                console.log("audio '%s' end time is: %s", relpath(filename), this_seq.elapsed.scaled());
+                var cache = this_seq.cache[filename] || {};
+                cache.timestamp = (new Date()).getTime();
+                cache.duration = this_seq.elapsed.now; //save for other usage
+                cache_dirty();
+                if (this_seq.media.length > 1) throw "Play more media"; //TODO
             });
+//            .on('finish', function ()
+//            {
+//                console.log('writable finish time is: %s', this_seq.elapsed.scaled());
+//            });
     }
 
     this.pause = function()
@@ -213,16 +224,17 @@ function Sequence(opts) //factory/ctor
     function cache_dirty()
     {
 //        this.cache.dirty = true;
-        if (this.cache_delaywr) clearTimeout(this.cache_delaywr);
+//        if (this.cache_delaywr) clearTimeout(this.cache_delaywr);
         var cachefile = path.dirname(this.path) + "/cache.json";
-        this.cache_delaywr = setTimeout(function()
+        console.log("wr cache %s", cachefile);
+//        this.cache_delaywr = setTimeout(function()
         {
-            fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
+            fs.writeFile(cachefile, JSON.stringify(this_seq.cache), function(err)
             {
                 if (err) throw "SEQ: Can't write '" + relpath(cachefile) + "': " + err;
                 else console.log("SEQ: wrote cache file '%s'".cyan, relpath(cachefile));
             });
-        }, 20000); //start writing in 20 sec if no other changes
+}//        }, 20000); //start writing in 20 sec if no other changes
     }
 
     var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";

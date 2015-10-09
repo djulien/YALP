@@ -115,13 +115,14 @@ function Playlist(opts) //factory/ctor
         this.emit('begin', null, evtinfo); //playlist
 
         return this.songs[this.selected].play(0)
-            .once('start', function() { this_playlist.emit('start', null, evtinfo); }) //song
-            .on('progress', function() { this_playlist.emit('progress', null, evtinfo); })
-            .once('pause', function() { this_playlist.emit('pause', null, evtinfo); })
-            .once('resume', function() { this_playlist.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); })
+            .once('start', function() { console.log("PLEVT: start"); this_playlist.emit('start', null, evtinfo); }) //song
+            .on('progress', function() { console.log("PLEVT: progress"); this_playlist.emit('progress', null, evtinfo); })
+            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
+            .once('resume', function() { console.log("PLEVT: resume"); this_playlist.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo); })
             .once('stop', function()
             {
+                console.log("PLEVT: stop");
                 this_playlist.emit('stop', null, evtinfo); //song
                 if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1))) this_playlist.write({cmd: "play", index: next, }); //avoid recursion
                 else this_playlist.emit('end', null, evtinfo); //playlist
@@ -132,8 +133,8 @@ function Playlist(opts) //factory/ctor
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
         return this.songs[this.selected].pause()
-            .once('pause', function() { this_playlist.emit('pause', null, evtinfo); })
-            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
+            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
+            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
 //TODO: are resume + stop needed?
@@ -141,16 +142,16 @@ function Playlist(opts) //factory/ctor
     {
         this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
         return this.songs[this.selected].play()
-            .once('play', function() { this_playlist.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
+            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
     this.stop = function() //TODO: is this really useful?
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
         return this.songs[this.selected].stop()
-            .once('stop', function() { this_playlist.emit('stop', null, evtinfo); })
-            .on('error', function(errinfo) { this_playlist.emit('error', errinfo); });
+            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
+            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
 //pass-thru methods to shared player object:
