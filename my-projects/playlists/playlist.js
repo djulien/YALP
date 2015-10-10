@@ -59,11 +59,11 @@ function Playlist(opts) //factory/ctor
 
     this.addSong = function(seqpath) //song is a sequence folder
     {
-        console.log("PL add song %s".blue, seqpath);
+//        console.log("PL add song %s".blue, seqpath);
 //        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
         glob.sync(seqpath).forEach(function (file, index)
         {
-            console.log("PL resolved candidate %s".blue, file);
+//            console.log("PL resolved candidate %s".blue, file);
             var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
             if (!seq.isSequence) return;
 //        propagate(song, this);
@@ -73,9 +73,9 @@ function Playlist(opts) //factory/ctor
         this.duration = 0; //invalidate cached value
     }
 
-    this.on('cmd', function(cmd, opts) //async listener function to avoid recursion in multi-song play loop
+    this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {
-        console.log("playlist in-stream: cmd %s, opts %s".yellow, cmd, JSON.stringify(opts));
+//        console.log("playlist in-stream: cmd %s, opts %s".yellow, cmd, JSON.stringify(opts));
         switch (cmd || '')
         {
             case "play": this.play(opts); return;
@@ -107,23 +107,23 @@ function Playlist(opts) //factory/ctor
 //        if (this.selected < 0) throw "Can't find currently selected song";
         var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
         var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
-        this.emit('begin', null, evtinfo); //playlist
+        if (opts.emit !== false) this.emit('begin', null, evtinfo); //playlist
 
         return this.songs[this.selected] //.play(0)
-            .once('start', function() { console.log("PLEVT: start"); this_playlist.emit('start', null, evtinfo); }) //song
-            .on('progress', function() { console.log("PLEVT: progress"); this_playlist.emit('progress', null, evtinfo); })
-//            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
-//            .once('resume', function() { console.log("PLEVT: resume"); this_playlist.emit('resume', null, evtinfo); })
+            .once('start', function() { /*console.log("PLEVT: start")*/; this_playlist.emit('start', null, evtinfo); }) //song
+            .on('progress', function() { /*console.log("PLEVT: progress")*/; this_playlist.emit('progress', null, evtinfo); })
+//            .once('pause', function() { /*console.log("PLEVT: pause")*/; this_playlist.emit('pause', null, evtinfo); })
+//            .once('resume', function() { /*console.log("PLEVT: resume")*/; this_playlist.emit('resume', null, evtinfo); })
             .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo, evtinfo); })
             .once('stop', function()
             {
-                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
+//                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
                 this_playlist.emit('stop', null, evtinfo); //song
 //single: loop--: repeat current
 //multi: first play thru to end of list, then check loop--
 //                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
                 if ((!opts.single && (this_playlist.selected < this_playlist.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
-                    this_playlist.emit('cmd', "play", {index: next, single: opts.single, loop: opts.loop, }); //push({cmd: "play", index: next, }); //avoid recursion
+                    this_playlist.emit('cmd', "play", {index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
                 else this_playlist.emit('end', null, evtinfo); //playlist
             })
             .play(0);

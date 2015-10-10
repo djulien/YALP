@@ -180,7 +180,7 @@ list ports:
   dmesg | grep tty
 
 
-modeler/ide:
+modeller/ide:
 **http://paperjs.org/examples/hit-testing/
 
 motion det:
@@ -253,6 +253,10 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  https://github.com/Raynos/delta-stream
  https://github.com/substack/oppressor
  src.pipe(dest)
+ http://ejohn.org/blog/node-js-stream-playground/
+ https://github.com/substack/stream-adventure
+ https://www.npmjs.com/package/event-stream
+ https://www.npmjs.com/package/binary-reader
 
 SERIAL PORT:
 https://www.npmjs.com/search?q=serial%20port
@@ -278,7 +282,7 @@ http://yui.github.io/yuidoc/
 streaming server?
  https://github.com/sebpiq/node-web-audio-api
  http://icecast.org/
- 
+
 TODO:
 - add unit testing with Chai and Mocha (!make)
 - add info to readme.md

@@ -23,8 +23,8 @@ hook.hook(EXT, function(src, fullpath)
 //avoid newlines in order to keep source line#s unchanged
     return ((WANT_COLOR || WANT_MEM)? 'require("colors");': '')
         + (WANT_MEM? 'var meminfo = process.memoryUsage(); function memfmt(bytes) { var hfmt = require("human-format"); return hfmt(bytes, new hfmt.Scale({B: 0, KB: 1024, get MB() { return 1024 * this.KB; }, get GB() { return 1024 * this.MB; }, get TB() { return 1024 * this.GB; },})); }': '')
-        + 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');'
-        + (WANT_MEM? 'console.log("memory: %s resident, %s heap total, %s heap used"' + WANT_COLOR + ', memfmt(meminfo.rss), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));': '')
+//        + 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');'
+        + (WANT_MEM? 'console.log("load \'' + relpath + '\', mem: %s, %s, %s ..."' + WANT_COLOR + ', memfmt(meminfo.rss), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));': 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');')
         + timestamp
         + src
         + timestamp

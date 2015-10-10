@@ -13,10 +13,19 @@ var relpath = require('my-plugins/utils/relpath');
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
 var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 var EventEmitter = require('events').EventEmitter;
+//http://stackoverflow.com/questions/3505575/how-can-i-get-the-duration-of-an-mp3-file-cbr-or-vbr-with-a-very-small-library
+//http://www.mp3-converter.com/mp3codec/mp3_anatomy.htm
+//var mp3dat = require('mp3dat');
+//http://lame.sourceforge.net/tech-FAQ.txt
+//DECODER DELAY AT START OF FILE: 528 samples
+//Extra padding at eof: LAME appends 288 samples to pad/flush the last granule
+//  +  last frame of data is padded with 0's so that it has 1152 samples
+//The number of bits/frame is:  frame_size*bit_rate/sample_rate.
+//For MPEG1, frame_size = 1152 samples/frame
+//For MPEG2, frame_size =  576 samples/frame
 var PoolStream = require('pool_stream');
 var MuteStream = require('mute-stream');
 var mp3volume = require('node-mpg123-util');
-    //for NAN fix see: https://github.com/redis/hiredis-node/commit/2eecf216ab5f6f882a7f876cea001460b3f8aa06
 var Speaker = require('speaker');
 var lame = require('lame');
 //var promisedio = require("promised-io/promise"); //https://github.com/kriszyp/promised-io
@@ -53,7 +62,7 @@ function Sequence(opts) //factory/ctor
     this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
     this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
     if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
-    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);
+//    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);
 
 //    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (file, index)
 //    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
@@ -89,12 +98,12 @@ function Sequence(opts) //factory/ctor
     {
         get: function()
         {
-            return this.decoder? mp3vol.getVolume(this.decoder.mh): m_volume; //TODO
+            return this.decoder? mp3volume.getVolume(this.decoder.mh): m_volume; //TODO
         },
         set: function(newval)
         {
             m_volume = newval || 0.5; //stash it in case playback is not active
-            if (this.decoder) mp3vol.setVolume(this.decoder.mh, m_volume); //TODO
+            if (this.decoder) mp3volume.setVolume(this.decoder.mh, m_volume); //TODO
         },
     });
 
@@ -103,7 +112,7 @@ function Sequence(opts) //factory/ctor
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
-        console.log("add media %s".blue, file);
+//        console.log("add media %s".blue, file);
         var fstat = fs.statSync(file);
         if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
         this.media.push({path: file, mtime: fstat.mtime, });
@@ -114,7 +123,7 @@ function Sequence(opts) //factory/ctor
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
-        console.log("add cue %s".blue, file);
+//        console.log("add cue %s".blue, file);
         var fstat = fs.statSync(file);
         if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
         this.cues.push(file);
@@ -165,8 +174,8 @@ function Sequence(opts) //factory/ctor
 //        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
         this.buffered = 0; //TODO
         var this_seq = this;
-        var filename = this.media[this.selected].path;
-        console.log("read [%d/%d] '%s' for playback @%s".cyan, this.selected, this.media.length, relpath(filename), this.elapsed.scaled());
+        var filename = this.media[this.selected]; //.path;
+//        console.log("read [%d/%d] '%s' for playback @%s".cyan, this.selected, this.media.length, path.basename(filename.path), this.elapsed.scaled());
         return fs.createReadStream(this.media[this.selected].path)
 //BROKEN            .pipe(pool) //does this make much difference?
             .pipe(mute)
@@ -175,7 +184,7 @@ function Sequence(opts) //factory/ctor
             {
                 this_seq.volume = m_volume; //restore stashed value
 //                console.log("raw_encoding: %d, sampleRate: %d, channels: %d, signed? %d, float? %d, ulaw? %d, alaw? %d, bitDepth: %d".cyan, format.raw_encoding, format.sampleRate, format.channels, format.signed, format.float, format.ulaw, format.alaw, format.bitDepth);
-                console.log("fmt @%s: ", this_seq.elapsed.scaled(), JSON.stringify(format));
+//                console.log("fmt @%s: ", this_seq.elapsed.scaled(), JSON.stringify(format));
 //                console.log(this.media || "not there".red);
                 this.pipe(this_seq.speaker = new Speaker(format))
 //                    .on('end', function ()
@@ -185,14 +194,14 @@ function Sequence(opts) //factory/ctor
                     .once('open', function () //speaker
                     {
                         if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                        this_seq.emit('start', filename);
-                        console.log("audio '%s' started @%s, reseting", relpath(filename), this_seq.elapsed.scaled());
+                        this_seq.emit('start', filename.path);
+                        console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
                         this.elapsed = new elapsed(); //restart it at actual audio start
                     })
                     .once('flush', function () //speaker
                     {
                         this_seq.speaker = this_seq.decoder = null;
-                        console.log('audio flush time is: %s', this_seq.elapsed.scaled());
+//                        console.log('audio flush time is: %s', this_seq.elapsed.scaled());
                     })
                     .once('close', function () //speaker
                     {
@@ -200,14 +209,17 @@ function Sequence(opts) //factory/ctor
 //                        this_seq.elapsed = {now: this_seq.elapsed.now, scaled: function() { return }; //freeze elapsed timer
                         this_seq.elapsed.pause();
                         this_seq.speaker = this_seq.decoder = null;
-                        console.log("audio '%s' ended @%s", relpath(filename), this_seq.elapsed.scaled());
-                        this_seq.emit('stop', filename);
-                        var cache = this_seq.cache[filename] = {};
-                        cache.stamp = (new Date()).getTime();
-                        cache.time = (new Date()).toString();
-                        cache.duration = this_seq.elapsed.now; //save for other usage
-//                        this_seq.cache[filename] = cache;
-                        cache_dirty.apply(this_seq); //preserve "this"
+                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
+                        this_seq.emit('stop', filename.path);
+                        var cache = this_seq.cache[filename.path] || {};
+                        if ((cache.stamp || 0) < filename.mtime)
+                        {
+                            cache.stamp = (new Date()).getTime();
+                            cache.time = (new Date()).toString();
+                            cache.duration = this_seq.elapsed.now; //save for other usage
+                            this_seq.cache[filename.path] = cache; //in case entry not there
+                            cache_dirty.apply(this_seq); //preserve "this"
+                        }
                         if (this_seq.media.length > 1) throw "Play more media"; //TODO
                     })
                     .on('error', function (err) //stream or speaker
@@ -215,20 +227,20 @@ function Sequence(opts) //factory/ctor
                         if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //??                        this_seq.speaker = this_seq.decoder = null;
                         console.log('audio error: '.red, err);
-                        this_seq.emit('error', err, filename);
+                        this_seq.emit('error', err, filename.path);
                     })
                     .once('finish', function () //stream
                     {
                         if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
                         this_seq.speaker = this_seq.decoder = null;
-                        console.log('audio finish time is: %s', this_seq.elapsed.scaled());
+//                        console.log('audio finish time is: %s', this_seq.elapsed.scaled());
                     });
             })
             .on('error', function (err)
             {
                 if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //??                        this_seq.speaker = this_seq.decoder = null;
-                this_seq.emit('error', err, filename);
+                this_seq.emit('error', err, filename.path);
                 console.log('lame decoder error: '.red, err);
             });
     }
@@ -293,11 +305,11 @@ function Sequence(opts) //factory/ctor
 //        console.log("caller dir: " + relpath(callerdir));
 //        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
         var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //, {}, function (err, files)
-        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //relpath(path.dirname(this.path)));
+//        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //relpath(path.dirname(this.path)));
         files.forEach(function(file, inx) { this.addMedia(file); }, this); //CAUTION: need to preserve context within forEach loop
 
         files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
-        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
+//        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
         files.forEach(function(file, inx) { this.addCue(file); }, this); //CAUTION: need to preserve context within forEach loop
 //TODO: auto-collect models? they are likely in different folder - how to find?
     }
