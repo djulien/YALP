@@ -102,7 +102,8 @@ function Sequence(opts) //factory/ctor
         },
         set: function(newval)
         {
-            m_volume = newval || 0.5; //stash it in case playback is not active
+            console.log("set volume %d", newval);
+            m_volume = newval; // || 0.5; //stash it in case playback is not active
             if (this.decoder) mp3volume.setVolume(this.decoder.mh, m_volume); //TODO
         },
     });

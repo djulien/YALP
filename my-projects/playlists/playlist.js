@@ -43,6 +43,7 @@ function Playlist(opts) //factory/ctor
     {
         get: function() //read-only, computed, cached
         {
+            if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
             if (!m_duration)
                 this.songs.forEach(function (song, inx)
                 {
@@ -52,13 +53,22 @@ function Playlist(opts) //factory/ctor
         },
         set: function(newval)
         {
+            if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
             if (newval) throw "Playlist.duration is read-only";
             m_duration = newval; //only allow it to be cleared
         },
     });
 
+    var m_volume;
+    Object.defineProperty(this, "volume",
+    {
+        get: function() { return m_volume; },
+        set: function(newval) { this.songs[this.selected].volume = m_volume = newval; },
+    });
+
     this.addSong = function(seqpath) //song is a sequence folder
     {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //        console.log("PL add song %s".blue, seqpath);
 //        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
         glob.sync(seqpath).forEach(function (file, index)
@@ -75,6 +85,7 @@ function Playlist(opts) //factory/ctor
 
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //        console.log("playlist in-stream: cmd %s, opts %s".yellow, cmd, JSON.stringify(opts));
         switch (cmd || '')
         {
@@ -95,6 +106,7 @@ function Playlist(opts) //factory/ctor
 //        opts = opts || {};
         this.elapsed = new elapsed();
         if (!this.songs.length) throw "No songs to play";
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
         if (this.songs.length == 1) opts.single = true;
         if (opts.loop === true) opts.loop = 1;
@@ -108,6 +120,12 @@ function Playlist(opts) //factory/ctor
         var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
         var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
         if (opts.emit !== false) this.emit('begin', null, evtinfo); //playlist
+        this.songs[this.selected].volume = m_volume;
+        if (this.progress) clearInterval(this.progress);
+        this.progress = setInterval(function()
+        {
+            if (!evtinfo.current.elapsed.paused) this_playlist.emit('progress', null, evtinfo);
+        }, Math.max(250, this.songs[this.selected].duration / 100)); //send out periodic updates every 1% but no faster than 1/4 sec
 
         return this.songs[this.selected] //.play(0)
             .once('start', function() { /*console.log("PLEVT: start")*/; this_playlist.emit('start', null, evtinfo); }) //song
@@ -117,8 +135,10 @@ function Playlist(opts) //factory/ctor
             .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo, evtinfo); })
             .once('stop', function()
             {
+                if (!this_playlist.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
                 this_playlist.emit('stop', null, evtinfo); //song
+                if (this_playlist.progress) clearInterval(this_playlist.progress); this_playlist.progress = null; //don't leave dangling timer
 //single: loop--: repeat current
 //multi: first play thru to end of list, then check loop--
 //                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
@@ -132,8 +152,9 @@ function Playlist(opts) //factory/ctor
 //TODO: are pause + resume useful?
     this.pause = function()
     {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         if (this.songs[this.selected].paused) return;
-        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+        this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
         this.songs[this.selected].pause();
 //        return this.songs[this.selected].pause()
 //            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
@@ -142,8 +163,9 @@ function Playlist(opts) //factory/ctor
 
     this.resume = function() //TODO: is this really useful?
     {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         if (!this.songs[this.selected].paused) return;
-        this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
+        this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
         this.songs[this.selected].resume();
 //        return this.songs[this.selected].play()
 //            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
@@ -152,7 +174,9 @@ function Playlist(opts) //factory/ctor
 
     this.stop = function() //TODO: is this really useful?
     {
-        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+        if (this.progress) clearInterval(this.progress); this.progress = null;
+        this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
         return this.songs[this.selected].stop();
 //            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
 //            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
@@ -167,6 +191,7 @@ function Playlist(opts) //factory/ctor
 
     if (opts.auto_collect)
     {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         console.log("PL auto-collect: %s".blue, path.dirname(this.path) + "/**/!(*-bk).js");
         var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
         console.log("PL: auto-collect got %d candidate seq files", files.length);

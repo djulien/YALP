@@ -450,6 +450,7 @@ function test2()
 
 function playback(player)
 {
+    player.volume = 0.1;
     player
       .on('begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
       .on('start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
@@ -459,13 +460,16 @@ function playback(player)
       .on('stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
       .on('end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
       .on('error', function(err) { if (err) showerr("end", err); })
-      .play({loop: 2, }); //single: true, index: 1});
+      .play({single: true, index: 1, }); //{loop: 2, single: true, index: 1});
+//    setTimeout(function() { player.volume = 0.5; }, 2000);
+    setTimeout(function() { player.volume = 1.0; }, 1000);
+//    setTimeout(function() { player.volume = 1.0; }, 4000);
 }
 
 function status(when, current, next)
 {
     var color = (when == "start")? 'green': (when.indexOf("next") != -1)? 'cyan': 'blue';
-    console.log("%s song[%d] %s, duration %s, played %d%%, buffered %d%%"[color], when, current.index, current.name, scaled(current.duration), 100*current.played/current.duration, 100*current.buffered/current.duration);
+    console.log("%s song[%d] %s, duration %s, elapsed %s, played %d%%, buffered %d%%"[color], when, current.index, current.name, scaled(current.duration), current.elapsed.scaled(), 100*current.played/current.duration, 100*current.buffered/current.duration);
     if (next) status("  " + when + " next", next);
 }
 
