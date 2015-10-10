@@ -275,6 +275,10 @@ http://smartcomments.github.io/
 http://www.markupjavascript.com/2014/02/js-documentation-generator-tools-jsdoc-yuidoc-docco.html
 http://yui.github.io/yuidoc/
 
+streaming server?
+ https://github.com/sebpiq/node-web-audio-api
+ http://icecast.org/
+ 
 TODO:
 - add unit testing with Chai and Mocha (!make)
 - add info to readme.md

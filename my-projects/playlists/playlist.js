@@ -33,7 +33,7 @@ function Playlist(opts) //factory/ctor
     this.songs = [];
     this.selected = 0;
     this.isPlaylist = true;
-    this.elapsed = new elapsed(); //from creation until played
+//    this.elapsed = new elapsed(); //junk value until played
     this.path = module.parent.filename; //already known by caller, but set it anyway
     if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
@@ -73,25 +73,18 @@ function Playlist(opts) //factory/ctor
         this.duration = 0; //invalidate cached value
     }
 
-    this._transform = function (chunk, encoding, done)
+    this.on('cmd', function(cmd, opts) //async listener function to avoid recursion in multi-song play loop
     {
-        console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
-        switch (chunk.cmd || '')
+        console.log("playlist in-stream: cmd %s, opts %s".yellow, cmd, JSON.stringify(opts));
+        switch (cmd || '')
         {
-            case "play": this.play(); return;
-            case "pause": this.pause(); return;
-            case "next": this.next(); return;
-            case "stop": this.stop(); return;
-            default: console.log("unknown command: '%s'".red, chunk.cmd || '');
+            case "play": this.play(opts); return;
+            case "pause": this.pause(opts); return;
+            case "next": this.next(opts); return;
+            case "stop": this.stop(opts); return;
+            default: console.log("unknown command: '%s'".red, cmd || '');
         }
-        done();
-    }
-    this._flush = function (done)
-    {
-        console.log("playlist in-stream: EOF".blue);
-        this.stop();
-        done();
-    }
+    });
 
 //example mp3 player from https://gist.github.com/TooTallNate/3947591
 //more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
@@ -103,7 +96,9 @@ function Playlist(opts) //factory/ctor
         this.elapsed = new elapsed();
         if (!this.songs.length) throw "No songs to play";
         opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
-        if (opts.shuffle) //rearrange list in-place; index prop indicates original order
+        if (this.songs.length == 1) opts.single = true;
+        if (opts.loop === true) opts.loop = 1;
+        if (opts.shuffle) //rearrange list in-place (ensures complete list is used and playlist length is maintained); index prop indicates original order
         {
             this.songs.forEach(function(song, inx) { song.order = Math.random(); });
             this.songs.sort(function(lhs, rhs) { return (lhs.order < rhs.order)? -1: (lhs.order > rhs.order)? 1: 0; });
@@ -114,44 +109,53 @@ function Playlist(opts) //factory/ctor
         var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
         this.emit('begin', null, evtinfo); //playlist
 
-        return this.songs[this.selected].play(0)
+        return this.songs[this.selected] //.play(0)
             .once('start', function() { console.log("PLEVT: start"); this_playlist.emit('start', null, evtinfo); }) //song
             .on('progress', function() { console.log("PLEVT: progress"); this_playlist.emit('progress', null, evtinfo); })
-            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
-            .once('resume', function() { console.log("PLEVT: resume"); this_playlist.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo); })
+//            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
+//            .once('resume', function() { console.log("PLEVT: resume"); this_playlist.emit('resume', null, evtinfo); })
+            .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo, evtinfo); })
             .once('stop', function()
             {
-                console.log("PLEVT: stop");
+                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
                 this_playlist.emit('stop', null, evtinfo); //song
-                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1))) this_playlist.write({cmd: "play", index: next, }); //avoid recursion
+//single: loop--: repeat current
+//multi: first play thru to end of list, then check loop--
+//                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
+                if ((!opts.single && (this_playlist.selected < this_playlist.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
+                    this_playlist.emit('cmd', "play", {index: next, single: opts.single, loop: opts.loop, }); //push({cmd: "play", index: next, }); //avoid recursion
                 else this_playlist.emit('end', null, evtinfo); //playlist
-            });
+            })
+            .play(0);
     }
 
+//TODO: are pause + resume useful?
     this.pause = function()
     {
+        if (this.songs[this.selected].paused) return;
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-        return this.songs[this.selected].pause()
-            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
-            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+        this.songs[this.selected].pause();
+//        return this.songs[this.selected].pause()
+//            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
-//TODO: are resume + stop needed?
     this.resume = function() //TODO: is this really useful?
     {
+        if (!this.songs[this.selected].paused) return;
         this.elapsed = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
-        return this.songs[this.selected].play()
-            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+        this.songs[this.selected].resume();
+//        return this.songs[this.selected].play()
+//            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
     this.stop = function() //TODO: is this really useful?
     {
         this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-        return this.songs[this.selected].stop()
-            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
-            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+        return this.songs[this.selected].stop();
+//            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
     }
 
 //pass-thru methods to shared player object:
@@ -177,6 +181,29 @@ inherits(Playlist, xform); //http://stackoverflow.com/questions/8898399/node-js-
 //Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
 //????Door.prototype.__proto__ = events.EventEmitter.prototype;
 //MyStream.prototype._read = function () {
+
+/*TODO ????
+Playlist.prototype._transform = function (chunk, encoding, done)
+{
+    console.log("playlist in-stream: cmd ".yellow, JSON.stringify(chunk));
+    switch (chunk.cmd || '')
+    {
+        case "play": this.play(); return;
+        case "pause": this.pause(); return;
+        case "next": this.next(); return;
+        case "stop": this.stop(); return;
+        default: console.log("unknown command: '%s'".red, chunk.cmd || '');
+    }
+    done();
+}
+
+Playlist.prototype._flush = function (done)
+{
+    console.log("playlist in-stream: EOF".yellow);
+    this.stop();
+    done();
+}
+*/
 
 
 //eof
