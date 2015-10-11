@@ -1,6 +1,6 @@
-1.106974	1.106974	Amazing grace, how sweet the sound
-5.304250	5.304250	how sweet the sound
-10.470128	10.470128	that saved a wretch like me
+1.106974			Amazing grace, how sweet the sound
+5.304250			how sweet the sound
+10.470128			that saved a wretch like me
 20.386769	20.663513	I once was lost
-25.921639	25.921639	but now am found
-31.041393	31.041393	was blind but now I see
+25.921639			but now am found
+31.041393			was blind but now I see

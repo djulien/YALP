@@ -4,8 +4,7 @@
 'use strict';
 
 var path = require('path');
-var EventEmitter = require('events').EventEmitter;
-var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
+//var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
 var glob = require('glob');
 var elapsed = require('my-plugins/utils/elapsed');
@@ -18,11 +17,17 @@ module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
 
 //http://www.crockford.com/javascript/inheritance.html
 
+//http://www.sandersdenardi.com/readable-writable-transform-streams-node/
+//sequence is readable stream, player is consumer, non-flow mode
+//var baseclass = require('stream').Readable;
+var baseclass = require('my-plugins/streamers/outhw');
+//var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
+
 //options: auto_play (schedule or loop), auto_next, loop
 function Playlist(opts) //factory/ctor
 {
     if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
-    xform.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+    baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
     var m_duration = 0; //this.duration = 0;
@@ -34,6 +39,7 @@ function Playlist(opts) //factory/ctor
     this.selected = 0;
     this.isPlaylist = true;
 //    this.elapsed = new elapsed(); //junk value until played
+//    this.outhw = new Outhw();
     this.path = module.parent.filename; //already known by caller, but set it anyway
     if (path.basename(this.path) == 'index.js') this.path = path.dirname(this.path); //use folder name instead to give more meaningful name
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
@@ -66,7 +72,19 @@ function Playlist(opts) //factory/ctor
         set: function(newval) { this.songs[this.selected].volume = m_volume = newval; },
     });
 
-    this.addSong = function(seqpath) //song is a sequence folder
+    var m_oldvolume = null;
+    this.mute = function()
+    {
+        if (m_oldvolume !== null) return;
+        m_oldvolume = this.volume; this.volume = 0;
+    }
+    this.unmute = function()
+    {
+        if (m_oldvolume === null) return;
+        this.volume = m_oldvolume; m_oldvolume = null;
+    }
+
+    this.addSong = function(seqpath) //song is a sequence folder; also a readable stream
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //        console.log("PL add song %s".blue, seqpath);
@@ -79,6 +97,14 @@ function Playlist(opts) //factory/ctor
 //        propagate(song, this);
             seq.index = this.songs.length;
             this.songs.push(seq);
+            seq.pipe(this, {end: false}); //https://github.com/atamborrino/streamee.js/blob/master/index.js
+/*??
+            seq.on('end', function()
+            {
+                self.nActiveStreams--;
+                if (self.nActiveStreams === 0) self.push(null); // end
+            });
+*/
         }, this); //CAUTION: need to preserve context within forEach loop
         this.duration = 0; //invalidate cached value
     }
@@ -93,6 +119,7 @@ function Playlist(opts) //factory/ctor
             case "pause": this.pause(opts); return;
             case "next": this.next(opts); return;
             case "stop": this.stop(opts); return;
+            case "volume": this.volume(opts); return;
             default: console.log("unknown command: '%s'".red, cmd || '');
         }
     });
@@ -121,11 +148,12 @@ function Playlist(opts) //factory/ctor
         var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
         if (opts.emit !== false) this.emit('begin', null, evtinfo); //playlist
         this.songs[this.selected].volume = m_volume;
-        if (this.progress) clearInterval(this.progress);
-        this.progress = setInterval(function()
+        if (this.progress) clearInterval(this.progress); this.process = null;
+        var progintv = (opts.progress === true)? this.songs[this.selected].duration / 100: !opts.progress? 0: (opts.progress < 100)? opts.progress * 1000: opts.progress; //caller probably wanted seconds not msec; default to 1%
+        if (progintv) this.progress = setInterval(function()
         {
             if (!evtinfo.current.elapsed.paused) this_playlist.emit('progress', null, evtinfo);
-        }, Math.max(250, this.songs[this.selected].duration / 100)); //send out periodic updates every 1% but no faster than 1/4 sec
+        }, Math.max(250, progintv)); //send out periodic updates no faster than 1/4 sec
 
         return this.songs[this.selected] //.play(0)
             .once('start', function() { /*console.log("PLEVT: start")*/; this_playlist.emit('start', null, evtinfo); }) //song
@@ -142,8 +170,9 @@ function Playlist(opts) //factory/ctor
 //single: loop--: repeat current
 //multi: first play thru to end of list, then check loop--
 //                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
+                opts.index = next; opts.emit = false;
                 if ((!opts.single && (this_playlist.selected < this_playlist.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
-                    this_playlist.emit('cmd', "play", {index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
+                    this_playlist.emit('cmd', "play", opts); //{index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
                 else this_playlist.emit('end', null, evtinfo); //playlist
             })
             .play(0);
@@ -202,7 +231,7 @@ function Playlist(opts) //factory/ctor
 
 //    return this; //not needed for ctor
 }
-inherits(Playlist, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+inherits(Playlist, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 //Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
 //????Door.prototype.__proto__ = events.EventEmitter.prototype;
 //MyStream.prototype._read = function () {

@@ -24,7 +24,7 @@ hook.hook(EXT, function(src, fullpath)
     return ((WANT_COLOR || WANT_MEM)? 'require("colors");': '')
         + (WANT_MEM? 'var meminfo = process.memoryUsage(); function memfmt(bytes) { var hfmt = require("human-format"); return hfmt(bytes, new hfmt.Scale({B: 0, KB: 1024, get MB() { return 1024 * this.KB; }, get GB() { return 1024 * this.MB; }, get TB() { return 1024 * this.GB; },})); }': '')
 //        + 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');'
-        + (WANT_MEM? 'console.log("load \'' + relpath + '\', mem: %s, %s, %s ..."' + WANT_COLOR + ', memfmt(meminfo.rss), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));': 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');')
+        + (WANT_MEM? 'console.log("load \'' + relpath + '\', mem: %s, %s, %s, %s ..."' + WANT_COLOR + ', memfmt(meminfo.rss), memfmt(meminfo.vsize || 0), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));': 'console.log("load \'' + relpath + '\' ..."' + WANT_COLOR + ');')
         + timestamp
         + src
         + timestamp

@@ -12,20 +12,6 @@ console.log("START UP");
 require('colors');
 var scaled = require('my-plugins/utils/time-scale');
 
-//for example see https://strongloop.com/strongblog/practical-examples-of-the-new-node-js-streams-api/
-var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
-var outhw = new xform({ objectMode: true, });
-outhw._transform = function (chunk, encoding, done)
-{
-    console.log("outhw: in ".blue, JSON.stringify(chunk));
-    done();
-}
-outhw._flush = function (done)
-{
-    console.log("outhw: eof".cyan);
-    done();
-}
-
 
 var fs = require('fs');
 var lame = require('lame');
@@ -112,13 +98,14 @@ function test3()
 }
 
 //logic taken from http://www.zedwood.com/article/php-calculate-duration-of-mp3
+//see also http://stackoverflow.com/questions/383164/how-to-retrieve-duration-of-mp3-in-net/13269914#13269914
 //Read first mp3 frame only...  use for CBR constant bit rate MP3s
 //TODO: rewrite to use node-binary, node-struct, or binary-parser module?
 function getDuration(filename, use_cbr_estimate, cb)
 {
     if (typeof use_cbr_estimate === 'function') { cb = use_cbr_estimate; use_cbr_estimate = false; } //optional param
 //    fs.open(filename, 'r', function(err, fd)
-//    {
+//    {wstream.write(buffer);
 //        if (err) { console.log(err.message); return; }
 //        var buffer = new Buffer(100);
 //        fs.read(fd, buffer, 0, 100, 0, function(err, num)
@@ -443,14 +430,17 @@ function test2()
 
 //    return;
 //    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
-    playback(playlist); //.play()); //play once
+    setTimeout(function()
+    {
+        playback(playlist); //.play()); //play once
+    }, 3000); //kludge: give async data a chance to settle
 //playback(playlist.scheduled()); //play according to schedule
 }
 
 
 function playback(player)
 {
-    player.volume = 0.1;
+    player.volume = 1.0;
     player
       .on('begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
       .on('start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
@@ -460,10 +450,12 @@ function playback(player)
       .on('stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
       .on('end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
       .on('error', function(err) { if (err) showerr("end", err); })
-      .play({single: true, index: 1, }); //{loop: 2, single: true, index: 1});
+      .play({loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
 //    setTimeout(function() { player.volume = 0.5; }, 2000);
-    setTimeout(function() { player.volume = 1.0; }, 1000);
-//    setTimeout(function() { player.volume = 1.0; }, 4000);
+//    setTimeout(function() { player.volume = 0.3; }, 3000);
+//    setTimeout(function() { player.volume = 2.0; }, 6000);
+//    setTimeout(function() { player.mute(); }, 16000);
+//    setTimeout(function() { player.unmute(); }, 26000);
 }
 
 function status(when, current, next)

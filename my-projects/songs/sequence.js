@@ -6,13 +6,18 @@
 var fs = require('fs');
 var glob = require('glob');
 var path = require('path');
+var byline = require('byline');
 var inherits = require('inherits');
+var Tokenizer = require('tokenizer');
+require('buffertools').extend(); //https://github.com/bnoordhuis/node-buffertools
 var elapsed = require('my-plugins/utils/elapsed');
 var relpath = require('my-plugins/utils/relpath');
+var shortname = require('my-plugins/utils/shortname');
 //var scaled = require('my-plugins/utils/time-scale');
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
-var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
-var EventEmitter = require('events').EventEmitter;
+//var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
+//var baseclass = require('events').EventEmitter;
+var baseclass = require('my-plugins/streamers/seqdata');
 //http://stackoverflow.com/questions/3505575/how-can-i-get-the-duration-of-an-mp3-file-cbr-or-vbr-with-a-very-small-library
 //http://www.mp3-converter.com/mp3codec/mp3_anatomy.htm
 //var mp3dat = require('mp3dat');
@@ -24,13 +29,14 @@ var EventEmitter = require('events').EventEmitter;
 //For MPEG1, frame_size = 1152 samples/frame
 //For MPEG2, frame_size =  576 samples/frame
 var PoolStream = require('pool_stream');
-var MuteStream = require('mute-stream');
+//var MuteStream = require('mute-stream');
 var mp3volume = require('node-mpg123-util');
 var Speaker = require('speaker');
 var lame = require('lame');
 //var promisedio = require("promised-io/promise"); //https://github.com/kriszyp/promised-io
 
 module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+
 
 //var YALP = YALP || {}; //namespace
 ///*YALP.*/ sequence = function(path, name) //ctor
@@ -41,15 +47,16 @@ module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
 function Sequence(opts) //factory/ctor
 {
     if (!(this instanceof Sequence)) return new Sequence(opts); //make "new" optional; make sure "this" is set
-    xform.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
-//    var m_stream = new xform({ objectMode: true, });
+    baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+//    var m_stream = new baseclass({ objectMode: true, });
 //    var m_evte = new EventEmitter;
 //    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
 //    opts = opts || {};
     opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
 //    opts = Object.assign({auto_collect: true, reqd: true, limit: 1, playlist: true}, opts);
 
-    this.cues = [];
+//    this.cues = [];
+//    this.seqdata = new seqdata();
     this.models = [];
     this.media = []; //opts.path || ''; //TODO: allow > 1?
 //    this.selected = 0;
@@ -102,7 +109,7 @@ function Sequence(opts) //factory/ctor
         },
         set: function(newval)
         {
-            console.log("set volume %d", newval);
+//            console.log("set volume %d", newval);
             m_volume = newval; // || 0.5; //stash it in case playback is not active
             if (this.decoder) mp3volume.setVolume(this.decoder.mh, m_volume); //TODO
         },
@@ -119,15 +126,12 @@ function Sequence(opts) //factory/ctor
         this.media.push({path: file, mtime: fstat.mtime, });
         this.duration = 0; //invalidate cached value
     }
-    this.addCue = function(file)
+
+    this.getFrame = function(frnum) //NOTE: this must be overridden by instance; dummy logic supplied here
     {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//        if (player.canPlay(file)
-//        seq.index = this.songs.length;
-//        console.log("add cue %s".blue, file);
-        var fstat = fs.statSync(file);
-        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
-        this.cues.push(file);
+        var buf = new Buffer(16); //simulate 16 channels
+        buf.clear(frnum);
+        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length, };
     }
 
 /*
@@ -159,7 +163,7 @@ function Sequence(opts) //factory/ctor
 //fancier example from https://www.npmjs.com/package/pool_stream
 //this is impressively awesome - 6 lines of portable code!
 //    var pool = new PoolStream() //TODO: is pool useful here?
-    var mute = new MuteStream();
+//    var mute = new MuteStream();
     this.play = function(opts) //manual start
     {
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
@@ -175,11 +179,13 @@ function Sequence(opts) //factory/ctor
 //        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
         this.buffered = 0; //TODO
         var this_seq = this;
+        this.seqstart();
+
         var filename = this.media[this.selected]; //.path;
 //        console.log("read [%d/%d] '%s' for playback @%s".cyan, this.selected, this.media.length, path.basename(filename.path), this.elapsed.scaled());
         return fs.createReadStream(this.media[this.selected].path)
 //BROKEN            .pipe(pool) //does this make much difference?
-            .pipe(mute)
+//            .pipe(new MuteStream()) //mute) //TODO
             .pipe(this_seq.decoder = new lame.Decoder())
             .once('format', function (format)
             {
@@ -196,7 +202,7 @@ function Sequence(opts) //factory/ctor
                     {
                         if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
                         this_seq.emit('start', filename.path);
-                        console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
+                        if (this_seq.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
                         this.elapsed = new elapsed(); //restart it at actual audio start
                     })
                     .once('flush', function () //speaker
@@ -210,7 +216,8 @@ function Sequence(opts) //factory/ctor
 //                        this_seq.elapsed = {now: this_seq.elapsed.now, scaled: function() { return }; //freeze elapsed timer
                         this_seq.elapsed.pause();
                         this_seq.speaker = this_seq.decoder = null;
-                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
+//                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
+                        this_seq.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
                         this_seq.emit('stop', filename.path);
                         var cache = this_seq.cache[filename.path] || {};
                         if ((cache.stamp || 0) < filename.mtime)
@@ -229,6 +236,7 @@ function Sequence(opts) //factory/ctor
 //??                        this_seq.speaker = this_seq.decoder = null;
                         console.log('audio error: '.red, err);
                         this_seq.emit('error', err, filename.path);
+//                        this_seq.seqstop();
                     })
                     .once('finish', function () //stream
                     {
@@ -243,6 +251,7 @@ function Sequence(opts) //factory/ctor
 //??                        this_seq.speaker = this_seq.decoder = null;
                 this_seq.emit('error', err, filename.path);
                 console.log('lame decoder error: '.red, err);
+//                this_seq.seqstop();
             });
     }
 
@@ -252,7 +261,7 @@ function Sequence(opts) //factory/ctor
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
         if (this.paused) return;
         this.elapsed.pause(); // = {now: this.elapsed.now, } //freeze elapsed timer
-        mute.pause();
+//        mute.pause();
         this.paused = true;
 //        this.interrupt = true; //async
 //TODO            .once('pause', function() { this.emit('pause', null, evtinfo); })
@@ -264,7 +273,7 @@ function Sequence(opts) //factory/ctor
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
         if (!this.paused) return;
         this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so total elapsed time is still correct
-        mute.resume();
+//        mute.resume();
         this.paused = false;
 //        this.interrupt = true; //async
 //            .once('play', function() { this.emit('resume', null, evtinfo); })
@@ -299,6 +308,13 @@ function Sequence(opts) //factory/ctor
 }//        }, 20000); //start writing in 20 sec if no other changes
     }
 
+    if (opts.interval) //generate frame cues at specified interval
+    {
+        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+        for (var time = 0, frnum = 0; time < this.duration; time += opts.interval, ++frnum)
+            this.addCue("frame", time, Math.min(time + opts.interval, this.duration), "frame#" + frnum, "seq");
+    }
+
     var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";
     if (opts.auto_collect)
     {
@@ -311,7 +327,7 @@ function Sequence(opts) //factory/ctor
 
         files = glob.sync(path.dirname(this.path) + "/**/*timing*!(*-bk)");
 //        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
-        files.forEach(function(file, inx) { this.addCue(file); }, this); //CAUTION: need to preserve context within forEach loop
+        files.forEach(function(file, inx) { this.addCues(file); }, this); //CAUTION: need to preserve context within forEach loop
 //TODO: auto-collect models? they are likely in different folder - how to find?
     }
     (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
@@ -323,7 +339,7 @@ function Sequence(opts) //factory/ctor
 //    return this; //not needed for ctor
 }
 //for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
-inherits(Sequence, xform); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
+inherits(Sequence, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 
 
 /*TODO??

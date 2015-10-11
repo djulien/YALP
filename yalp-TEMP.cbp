@@ -80,6 +80,8 @@
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
+		<Unit filename="my-plugins/streamers/outhw.js" />
+		<Unit filename="my-plugins/streamers/seqdata.js" />
 		<Unit filename="my-plugins/utils/config.js" />
 		<Unit filename="my-plugins/utils/credentials.js" />
 		<Unit filename="my-plugins/utils/elapsed.js" />
@@ -88,6 +90,7 @@
 		<Unit filename="my-plugins/utils/make-global.js" />
 		<Unit filename="my-plugins/utils/mem-scale.js" />
 		<Unit filename="my-plugins/utils/relpath.js" />
+		<Unit filename="my-plugins/utils/shortname.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
