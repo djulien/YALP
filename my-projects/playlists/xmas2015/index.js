@@ -26,5 +26,6 @@ playlist.schedule =
 playlist.opener = "thx"; //TODO
 playlist.closer = "goodnight"; //TODO
 
+module.exports.debug();
 
 //eof

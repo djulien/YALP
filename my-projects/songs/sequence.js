@@ -105,7 +105,7 @@ function Sequence(opts) //factory/ctor
     {
         get: function()
         {
-            return this.decoder? mp3volume.getVolume(this.decoder.mh): m_volume; //TODO
+            return m_volume; //this.decoder? mp3volume.getVolume(this.decoder.mh): m_volume; //always used saved value (in case decoder stale)
         },
         set: function(newval)
         {
@@ -114,206 +114,6 @@ function Sequence(opts) //factory/ctor
             if (this.decoder) mp3volume.setVolume(this.decoder.mh, m_volume); //TODO
         },
     });
-
-    this.addMedia = function(file)
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//        if (player.canPlay(file)
-//        seq.index = this.songs.length;
-//        console.log("add media %s".blue, file);
-        var fstat = fs.statSync(file);
-        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
-        this.media.push({path: file, mtime: fstat.mtime, });
-        this.duration = 0; //invalidate cached value
-    }
-
-    this.getFrame = function(frnum) //NOTE: this must be overridden by instance; dummy logic supplied here
-    {
-        var buf = new Buffer(16); //simulate 16 channels
-        buf.clear(frnum);
-        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length, };
-    }
-
-/*
-    m_stream._transform = function (chunk, encoding, done)
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
-        switch (chunk.cmd || '')
-        {
-            case "play": this.play(); return;
-            case "pause": this.pause(); return;
-            case "next": this.next(); return;
-            case "stop": this.stop(); return;
-            default: console.log("unknown command: '%s'".red, chunk.cmd || '');
-        }
-        done();
-    }
-    m_stream._flush = function (done)
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        console.log("playlist in-stream: EOF".blue);
-        this.stop();
-        done();
-    }
-*/
-
-//example mp3 player from https://gist.github.com/TooTallNate/3947591
-//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
-//fancier example from https://www.npmjs.com/package/pool_stream
-//this is impressively awesome - 6 lines of portable code!
-//    var pool = new PoolStream() //TODO: is pool useful here?
-//    var mute = new MuteStream();
-    this.play = function(opts) //manual start
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        if (this.paused) { this.resume(); return; }
-//        opts = opts || {};
-        this.paused = false;
-        this.elapsed = new elapsed();
-        if (!this.media.length) throw "No '" + this.name + "' media to play";
-        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
-        this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.media.length - 1); //clamp to end of list
-//        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
-//        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
-//        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
-        this.buffered = 0; //TODO
-        var this_seq = this;
-        this.seqstart();
-
-        var filename = this.media[this.selected]; //.path;
-//        console.log("read [%d/%d] '%s' for playback @%s".cyan, this.selected, this.media.length, path.basename(filename.path), this.elapsed.scaled());
-        return fs.createReadStream(this.media[this.selected].path)
-//BROKEN            .pipe(pool) //does this make much difference?
-//            .pipe(new MuteStream()) //mute) //TODO
-            .pipe(this_seq.decoder = new lame.Decoder())
-            .once('format', function (format)
-            {
-                this_seq.volume = m_volume; //restore stashed value
-//                console.log("raw_encoding: %d, sampleRate: %d, channels: %d, signed? %d, float? %d, ulaw? %d, alaw? %d, bitDepth: %d".cyan, format.raw_encoding, format.sampleRate, format.channels, format.signed, format.float, format.ulaw, format.alaw, format.bitDepth);
-//                console.log("fmt @%s: ", this_seq.elapsed.scaled(), JSON.stringify(format));
-//                console.log(this.media || "not there".red);
-                this.pipe(this_seq.speaker = new Speaker(format))
-//                    .on('end', function ()
-//                    {
-//                        console.log('speaker end time is: %s', this_seq.elapsed.scaled());
-//                    })
-                    .once('open', function () //speaker
-                    {
-                        if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                        this_seq.emit('start', filename.path);
-                        if (this_seq.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
-                        this.elapsed = new elapsed(); //restart it at actual audio start
-                    })
-                    .once('flush', function () //speaker
-                    {
-                        this_seq.speaker = this_seq.decoder = null;
-//                        console.log('audio flush time is: %s', this_seq.elapsed.scaled());
-                    })
-                    .once('close', function () //speaker
-                    {
-                        if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//                        this_seq.elapsed = {now: this_seq.elapsed.now, scaled: function() { return }; //freeze elapsed timer
-                        this_seq.elapsed.pause();
-                        this_seq.speaker = this_seq.decoder = null;
-//                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
-                        this_seq.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
-                        this_seq.emit('stop', filename.path);
-                        var cache = this_seq.cache[filename.path] || {};
-                        if ((cache.stamp || 0) < filename.mtime)
-                        {
-                            cache.stamp = (new Date()).getTime();
-                            cache.time = (new Date()).toString();
-                            cache.duration = this_seq.elapsed.now; //save for other usage
-                            this_seq.cache[filename.path] = cache; //in case entry not there
-                            cache_dirty.apply(this_seq); //preserve "this"
-                        }
-                        if (this_seq.media.length > 1) throw "Play more media"; //TODO
-                    })
-                    .on('error', function (err) //stream or speaker
-                    {
-                        if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//??                        this_seq.speaker = this_seq.decoder = null;
-                        console.log('audio error: '.red, err);
-                        this_seq.emit('error', err, filename.path);
-//                        this_seq.seqstop();
-                    })
-                    .once('finish', function () //stream
-                    {
-                        if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                        this_seq.speaker = this_seq.decoder = null;
-//                        console.log('audio finish time is: %s', this_seq.elapsed.scaled());
-                    });
-            })
-            .on('error', function (err)
-            {
-                if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//??                        this_seq.speaker = this_seq.decoder = null;
-                this_seq.emit('error', err, filename.path);
-                console.log('lame decoder error: '.red, err);
-//                this_seq.seqstop();
-            });
-    }
-
-//TODO: are pause + resume useful?
-    this.pause = function()
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        if (this.paused) return;
-        this.elapsed.pause(); // = {now: this.elapsed.now, } //freeze elapsed timer
-//        mute.pause();
-        this.paused = true;
-//        this.interrupt = true; //async
-//TODO            .once('pause', function() { this.emit('pause', null, evtinfo); })
-//TODO            .on('error', function(errinfo) { this.emit('error', errinfo); });
-    }
-
-    this.resume = function()
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        if (!this.paused) return;
-        this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so total elapsed time is still correct
-//        mute.resume();
-        this.paused = false;
-//        this.interrupt = true; //async
-//            .once('play', function() { this.emit('resume', null, evtinfo); })
-//            .on('error', function(errinfo) { this.emit('error', errinfo); });
-    }
-
-    this.stop = function()
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
-        this.speaker.unpipe(); //from player.js
-        this.speaker.end();
-        this.speaker = this.decoder = null;
-//            .once('stop', function() { this.emit('stop', null, evtinfo); })
-//            .on('error', function(errinfo) { this.emit('error', errinfo); });
-    }
-
-    function cache_dirty()
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//        this.cache.dirty = true;
-//        if (this.cache_delaywr) clearTimeout(this.cache_delaywr);
-        var cachefile = path.dirname(this.path) + "/cache.json";
-        console.log("wr cache %s", cachefile);
-//        this.cache_delaywr = setTimeout(function()
-        {
-            fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
-            {
-                if (err) throw "SEQ: Can't write '" + relpath(cachefile) + "': " + err;
-                else console.log("SEQ: wrote cache file '%s'".cyan, relpath(cachefile));
-            });
-}//        }, 20000); //start writing in 20 sec if no other changes
-    }
-
-    if (opts.interval) //generate frame cues at specified interval
-    {
-        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        for (var time = 0, frnum = 0; time < this.duration; time += opts.interval, ++frnum)
-            this.addCue("frame", time, Math.min(time + opts.interval, this.duration), "frame#" + frnum, "seq");
-    }
 
     var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";
     if (opts.auto_collect)
@@ -335,6 +135,12 @@ function Sequence(opts) //factory/ctor
         if (file.match('/(' + AUDIO_EXTs.replace(/,/g, '|') + ')$/i')) this.addMedia(file);
         else this.addCue(file);
     }, this); //CAUTION: need to preserve context within forEach loop
+    if (opts.interval) this.addFixedFrames(opts.interval); //generate frame cues at specified interval
+//    {
+//        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        for (var time = 0, frnum = 0; time < this.duration; time += opts.interval, ++frnum)
+//            this.addCue("frame", time, Math.min(time + opts.interval, this.duration), "frame#" + frnum, "seq");
+//    }
 
 //    return this; //not needed for ctor
 }
@@ -366,6 +172,210 @@ function get_duration(filename)
     }
 }
 */
+
+Sequence.prototype.addMedia = function(file)
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        if (player.canPlay(file)
+//        seq.index = this.songs.length;
+//        console.log("add media %s".blue, file);
+    var fstat = fs.statSync(file); //TODO: glob
+    if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
+    this.media.push({path: file, mtime: fstat.mtime, });
+    this.duration = 0; //invalidate cached value
+    return this; //allow chaining
+}
+
+
+//    this.getFrame = function(frnum) //NOTE: this must be overridden by instance; dummy logic supplied here
+//    {
+//        var buf = new Buffer(16); //simulate 16 channels
+//        buf.clear(frnum);
+//        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length, };
+//    }
+
+
+/*
+Sequence.prototype._transform = function (chunk, encoding, done)
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+    console.log("playlist in-stream: cmd ".blue, JSON.stringify(chunk));
+    switch (chunk.cmd || '')
+    {
+        case "play": this.play(); return;
+        case "pause": this.pause(); return;
+        case "next": this.next(); return;
+        case "stop": this.stop(); return;
+        default: console.log("unknown command: '%s'".red, chunk.cmd || '');
+    }
+    done();
+}
+
+Sequence.prototype._flush = function (done)
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+    console.log("playlist in-stream: EOF".blue);
+    this.stop();
+    done();
+}
+*/
+
+
+//example mp3 player from https://gist.github.com/TooTallNate/3947591
+//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
+//fancier example from https://www.npmjs.com/package/pool_stream
+//this is impressively awesome - 6 lines of portable code!
+//    var pool = new PoolStream() //TODO: is pool useful here?
+//    var mute = new MuteStream();
+Sequence.prototype.play = function(opts) //manual start
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+    if (this.paused) { this.resume(); return; }
+//        opts = opts || {};
+    this.paused = false;
+    this.elapsed = new elapsed();
+    if (!this.media.length) throw "No '" + this.name + "' media to play";
+    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
+    this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.media.length - 1); //clamp to end of list
+//        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
+//        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], });
+//        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
+    this.buffered = 0; //TODO
+    var this_seq = this;
+    this.seqstart();
+    var svvol = this.volume;
+
+    var filename = this.media[this.selected]; //.path;
+//        console.log("read [%d/%d] '%s' for playback @%s".cyan, this.selected, this.media.length, path.basename(filename.path), this.elapsed.scaled());
+    return fs.createReadStream(this.media[this.selected].path)
+//BROKEN            .pipe(pool) //does this make much difference?
+//            .pipe(new MuteStream()) //mute) //TODO
+        .pipe(this_seq.decoder = new lame.Decoder())
+        .once('format', function (format)
+        {
+            this_seq.volume = svvol; //restore stashed value
+//                console.log("raw_encoding: %d, sampleRate: %d, channels: %d, signed? %d, float? %d, ulaw? %d, alaw? %d, bitDepth: %d".cyan, format.raw_encoding, format.sampleRate, format.channels, format.signed, format.float, format.ulaw, format.alaw, format.bitDepth);
+//                console.log("fmt @%s: ", this_seq.elapsed.scaled(), JSON.stringify(format));
+//                console.log(this.media || "not there".red);
+            this.pipe(this_seq.speaker = new Speaker(format))
+//                    .on('end', function ()
+//                    {
+//                        console.log('speaker end time is: %s', this_seq.elapsed.scaled());
+//                    })
+                .once('open', function () //speaker
+                {
+                    if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                    this_seq.emit('start', filename.path);
+                    if (this_seq.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
+                    this.elapsed = new elapsed(); //restart it at actual audio start
+                })
+                .once('flush', function () //speaker
+                {
+                    this_seq.speaker = this_seq.decoder = null;
+//                        console.log('audio flush time is: %s', this_seq.elapsed.scaled());
+                })
+                .once('close', function () //speaker
+                {
+                    if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//                        this_seq.elapsed = {now: this_seq.elapsed.now, scaled: function() { return }; //freeze elapsed timer
+                    this_seq.elapsed.pause();
+                    this_seq.speaker = this_seq.decoder = null;
+//                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
+                    this_seq.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
+                    this_seq.emit('stop', filename.path);
+                    var cache = this_seq.cache[filename.path] || {};
+                    if ((cache.stamp || 0) < filename.mtime)
+                    {
+                        cache.stamp = (new Date()).getTime();
+                        cache.time = (new Date()).toString();
+                        cache.duration = this_seq.elapsed.now; //save for other usage
+                        this_seq.cache[filename.path] = cache; //in case entry not there
+                        cache_dirty.apply(this_seq); //preserve "this"
+                    }
+                    if (this_seq.media.length > 1) throw "Play more media"; //TODO
+                })
+                .on('error', function (err) //stream or speaker
+                {
+                    if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//??                        this_seq.speaker = this_seq.decoder = null;
+                    console.log('audio error: '.red, err);
+                    this_seq.emit('error', err, filename.path);
+//                        this_seq.seqstop();
+                })
+                .once('finish', function () //stream
+                {
+                    if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                    this_seq.speaker = this_seq.decoder = null;
+//                        console.log('audio finish time is: %s', this_seq.elapsed.scaled());
+                });
+        })
+        .on('error', function (err)
+        {
+            if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//??                        this_seq.speaker = this_seq.decoder = null;
+            this_seq.emit('error', err, filename.path);
+            console.log('lame decoder error: '.red, err);
+//                this_seq.seqstop();
+        });
+}
+
+
+//TODO: are pause + resume useful?
+Sequence.prototype.pause = function()
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+    if (this.paused) return;
+    this.elapsed.pause(); // = {now: this.elapsed.now, } //freeze elapsed timer
+//        mute.pause();
+    this.paused = true;
+//        this.interrupt = true; //async
+//TODO            .once('pause', function() { this.emit('pause', null, evtinfo); })
+//TODO            .on('error', function(errinfo) { this.emit('error', errinfo); });
+}
+
+
+Sequence.prototype.resume = function()
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+    if (!this.paused) return;
+    this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so total elapsed time is still correct
+//        mute.resume();
+    this.paused = false;
+//        this.interrupt = true; //async
+//            .once('play', function() { this.emit('resume', null, evtinfo); })
+//            .on('error', function(errinfo) { this.emit('error', errinfo); });
+}
+
+
+Sequence.prototype.stop = function()
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        this.elapsed = {now: this.elapsed.now, }; //freeze elapsed timer
+    this.speaker.unpipe(); //from player.js
+    this.speaker.end();
+    this.speaker = this.decoder = null;
+//            .once('stop', function() { this.emit('stop', null, evtinfo); })
+//            .on('error', function(errinfo) { this.emit('error', errinfo); });
+}
+
+
+Sequence.prototype.cache_dirty = function()
+{
+    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        this.cache.dirty = true;
+//        if (this.cache_delaywr) clearTimeout(this.cache_delaywr);
+    var cachefile = path.dirname(this.path) + "/cache.json";
+    console.log("wr cache %s", cachefile);
+//        this.cache_delaywr = setTimeout(function()
+    {
+        fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
+        {
+            if (err) throw "SEQ: Can't write '" + relpath(cachefile) + "': " + err;
+            else console.log("SEQ: wrote cache file '%s'".cyan, relpath(cachefile));
+        });
+}//        }, 20000); //start writing in 20 sec if no other changes
+}
+
 
 //eof
 

@@ -30,7 +30,6 @@ function Playlist(opts) //factory/ctor
     baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
-    var m_duration = 0; //this.duration = 0;
 //    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
     opts = opts || {};
 //    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
@@ -45,6 +44,8 @@ function Playlist(opts) //factory/ctor
     this.name = opts.name || path.basename(this.path, path.extname(this.path)), //|| 'NONE';
     this.schedule = null; //TODO
     var this_playlist = this;
+
+    var m_duration = 0; //this.duration = 0;
     Object.defineProperty(this, "duration",
     {
         get: function() //read-only, computed, cached
@@ -84,31 +85,6 @@ function Playlist(opts) //factory/ctor
         this.volume = m_oldvolume; m_oldvolume = null;
     }
 
-    this.addSong = function(seqpath) //song is a sequence folder; also a readable stream
-    {
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-//        console.log("PL add song %s".blue, seqpath);
-//        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
-        glob.sync(seqpath).forEach(function (file, index)
-        {
-//            console.log("PL resolved candidate %s".blue, file);
-            var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
-            if (!seq.isSequence) return;
-//        propagate(song, this);
-            seq.index = this.songs.length;
-            this.songs.push(seq);
-            seq.pipe(this, {end: false}); //https://github.com/atamborrino/streamee.js/blob/master/index.js
-/*??
-            seq.on('end', function()
-            {
-                self.nActiveStreams--;
-                if (self.nActiveStreams === 0) self.push(null); // end
-            });
-*/
-        }, this); //CAUTION: need to preserve context within forEach loop
-        this.duration = 0; //invalidate cached value
-    }
-
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
@@ -124,93 +100,6 @@ function Playlist(opts) //factory/ctor
         }
     });
 
-//example mp3 player from https://gist.github.com/TooTallNate/3947591
-//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
-//fancier example from https://www.npmjs.com/package/pool_stream
-//this is impressively awesome - 6 lines of portable code!
-    this.play = function(opts) //manual start
-    {
-//        opts = opts || {};
-        this.elapsed = new elapsed();
-        if (!this.songs.length) throw "No songs to play";
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
-        if (this.songs.length == 1) opts.single = true;
-        if (opts.loop === true) opts.loop = 1;
-        if (opts.shuffle) //rearrange list in-place (ensures complete list is used and playlist length is maintained); index prop indicates original order
-        {
-            this.songs.forEach(function(song, inx) { song.order = Math.random(); });
-            this.songs.sort(function(lhs, rhs) { return (lhs.order < rhs.order)? -1: (lhs.order > rhs.order)? 1: 0; });
-        }
-        this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.songs.length - 1); //clamp to end of list
-//        if (this.selected < 0) throw "Can't find currently selected song";
-        var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
-        var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
-        if (opts.emit !== false) this.emit('begin', null, evtinfo); //playlist
-        this.songs[this.selected].volume = m_volume;
-        if (this.progress) clearInterval(this.progress); this.process = null;
-        var progintv = (opts.progress === true)? this.songs[this.selected].duration / 100: !opts.progress? 0: (opts.progress < 100)? opts.progress * 1000: opts.progress; //caller probably wanted seconds not msec; default to 1%
-        if (progintv) this.progress = setInterval(function()
-        {
-            if (!evtinfo.current.elapsed.paused) this_playlist.emit('progress', null, evtinfo);
-        }, Math.max(250, progintv)); //send out periodic updates no faster than 1/4 sec
-
-        return this.songs[this.selected] //.play(0)
-            .once('start', function() { /*console.log("PLEVT: start")*/; this_playlist.emit('start', null, evtinfo); }) //song
-            .on('progress', function() { /*console.log("PLEVT: progress")*/; this_playlist.emit('progress', null, evtinfo); })
-//            .once('pause', function() { /*console.log("PLEVT: pause")*/; this_playlist.emit('pause', null, evtinfo); })
-//            .once('resume', function() { /*console.log("PLEVT: resume")*/; this_playlist.emit('resume', null, evtinfo); })
-            .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo, evtinfo); })
-            .once('stop', function()
-            {
-                if (!this_playlist.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-//                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
-                this_playlist.emit('stop', null, evtinfo); //song
-                if (this_playlist.progress) clearInterval(this_playlist.progress); this_playlist.progress = null; //don't leave dangling timer
-//single: loop--: repeat current
-//multi: first play thru to end of list, then check loop--
-//                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
-                opts.index = next; opts.emit = false;
-                if ((!opts.single && (this_playlist.selected < this_playlist.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
-                    this_playlist.emit('cmd', "play", opts); //{index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
-                else this_playlist.emit('end', null, evtinfo); //playlist
-            })
-            .play(0);
-    }
-
-//TODO: are pause + resume useful?
-    this.pause = function()
-    {
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-        if (this.songs[this.selected].paused) return;
-        this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
-        this.songs[this.selected].pause();
-//        return this.songs[this.selected].pause()
-//            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
-//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
-    }
-
-    this.resume = function() //TODO: is this really useful?
-    {
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-        if (!this.songs[this.selected].paused) return;
-        this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
-        this.songs[this.selected].resume();
-//        return this.songs[this.selected].play()
-//            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
-//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
-    }
-
-    this.stop = function() //TODO: is this really useful?
-    {
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-        if (this.progress) clearInterval(this.progress); this.progress = null;
-        this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
-        return this.songs[this.selected].stop();
-//            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
-//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
-    }
-
 //pass-thru methods to shared player object:
 //    this.on = m_evte.on;
 //    this.play = this.paths[0].play;
@@ -220,7 +109,7 @@ function Playlist(opts) //factory/ctor
 
     if (opts.auto_collect)
     {
-        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         console.log("PL auto-collect: %s".blue, path.dirname(this.path) + "/**/!(*-bk).js");
         var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
         console.log("PL: auto-collect got %d candidate seq files", files.length);
@@ -235,6 +124,139 @@ inherits(Playlist, baseclass); //http://stackoverflow.com/questions/8898399/node
 //Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
 //????Door.prototype.__proto__ = events.EventEmitter.prototype;
 //MyStream.prototype._read = function () {
+
+
+//format info for easier viewing in node inspector:
+Playlist.prototype.debug = function()
+{
+    if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
+    var sprintf = require('sprintf-js').sprintf;
+    var buf = [];
+    this.songs.forEach(function(song, inx)
+    {
+        buf.push(sprintf("%s[%d/%d]: name '%s', path '%s', duration %d", inx? ' ': '', inx, this.songs.length, song.name, song.path, song.duration));
+    }, this); //CAUTION: need to preserve context within forEach loop
+    buf.push(sprintf("total duration: %s msec", this.duration));
+    this.debug_songs = buf.join('\n');
+    debugger; //https://nodejs.org/api/debugger.html
+}
+
+
+//song is a sequence folder; also a readable stream
+Playlist.prototype.addSong = function(seqpath)
+{
+    if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//        console.log("PL add song %s".blue, seqpath);
+//        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
+    glob.sync(seqpath).forEach(function (file, index)
+    {
+//            console.log("PL resolved candidate %s".blue, file);
+        var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
+        if (!seq.isSequence) return;
+//        propagate(song, this);
+        seq.index = this.songs.length;
+        this.songs.push(seq);
+        seq.pipe(this, {end: false}); //https://github.com/atamborrino/streamee.js/blob/master/index.js
+/*??
+        seq.on('end', function()
+        {
+            self.nActiveStreams--;
+            if (self.nActiveStreams === 0) self.push(null); // end
+        });
+*/
+    }, this); //CAUTION: need to preserve context within forEach loop
+    this.duration = 0; //invalidate cached value
+}
+
+
+//example mp3 player from https://gist.github.com/TooTallNate/3947591
+//more info: https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
+//fancier example from https://www.npmjs.com/package/pool_stream
+//this is impressively awesome - 6 lines of portable code!
+Playlist.prototype.play = function(opts)
+{
+    if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//        opts = opts || {};
+    this.elapsed = new elapsed();
+    if (!this.songs.length) throw "No songs to play";
+    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
+    if (this.songs.length == 1) opts.single = true;
+    if (opts.loop === true) opts.loop = 1;
+    if (opts.shuffle) //rearrange list in-place (ensures complete list is used and playlist length is maintained); index prop indicates original order
+    {
+        this.songs.forEach(function(song, inx) { song.order = Math.random(); });
+        this.songs.sort(function(lhs, rhs) { return (lhs.order < rhs.order)? -1: (lhs.order > rhs.order)? 1: 0; });
+    }
+    this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.songs.length - 1); //clamp to end of list
+//        if (this.selected < 0) throw "Can't find currently selected song";
+    var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
+    var evtinfo = {current: this.songs[this.selected], next: this.songs[next], };
+    if (opts.emit !== false) this.emit('begin', null, evtinfo); //playlist
+    this.songs[this.selected].volume = this.volume;
+    if (this.progress) clearInterval(this.progress); this.process = null;
+    var progintv = (opts.progress === true)? this.songs[this.selected].duration / 100: !opts.progress? 0: (opts.progress < 100)? opts.progress * 1000: opts.progress; //caller probably wanted seconds not msec; default to 1%
+    if (progintv) this.progress = setInterval(function()
+    {
+        if (!evtinfo.current.elapsed.paused) this_playlist.emit('progress', null, evtinfo);
+    }, Math.max(250, progintv)); //send out periodic updates no faster than 1/4 sec
+    var this_playlist = this;
+
+    return this.songs[this.selected] //.play(0)
+        .once('start', function() { /*console.log("PLEVT: start")*/; this_playlist.emit('start', null, evtinfo); }) //song
+        .on('progress', function() { /*console.log("PLEVT: progress")*/; this_playlist.emit('progress', null, evtinfo); })
+//            .once('pause', function() { /*console.log("PLEVT: pause")*/; this_playlist.emit('pause', null, evtinfo); })
+//            .once('resume', function() { /*console.log("PLEVT: resume")*/; this_playlist.emit('resume', null, evtinfo); })
+        .on('error', function(errinfo) { console.log("PLEVT: error"); this_playlist.emit('error', errinfo, evtinfo); })
+        .once('stop', function()
+        {
+            if (!this_playlist.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this_playlist.selected, this_playlist.songs.length, this_playlist.selected < this_playlist.songs.length - 1, next);
+            this_playlist.emit('stop', null, evtinfo); //song
+            if (this_playlist.progress) clearInterval(this_playlist.progress); this_playlist.progress = null; //don't leave dangling timer
+//single: loop--: repeat current
+//multi: first play thru to end of list, then check loop--
+//                if (opts.loop && (opts.single || (this_playlist.selected < this_playlist.songs.length - 1)))
+            opts.index = next; opts.emit = false;
+            if ((!opts.single && (this_playlist.selected < this_playlist.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
+                this_playlist.emit('cmd', "play", opts); //{index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
+            else this_playlist.emit('end', null, evtinfo); //playlist
+        })
+        .play(0);
+}
+
+//TODO: are pause + resume useful?
+Playlist.prototype.pause = function()
+{
+    if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+    if (this.songs[this.selected].paused) return;
+    this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
+    this.songs[this.selected].pause();
+//        return this.songs[this.selected].pause()
+//            .once('pause', function() { console.log("PLEVT: pause"); this_playlist.emit('pause', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+}
+
+Playlist.prototype.resume = function() //TODO: is this really useful?
+{
+    if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+    if (!this.songs[this.selected].paused) return;
+    this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
+    this.songs[this.selected].resume();
+//        return this.songs[this.selected].play()
+//            .once('play', function() { console.log("PLEVT: play"); this_playlist.emit('resume', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+}
+
+Playlist.prototype.stop = function() //TODO: is this really useful?
+{
+    if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+    if (this.progress) clearInterval(this.progress); this.progress = null;
+    this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
+    return this.songs[this.selected].stop();
+//            .once('stop', function() { console.log("PLEVT: stop"); this_playlist.emit('stop', null, evtinfo); })
+//            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this_playlist.emit('error', errinfo); });
+}
+
 
 /*TODO ????
 Playlist.prototype._transform = function (chunk, encoding, done)

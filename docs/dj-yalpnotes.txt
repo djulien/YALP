@@ -257,6 +257,7 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  https://github.com/substack/stream-adventure
  https://www.npmjs.com/package/event-stream
  https://www.npmjs.com/package/binary-reader
+ http://zguide.zeromq.org/page:all??
 
 SERIAL PORT:
 https://www.npmjs.com/search?q=serial%20port
