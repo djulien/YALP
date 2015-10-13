@@ -88,8 +88,8 @@ Outhw.prototype._write = function(chunk, encoding, done_cb)
 Outhw.prototype.out = function(id, data, len)
 {
 //    var now = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''); //http://stackoverflow.com/questions/10645994/node-js-how-to-format-a-date-string-in-utc
-    var now = new Date().toISOString().substr(11, 12);
-    console.log("OUT[%s] id '%s', len %d: hex %s".cyan, now, id, len, data.toString('hex'));
+//    var now = new Date().toISOString().substr(11, 12);
+    console.log("OUT[%s] '%s' %d: %s".cyan, Now.asString(), id, len, data.toString('hex'));
 }
 
 

@@ -63,7 +63,7 @@ SequenceStreamer.prototype._read = function()
         if (!data || (typeof data.at === 'undefined')) continue;
 
         data.at += this.starttime;
-        console.log('seqdata read[%d]: enque %s: ' + JSON.stringify(data), this.index - 1, this.name);
+//        console.log('seqdata read[%d]: enque %s: ' + JSON.stringify(data), this.index - 1, this.name);
         this.push(data);
         break; //only queue up one frame at a time
     }
@@ -150,7 +150,8 @@ SequenceStreamer.prototype.addCues = function(filename)
 //        var fstat = fs.statSync(filename);
 //        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(filename)); return; }
 //        this.cues.push(filename);
-    var section = "timing", src = shortname(filename), linenum = 0, back_trim = null;
+    ++this.pending;
+    var section = "timing", src = shortname(filename), linenum = 0, back_trim = null, numwarn = [0, 0];
     var this_seq = this;
 //TODO: use cached values if file !changed
     var stream = byline(fs.createReadStream(filename))
@@ -174,19 +175,20 @@ SequenceStreamer.prototype.addCues = function(filename)
                 }
                 else if (matches = linebuf.match(/^\s*([\d.]+)(\s+([\d.]+))?(\s+(.+))?\s*$/)) //, 'from');
                 {
+debugger;
 //                        flush.apply(this_seq);
                     var from = Math.round(1000 * matches[1]); //token;
-                    if (from > this.duration) { console.log("past end: %s", linebuf); continue; }
+                    if (from > this_seq.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this_seq.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
                     if (back_trim) this_seq.cues[this_seq.cues.length - 1].to = from; back_trim = null; //fill in gap from previous entry
-                    var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this_seq.duration; //'next'; //will be filled in later
-                    if (to < from) { console.log("ends before starts: %s", linebuf); continue; }
+                    var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this_seq.duration /*9999000*/; //'next'; //will be filled in by next entry; use junk value past end to preserve to >= from validation
+                    if (matches[3] && (to < from)) { if (!numwarn[1]++) console.log("%s:%d ends %d before starts %d: %s", src, linenum, to / 1000, from / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
                     var text = matches[5] || null;
 //                        var cues = this_seq.cues[name] = this_seq.cues[name] || [];
 //                        console.log("hd %s, from %d, to %d, text %s", section, from, to, text);
-//                    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext', });
+//                    this_seq.cues.push({from: from || 0, to: to || 9999 /*this_seq.duration*/, text: text || '', src: src || null, name: section || 'ext', });
                     this_seq.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum, });
 //                    this_seq.addCue(section, from, to, text, src + ':' + linenum);
-                    this.cues_dirty = true;
+                    this_seq.cues_dirty = true;
                 }
                 else console.log("junk cue line ignored in %s:%d: %s".yellow, src, linenum, linebuf);
             }
@@ -231,6 +233,8 @@ SequenceStreamer.prototype.addCues = function(filename)
 //                flush();
             if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //            console.log("%d cues from %s, dirty? %d", this_seq.cues.length, relpath(filename), this_seq.cues_dirty);
+            if (Math.max(numwarn[0], numwarn[1]) > 1) console.log("(%d more warnings)", Math.max(numwarn[0] - 1, 0) + Math.max(numwarn[1] - 1, 0));
+            if (!--this_seq.pending) this_seq.ready(); //emit('ready');
         })
         .on('error', function(err) { console.log("not a file: %s: %s".red, relpath(filename), err); });
 
@@ -285,7 +289,7 @@ SequenceStreamer.prototype.push = function(chunk)
 {
     if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
     this.eof = (!arguments.length || (chunk === null)); //!chunk; //caller can restart flow by pushing more data
-    console.log("seqdata: push[%d] ", this.index, !this.eof? JSON.stringify(chunk): '(eof)');
+    console.log("seqdata: push[%d] due %s", this.index, this.eof? '-': Now.asString(chunk.at), !this.eof? JSON.stringify(chunk): '(eof)');
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
     var this_ss = this;
     if (!this.eof) this.dest.emit('data-rcv', chunk, function() //recip can have multiple senders, so tell receiver how to reply

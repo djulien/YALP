@@ -284,6 +284,9 @@ streaming server?
  https://github.com/sebpiq/node-web-audio-api
  http://icecast.org/
 
+async code patterns/mechanisms:
+ https://strongloop.com/strongblog/node-js-callback-hell-promises-generators/
+
 TODO:
 - add unit testing with Chai and Mocha (!make)
 - add info to readme.md

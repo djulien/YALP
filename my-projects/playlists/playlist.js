@@ -9,8 +9,20 @@ var fs = require('fs');
 var glob = require('glob');
 var elapsed = require('my-plugins/utils/elapsed');
 var inherits = require('inherits');
+var Q = require('q'); //https://github.com/kriskowal/q
 
-module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
+//module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
+module.exports = function(opts)
+{
+//    var def = Q.defer();
+//    var pl = new Playlist(opts, def.resolve, def.reject);
+//    return def.promise;
+    return Q.Promise(function(resolve, reject, notify)
+    {
+        var pl = new Playlist(opts, resolve, reject, notify);
+    })
+    .timeout(10000, "Playlist is taking too long to load!");
+}
 
 //var YALP = YALP || {}; //namespace
 ///*YALP.*/ sequence = function(path, name) //ctor
@@ -24,9 +36,9 @@ var baseclass = require('my-plugins/streamers/outhw');
 //var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 
 //options: auto_play (schedule or loop), auto_next, loop
-function Playlist(opts) //factory/ctor
+function Playlist(opts, resolve, reject, notify) //factory/ctor
 {
-    if (!(this instanceof Playlist)) return new Playlist(opts); //make "new" optional; make sure "this" is set
+    if (!(this instanceof Playlist)) return new Playlist(opts, resolve, reject, notify); //make "new" optional; make sure "this" is set
     baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
@@ -45,6 +57,20 @@ function Playlist(opts) //factory/ctor
     this.schedule = null; //TODO
     var this_playlist = this;
 
+//promise-keepers:
+    this.ready = function()
+    {
+        resolve(this);
+    }
+    this.fatal = function(msg)
+    {
+        reject(msg);
+    }
+    this.warn = function(msg)
+    {
+        notify(msg)
+    }
+    
     var m_duration = 0; //this.duration = 0;
     Object.defineProperty(this, "duration",
     {
@@ -107,6 +133,7 @@ function Playlist(opts) //factory/ctor
 //    this.next = this.paths[0].next;
 //    this.pipe = m_stream.pipe;
 
+    this.pending = 0;
     if (opts.auto_collect)
     {
 //        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
@@ -118,6 +145,7 @@ function Playlist(opts) //factory/ctor
     (opts.paths || []).forEach(function(file, inx) { this.addSong(file); }, this); //CAUTION: need to preserve context within forEach loop
 //    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; }, this); //CAUTION: need to preserve context within forEach loop
 
+    if (!this.pending) this.ready(); //this.emit('ready');
 //    return this; //not needed for ctor
 }
 inherits(Playlist, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
@@ -146,6 +174,7 @@ Playlist.prototype.debug = function()
 Playlist.prototype.addSong = function(seqpath)
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+    ++this.pending;
 //        console.log("PL add song %s".blue, seqpath);
 //        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
     glob.sync(seqpath).forEach(function (file, index)
@@ -153,6 +182,11 @@ Playlist.prototype.addSong = function(seqpath)
 //            console.log("PL resolved candidate %s".blue, file);
         var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
         if (!seq.isSequence) return;
+        var this_playlist = this;
+        seq.once('ready', function()
+        {
+            if (!--this_playlist.pending) this_playlist.ready(); //emit('ready');
+        });
 //        propagate(song, this);
         seq.index = this.songs.length;
         this.songs.push(seq);

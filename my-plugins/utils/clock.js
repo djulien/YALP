@@ -8,10 +8,10 @@ module.exports.Now = function()
     return Date.now? Date.now(): (new Date()).getTime(); //poly fill < ECMA-262 5th edition; TODO: use process.hrtime (nsec)?
 }
 
-module.exports.Now.asString = function()
+module.exports.Now.asString = function(when)
 {
-    var now = new Date();
-    var local2utc = now.setTime(now.getTime() - now.getTimezoneOffset() * 60000);
+    var local2utc = new Date(when); //optional param
+    local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000);
     return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
 }
 

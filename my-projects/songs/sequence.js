@@ -34,8 +34,20 @@ var mp3volume = require('node-mpg123-util');
 var Speaker = require('speaker');
 var lame = require('lame');
 //var promisedio = require("promised-io/promise"); //https://github.com/kriszyp/promised-io
+var Q = require('q'); //https://github.com/kriskowal/q
 
-module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+//module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+module.exports = function(opts)
+{
+//    var def = Q.defer();
+//    var pl = new Playlist(opts, def.resolve, def.reject);
+//    return def.promise;
+    return Q.Promise(function(resolve, reject, notify)
+    {
+        var seq = new Sequence(opts, resolve, reject, notify);
+    })
+    .timeout(10000, "Sequence is taking too long to load!");
+}
 
 
 //var YALP = YALP || {}; //namespace
@@ -44,9 +56,9 @@ module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
 //http://www.crockford.com/javascript/inheritance.html
 
 //options: auto_collect
-function Sequence(opts) //factory/ctor
+function Sequence(opts, resolve, reject, notify) //factory/ctor
 {
-    if (!(this instanceof Sequence)) return new Sequence(opts); //make "new" optional; make sure "this" is set
+    if (!(this instanceof Sequence)) return new Sequence(opts, resolve, reject, notify); //make "new" optional; make sure "this" is set
     baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //    var m_stream = new baseclass({ objectMode: true, });
 //    var m_evte = new EventEmitter;
@@ -76,6 +88,20 @@ function Sequence(opts) //factory/ctor
     try { this.cache = require(path.dirname(this.path) + "/cache"); } //.json"); }
     catch (exc) { this.cache = {}; }; //NOTE: https://nodejs.org/api/fs.html#fs_fs_exists_path_callback recommends just trying it rather than fstat first
 
+//promise-keepers:
+    this.ready = function()
+    {
+        resolve(this);
+    }
+    this.fatal = function(msg)
+    {
+        reject(msg);
+    }
+    this.warn = function(msg)
+    {
+        notify(msg)
+    }
+
     var m_duration = 0; //this.duration = 0;
 //    var duration_known = promisedio.Deferred;
     Object.defineProperty(this, "duration",
@@ -84,12 +110,7 @@ function Sequence(opts) //factory/ctor
         {
             if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
             if (!m_duration)
-                this.media.forEach(function (file, inx)
-                {
-                    var cache = this.cache[file.path] || {};
-                    if (!cache.duration || (cache.timestamp < file.mtime)) throw "Async scan of '" + relpath(file.path) + "' needed.";
-                    m_duration += cache.duration;
-                }, this); //CAUTION: need to preserve context within forEach loop
+                this.media.forEach(function (file, inx) { m_duration += file.duration /*this.getDuration()*/; }, this); //CAUTION: need to preserve context within forEach loop
             return m_duration;
         },
         set: function(newval)
@@ -115,6 +136,7 @@ function Sequence(opts) //factory/ctor
         },
     });
 
+    this.pending = 0;
     var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";
     if (opts.auto_collect)
     {
@@ -142,46 +164,34 @@ function Sequence(opts) //factory/ctor
 //            this.addCue("frame", time, Math.min(time + opts.interval, this.duration), "frame#" + frnum, "seq");
 //    }
 
+    if (!this.pending) this.ready(); //this.emit('ready');
 //    return this; //not needed for ctor
 }
 //for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
 inherits(Sequence, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 
 
-/*TODO??
-function get_duration(filename)
-{
-    var cache = this.cache[file] || {};
-    if (!cache.duration || (cache.timestamp < fstat.mtime)) //start reading file to get duration
-    {
-//TODO: bkg watcher to do this when music first added to dir
-        console.log("scan '%s' for duration".cyan, relpath(file));
-        var timer = new elapsed();
-//kludge: the only reliable way to get audio duration seems to be to decode it all
-        fs.createReadStream(file)
-            .pipe(new lame.Decoder())
-//                        .on('format', function (format) { this.pipe(new Speaker(format)); })
-            .on('end', function()
-            {
-                cache.timestamp = fstat.mtime;
-                cache.duration = timer.now;
-                cache_dirty();
-                console.log("scan complete; decoded %s: duration %s".cyan, relpath(file), timer.scaled());
-//                    cb(timer.now);
-            });
-    }
-}
-*/
-
-Sequence.prototype.addMedia = function(file)
+Sequence.prototype.addMedia = function(filename)
 {
     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //        if (player.canPlay(file)
 //        seq.index = this.songs.length;
 //        console.log("add media %s".blue, file);
-    var fstat = fs.statSync(file); //TODO: glob
-    if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(file)); return; }
-    this.media.push({path: file, mtime: fstat.mtime, });
+    var fstat = fs.statSync(filename); //TODO: glob
+    if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(filename)); return; }
+    var duration = 0; //mp3len(filename);
+    var cache = this.cache[filename] || {};
+    if (!cache.duration || ((cache.stamp || 0) < fstat.mtime))
+    {
+//TODO: bkg watcher to do this when music first added to dir?
+        console.log("scan '%s' for duration".cyan, relpath(filename));
+        cache.stamp = (new Date()).getTime();
+        cache.time = (new Date()).toString(); //human-readable, mainly for debug
+        cache.duration = mp3len(filename);
+        this.cache[filename] = cache; //in case entry not there
+        cache_dirty();
+    }
+    this.media.push({path: filename, /*mtime: fstat.mtime,*/ duration: cache.duration, });
     this.duration = 0; //invalidate cached value
     return this; //allow chaining
 }
@@ -283,6 +293,7 @@ Sequence.prototype.play = function(opts) //manual start
 //                        console.log("audio '%s' ended @%s", path.basename(filename.path), this_seq.elapsed.scaled());
                     this_seq.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
                     this_seq.emit('stop', filename.path);
+/*
                     var cache = this_seq.cache[filename.path] || {};
                     if ((cache.stamp || 0) < filename.mtime)
                     {
@@ -292,6 +303,7 @@ Sequence.prototype.play = function(opts) //manual start
                         this_seq.cache[filename.path] = cache; //in case entry not there
                         cache_dirty.apply(this_seq); //preserve "this"
                     }
+*/
                     if (this_seq.media.length > 1) throw "Play more media"; //TODO
                 })
                 .on('error', function (err) //stream or speaker
