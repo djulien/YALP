@@ -10,7 +10,7 @@ module.exports.Now = function()
 
 module.exports.Now.asString = function(when)
 {
-    var local2utc = new Date(when); //optional param
+    var local2utc = when? new Date(when): new Date(); //optional param
     local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000);
     return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
 }

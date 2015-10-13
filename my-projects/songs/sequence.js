@@ -36,7 +36,8 @@ var lame = require('lame');
 //var promisedio = require("promised-io/promise"); //https://github.com/kriszyp/promised-io
 var Q = require('q'); //https://github.com/kriskowal/q
 
-//module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+module.exports = Sequence; //commonjs; returns sequence factory/ctor to caller
+/*
 module.exports = function(opts)
 {
 //    var def = Q.defer();
@@ -45,9 +46,11 @@ module.exports = function(opts)
     return Q.Promise(function(resolve, reject, notify)
     {
         var seq = new Sequence(opts, resolve, reject, notify);
+debugger;
     })
     .timeout(10000, "Sequence is taking too long to load!");
 }
+*/
 
 
 //var YALP = YALP || {}; //namespace
@@ -56,10 +59,11 @@ module.exports = function(opts)
 //http://www.crockford.com/javascript/inheritance.html
 
 //options: auto_collect
-function Sequence(opts, resolve, reject, notify) //factory/ctor
+function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 {
-    if (!(this instanceof Sequence)) return new Sequence(opts, resolve, reject, notify); //make "new" optional; make sure "this" is set
+    if (!(this instanceof Sequence)) return new Sequence(opts); //, resolve, reject, notify); //make "new" optional; make sure "this" is set
     baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+//console.log("seq ctor in");
 //    var m_stream = new baseclass({ objectMode: true, });
 //    var m_evte = new EventEmitter;
 //    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
@@ -87,20 +91,6 @@ function Sequence(opts, resolve, reject, notify) //factory/ctor
 //    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
     try { this.cache = require(path.dirname(this.path) + "/cache"); } //.json"); }
     catch (exc) { this.cache = {}; }; //NOTE: https://nodejs.org/api/fs.html#fs_fs_exists_path_callback recommends just trying it rather than fstat first
-
-//promise-keepers:
-    this.ready = function()
-    {
-        resolve(this);
-    }
-    this.fatal = function(msg)
-    {
-        reject(msg);
-    }
-    this.warn = function(msg)
-    {
-        notify(msg)
-    }
 
     var m_duration = 0; //this.duration = 0;
 //    var duration_known = promisedio.Deferred;
@@ -136,10 +126,47 @@ function Sequence(opts, resolve, reject, notify) //factory/ctor
         },
     });
 
-    this.pending = 0;
+//promise-keepers:
+    var this_seq = this;
+    var m_promise = Q.Promise(function(resolve, reject, notify)
+    {
+//        var seq = new Sequence(opts, resolve, reject, notify);
+        this_seq.mark_ready = function()
+        {
+            resolve(this);
+        }
+        this_seq.error = function(msg)
+        {
+//            console.trace();
+//            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
+//            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
+            reject(msg);
+        }
+        this_seq.warn = function(msg)
+        {
+            notify(msg);
+        }
+    })
+    .timeout(10000, "Sequence is taking too long to load!");
+    this.ready = function(cb) //expose promise call-back as a method so sequence api can be used before it's ready
+    {
+        return m_promise.then(cb);
+    }
+
+    var m_pending = 0;
+    this.pend = function(num) { m_pending += (num || 1); } //console.log("seq %s pend+ %d", this.name, m_pending); }
+    this.unpend = function(num)
+    {
+        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        console.log("seq %s pend- %d", this.name, m_pending - (num || 1));
+        if (m_pending -= (num || 1)) return;
+        this.mark_ready(); //emit('ready');
+    }
+
     var AUDIO_EXTs = "mp3,mp4,wav,ogg,webm";
     if (opts.auto_collect)
     {
+        this.pend();
 //        var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
 //        console.log("caller dir: " + relpath(callerdir));
 //        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
@@ -151,6 +178,7 @@ function Sequence(opts, resolve, reject, notify) //factory/ctor
 //        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
         files.forEach(function(file, inx) { this.addCues(file); }, this); //CAUTION: need to preserve context within forEach loop
 //TODO: auto-collect models? they are likely in different folder - how to find?
+        this.unpend(); //kludge: force readiness if no files to load
     }
     (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
     {
@@ -164,8 +192,9 @@ function Sequence(opts, resolve, reject, notify) //factory/ctor
 //            this.addCue("frame", time, Math.min(time + opts.interval, this.duration), "frame#" + frnum, "seq");
 //    }
 
-    if (!this.pending) this.ready(); //this.emit('ready');
+//no    if (!this.pending) this.ready(); //this.emit('ready'); //caller might want to add something, so don't mark it ready yet
 //    return this; //not needed for ctor
+//console.log("seq ctor out");
 }
 //for js oop intro see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Introduction_to_Object-Oriented_JavaScript
 inherits(Sequence, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
@@ -311,7 +340,7 @@ Sequence.prototype.play = function(opts) //manual start
                     if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //??                        this_seq.speaker = this_seq.decoder = null;
                     console.log('audio error: '.red, err);
-                    this_seq.emit('error', err, filename.path);
+                    this_seq.error("audio error: " + err); //emit('error', err, filename.path);
 //                        this_seq.seqstop();
                 })
                 .once('finish', function () //stream
@@ -325,8 +354,8 @@ Sequence.prototype.play = function(opts) //manual start
         {
             if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //??                        this_seq.speaker = this_seq.decoder = null;
-            this_seq.emit('error', err, filename.path);
-            console.log('lame decoder error: '.red, err);
+            this_seq.error("lame decoder error: " + err); //emit('error', err, filename.path);
+//            console.log('lame decoder error: '.red, err);
 //                this_seq.seqstop();
         });
 }
@@ -382,8 +411,9 @@ Sequence.prototype.cache_dirty = function()
     {
         fs.writeFile(cachefile, JSON.stringify(this.cache), function(err)
         {
-            if (err) throw "SEQ: Can't write '" + relpath(cachefile) + "': " + err;
-            else console.log("SEQ: wrote cache file '%s'".cyan, relpath(cachefile));
+            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+            if (err) this.error("SEQ: Can't write '" + relpath(cachefile) + "': " + err);
+            else this.warn /*console.log*/("SEQ: wrote cache file '%s'" + relpath(cachefile));
         });
 }//        }, 20000); //start writing in 20 sec if no other changes
 }

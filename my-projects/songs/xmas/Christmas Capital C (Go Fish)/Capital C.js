@@ -2,7 +2,9 @@
 
 'use strict';
 
-var seq = module.exports = require('my-projects/songs/sequence.js')({auto_collect: true});
+var seq /*_promise*/ = module.exports = require('my-projects/songs/sequence.js')({auto_collect: true});
+//.then(function(seq)
+//{
 //seq.name = 'C';
 //seq.path = './**/*.mp3';
 //seq.tracks = './tracks.txt'; //Audacity label file
@@ -20,8 +22,10 @@ seq
 //render frames on demand:
 seq.render = function(cue)
 {
-//    if (!this.buf) this.buf = new Buffer(8); //alloc buffer one time only
-    return {id: cue.text, data: cue.from, at: cue.from, };
+    if (!this.buf) this.buf = new Buffer(2); //alloc buffer one time only
+//    this.buf.write(cue.from);
+    this.buf.writeUIntBE(Math.floor(cue.from / 1000), 0, 2);
+    return {id: cue.text, data: this.buf, at: cue.from, };
 }
 
 
@@ -34,5 +38,6 @@ seq.models =
 ];
 
 module.exports.debug();
+//});
 
 //eof

@@ -4,7 +4,9 @@
 
 var Sequence = require('my-projects/songs/sequence');
 
-var seq = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
+var seq /*_wrapper*/ = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
+//.then(function(seq)
+//{
 //seq.addMedia('my-projects/songs/xmas/Amaz*/**/*.mp3');
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.name = 'Amazing';
@@ -45,5 +47,6 @@ seq.models =
 ];
 
 module.exports.debug();
+//});
 
 //eof

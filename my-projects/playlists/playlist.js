@@ -10,8 +10,10 @@ var glob = require('glob');
 var elapsed = require('my-plugins/utils/elapsed');
 var inherits = require('inherits');
 var Q = require('q'); //https://github.com/kriskowal/q
+//require('longjohn'); //http://www.mattinsler.com/post/26396305882/announcing-longjohn-long-stack-traces-for-nodejs
 
-//module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
+module.exports = Playlist; //commonjs; returns playlist factory/ctor to caller
+/*
 module.exports = function(opts)
 {
 //    var def = Q.defer();
@@ -20,9 +22,11 @@ module.exports = function(opts)
     return Q.Promise(function(resolve, reject, notify)
     {
         var pl = new Playlist(opts, resolve, reject, notify);
+debugger;
     })
     .timeout(10000, "Playlist is taking too long to load!");
 }
+*/
 
 //var YALP = YALP || {}; //namespace
 ///*YALP.*/ sequence = function(path, name) //ctor
@@ -36,10 +40,11 @@ var baseclass = require('my-plugins/streamers/outhw');
 //var xform = require('stream').Transform || require('readable-stream').Transform; //poly-fill for older node.js
 
 //options: auto_play (schedule or loop), auto_next, loop
-function Playlist(opts, resolve, reject, notify) //factory/ctor
+function Playlist(opts) //, resolve, reject, notify) //factory/ctor
 {
-    if (!(this instanceof Playlist)) return new Playlist(opts, resolve, reject, notify); //make "new" optional; make sure "this" is set
+    if (!(this instanceof Playlist)) return new Playlist(opts); //, resolve, reject, notify); //make "new" optional; make sure "this" is set
     baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+//console.log("playlist ctor in");
 //    var m_stream = new xform({ objectMode: true, });
 //    var m_evte = new EventEmitter;
 //    var m_audio = null; //fs.createReadStream(this.songs[this.current].path)
@@ -57,20 +62,6 @@ function Playlist(opts, resolve, reject, notify) //factory/ctor
     this.schedule = null; //TODO
     var this_playlist = this;
 
-//promise-keepers:
-    this.ready = function()
-    {
-        resolve(this);
-    }
-    this.fatal = function(msg)
-    {
-        reject(msg);
-    }
-    this.warn = function(msg)
-    {
-        notify(msg)
-    }
-    
     var m_duration = 0; //this.duration = 0;
     Object.defineProperty(this, "duration",
     {
@@ -111,6 +102,45 @@ function Playlist(opts, resolve, reject, notify) //factory/ctor
         this.volume = m_oldvolume; m_oldvolume = null;
     }
 
+//promise-keepers:
+    var this_playlist = this;
+    var m_promise = Q.Promise(function(resolve, reject, notify)
+    {
+//        var pl = new Playlist(opts, resolve, reject, notify);
+        this_playlist.mark_ready = function()
+        {
+            resolve(this_playlist);
+        };
+        this_playlist.error = function(msg)
+        {
+//            console.trace();
+//            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
+//            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
+            reject(msg);
+        };
+        this_playlist.warn = function(msg)
+        {
+            notify(msg);
+        };
+//debugger;
+    })
+    .timeout(10000, "Playlist is taking too long to load!");
+    this.ready = function(cb) //expose promise call-back as a method so playlist api can be used before it's ready
+    {
+        return m_promise.then(cb);
+    }
+
+    var m_pending = 0;
+//NOTE: at least one pend/unpend must occur in order for playlist to be marked ready (resolved)
+    this.pend = function(num) { m_pending += (num || 1); } //console.log("playlist %s pend+ %d", this.name, m_pending); }
+    this.unpend = function(num)
+    {
+        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
+        if (m_pending -= (num || 1)) return;
+        this.mark_ready(); //emit('ready');
+    }
+
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
@@ -133,20 +163,22 @@ function Playlist(opts, resolve, reject, notify) //factory/ctor
 //    this.next = this.paths[0].next;
 //    this.pipe = m_stream.pipe;
 
-    this.pending = 0;
     if (opts.auto_collect)
     {
+        this.pend();
 //        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
         console.log("PL auto-collect: %s".blue, path.dirname(this.path) + "/**/!(*-bk).js");
         var files = glob.sync(path.dirname(this.path) + "/**/!(*-bk).js"); //mp3"); //, {}, function (err, files)
         console.log("PL: auto-collect got %d candidate seq files", files.length);
         files.forEach(function(file, inx) { this.addSong(path.dirname(file)); }, this); //CAUTION: need to preserve context within forEach loop
+        this.unpend(); //kludge: force readiness if no files to load
     }
     (opts.paths || []).forEach(function(file, inx) { this.addSong(file); }, this); //CAUTION: need to preserve context within forEach loop
 //    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; }, this); //CAUTION: need to preserve context within forEach loop
 
-    if (!this.pending) this.ready(); //this.emit('ready');
+//no    if (!this.pending) this.ready(); //this.emit('ready'); //caller might want to add something, so don't mark it ready yet
 //    return this; //not needed for ctor
+//console.log("playlist ctor out");
 }
 inherits(Playlist, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 //Playlist.prototype = Object.create(xform.prototype); //http://www.sitepoint.com/simple-inheritance-javascript/
@@ -174,7 +206,7 @@ Playlist.prototype.debug = function()
 Playlist.prototype.addSong = function(seqpath)
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-    ++this.pending;
+    this.pend();
 //        console.log("PL add song %s".blue, seqpath);
 //        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
     glob.sync(seqpath).forEach(function (file, index)
@@ -183,10 +215,8 @@ Playlist.prototype.addSong = function(seqpath)
         var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
         if (!seq.isSequence) return;
         var this_playlist = this;
-        seq.once('ready', function()
-        {
-            if (!--this_playlist.pending) this_playlist.ready(); //emit('ready');
-        });
+        seq.ready(function() { this_playlist.unpend(); }) //once('ready', function()
+            .fail(function(err) { this_playlist.error("ERROR add song ".red + err); });
 //        propagate(song, this);
         seq.index = this.songs.length;
         this.songs.push(seq);
@@ -233,6 +263,23 @@ Playlist.prototype.play = function(opts)
     {
         if (!evtinfo.current.elapsed.paused) this_playlist.emit('progress', null, evtinfo);
     }, Math.max(250, progintv)); //send out periodic updates no faster than 1/4 sec
+    if (!this.index) //show mem usage at start of each loop
+    {
+        var meminfo = process.memoryUsage();
+        function memfmt(bytes)
+        {
+            var hfmt = require("human-format");
+            return hfmt(bytes, new hfmt.Scale(
+            {
+                B: 0,
+                KB: 1024,
+                get MB() { return 1024 * this.KB; },
+                get GB() { return 1024 * this.MB; },
+                get TB() { return 1024 * this.GB; },
+            }));
+        }
+        console.log("mem: %s, %s, %s, %s ...".blue, memfmt(meminfo.rss), memfmt(meminfo.vsize || 0), memfmt(meminfo.heapTotal), memfmt(meminfo.heapUsed));
+    }
     var this_playlist = this;
 
     return this.songs[this.selected] //.play(0)

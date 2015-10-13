@@ -3,9 +3,9 @@
 
 var Playlist = require('my-projects/playlists/playlist'); //base class
 
-var playlist_wrapper = module.exports = new Playlist();
-.then(function(playlist)
-{
+var playlist/*_wrapper*/ = module.exports = new Playlist();
+//.then(function(playlist)
+//{
 
 playlist.addSong('my-projects/songs/xmas/Amaz*');
 playlist.addSong('my-projects/songs/xmas/*Capital*');
@@ -28,9 +28,9 @@ playlist.schedule =
 playlist.opener = "thx"; //TODO
 playlist.closer = "goodnight"; //TODO
 
-playlist.ready(); //allow caller to use it now
+//playlist.ready(); //allow caller to use it now
 
 module.exports.debug();
-});
+//});
 
 //eof

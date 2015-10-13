@@ -50,17 +50,20 @@ Outhw.prototype._write = function(chunk, encoding, done_cb)
 //    console.log('outhw write: '.yellow + JSON.stringify(chunk));
 //    setTimeout(function() { done_cb(); }, 1000); //tell sender to release this buffer and send another one; simulate time delay
 //    if (!this.isouthw) throw "wrong 'this'"; //paranoid/sanity context check
-    if (!chunk.data) chunk = {data: chunk};
-    if (!chunk.id) chunk.id = '??';
+//    if (!chunk.data) chunk = {data: chunk};
+//    if (typeof chunk.data != 'buffer') chunk.data =
+//    if (!chunk.id) chunk.id = '??';
 //example for static format immediate-output-only controllers:
     var this_outhw = this;
-    mySetTimeout(function()
+    if (this.pending) clearTimeout(this.pending); //cancel outstanding I/O if song changed
+    this.pending = mySetTimeout(function()
     {
         if (!this_outhw.isouthw) throw "wrong 'this'"; //paranoid/sanity context check
         var delay = chunk.at - Now(); //NOTE: do not use cached value here, so delay is accurate
         if ((delay < 0) || (delay > 5)) console.log("%s: id '%s', len %d, delay %d msec going out NOW".red, (delay < 0)? "overdue": "premature", chunk.id, chunk.data.length, delay);
-        else console.log("outhw: id '%s', len %d, delay %d msec going out on time".cyan, chunk.id, chunk.data.len, delay);
+//        else console.log("outhw: id '%s', len %d, delay %d msec going out on time".cyan, chunk.id, chunk.data.len, delay);
         this_outhw.out(chunk.id, chunk.data, chunk.data.length);
+        done_cb();
     }, chunk.at - Now());
 //example for delayed out-then-verify controllers (RenXt):
 /*TODO
@@ -80,6 +83,7 @@ Outhw.prototype._write = function(chunk, encoding, done_cb)
     }
     chunk.data.copy(this.outbuf); //, targetStart=0, sourceStart=0, sourceEnd=buffer.length); //make a copy of data before sending
     this.out(chunk.id, chunk.data, chunk.data.length, chunk.at);
+    done_cb();
 */
 };
 
@@ -95,8 +99,8 @@ Outhw.prototype.out = function(id, data, len)
 
 function mySetTimeout(func, delay)
 {
-    if (delay < 5) func(); //NOTE: 4 msec is minimum delay provided by browsers; not sure about node.js
-    else setTimeout(func, delay);
+    if (delay < 5) { func(); return null; } //NOTE: 4 msec is minimum delay provided by browsers; not sure about node.js
+    else return setTimeout(func, delay);
 }
 
 //eof

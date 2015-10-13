@@ -36,7 +36,7 @@ function SequenceStreamer(opts)
     this.on('data-ack', function()
     {
         if (!this_ss.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
-        console.log("seq data ack ", this_ss.name);
+//        console.log("seq data ack ", this_ss.name);
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
         if (!this_ss.eof) this_ss._read.apply(this_ss); //keep it flowing
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
@@ -51,7 +51,7 @@ SequenceStreamer.prototype._read = function()
 {
     if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
 //if (this.index > 4) this.stopped = true;
-    console.log("seqdata %s[%d] read: stopped? %d, eof? %d, count %d", this.name, this.index, this.stopped, this.eof, this.cues.length);
+//    console.log("seqdata %s[%d] read: stopped? %d, eof? %d, count %d", this.name, this.index, this.stopped, this.eof, this.cues.length);
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
     for (;;) //skip ahead to next active cue
     {
@@ -59,12 +59,15 @@ SequenceStreamer.prototype._read = function()
         if (this.index >= this.cues.length) return this.push(null); //eof
 
 //    var data = this.cues[this.index++]; //TODO: apply fx
-        var data = this.render(this.cues[this.index++]);
-        if (!data || (typeof data.at === 'undefined')) continue;
+        var chunk = this.render(this.cues[this.index++]);
+        if (!chunk) continue;
+        if (typeof chunk.at === 'undefined') throw "bad msg at"; //continue;
+        if (!chunk.id) throw "missing msg id";
+        if (!Buffer.isBuffer(chunk.data)) throw "bad/missing msg buf " + typeof chunk.data;
 
-        data.at += this.starttime;
-//        console.log('seqdata read[%d]: enque %s: ' + JSON.stringify(data), this.index - 1, this.name);
-        this.push(data);
+        chunk.at += this.starttime;
+//        console.log('seqdata read[%d]: enque %s: ' + JSON.stringify(chunk), this.index - 1, this.name);
+        this.push(chunk);
         break; //only queue up one frame at a time
     }
 //    if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
@@ -150,7 +153,7 @@ SequenceStreamer.prototype.addCues = function(filename)
 //        var fstat = fs.statSync(filename);
 //        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(filename)); return; }
 //        this.cues.push(filename);
-    ++this.pending;
+    this.pend();
     var section = "timing", src = shortname(filename), linenum = 0, back_trim = null, numwarn = [0, 0];
     var this_seq = this;
 //TODO: use cached values if file !changed
@@ -175,7 +178,6 @@ SequenceStreamer.prototype.addCues = function(filename)
                 }
                 else if (matches = linebuf.match(/^\s*([\d.]+)(\s+([\d.]+))?(\s+(.+))?\s*$/)) //, 'from');
                 {
-debugger;
 //                        flush.apply(this_seq);
                     var from = Math.round(1000 * matches[1]); //token;
                     if (from > this_seq.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this_seq.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
@@ -234,9 +236,9 @@ debugger;
             if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //            console.log("%d cues from %s, dirty? %d", this_seq.cues.length, relpath(filename), this_seq.cues_dirty);
             if (Math.max(numwarn[0], numwarn[1]) > 1) console.log("(%d more warnings)", Math.max(numwarn[0] - 1, 0) + Math.max(numwarn[1] - 1, 0));
-            if (!--this_seq.pending) this_seq.ready(); //emit('ready');
+            this_seq.unpend(); //ing) this_seq.ready(); //emit('ready');
         })
-        .on('error', function(err) { console.log("not a file: %s: %s".red, relpath(filename), err); });
+        .on('error', function(err) { /*this_seq.unpend()*/; this_seq.error /*console.log*/("cues: not a file: %s: %s" + relpath(filename) + " " + err); });
 
 //        function flush()
 //        {
@@ -259,8 +261,8 @@ SequenceStreamer.prototype.seqstart = function()
     this.starttime = Now();
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
     this.stopped = false;
-    console.log("seq data start[0] '%s' %d cues", this.name, this.cues.length);
-    debugger;
+//    console.log("seq data start[0] '%s' %d cues", this.name, this.cues.length);
+//    debugger;
     this._read(); //start it flowing
 //    if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
 //    this.emit('frame_ready', this.cues[0]);
@@ -270,7 +272,7 @@ SequenceStreamer.prototype.seqstart = function()
 SequenceStreamer.prototype.seqstop = function()
 {
     this.stopped = true;
-    console.log("seq data stop[%d] %s", this.index, this.name);
+//    console.log("seq data stop[%d] %s", this.index, this.name);
 }
 
 
@@ -289,7 +291,7 @@ SequenceStreamer.prototype.push = function(chunk)
 {
     if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
     this.eof = (!arguments.length || (chunk === null)); //!chunk; //caller can restart flow by pushing more data
-    console.log("seqdata: push[%d] due %s", this.index, this.eof? '-': Now.asString(chunk.at), !this.eof? JSON.stringify(chunk): '(eof)');
+//    console.log("seqdata: push[%d] due %s", this.index, this.eof? '-': Now.asString(chunk.at), !this.eof? JSON.stringify(chunk): '(eof)');
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
     var this_ss = this;
     if (!this.eof) this.dest.emit('data-rcv', chunk, function() //recip can have multiple senders, so tell receiver how to reply

@@ -7,7 +7,9 @@ var Sequence = require('my-projects/songs/sequence.js'); //base class
 //var Model =
 //var Fx =
 
-var wookie = module.exports = /*new*/ Sequence({auto_collect: true, interval: 50, }); //comonjs
+var wookie /*_promise*/ = module.exports = /*new*/ Sequence({auto_collect: true, interval: 50, }); //comonjs
+//.then(function(wookie)
+//{
 wookie.name = 'Wookie';
 //Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
 //Wookie.tracks = './tracks.txt'; //Audacity label file
@@ -37,5 +39,6 @@ wookie.models =
 ];
 
 module.exports.debug();
+//});
 
 //eof

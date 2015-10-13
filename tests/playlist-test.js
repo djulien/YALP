@@ -114,11 +114,16 @@ function test2()
 //    return;
 //    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
 //    setTimeout(function()
-    playlist.then(function(real_pl)
+    playlist.ready(function(real_pl)
     {
         console.log("playlist ready after %s", loading.scaled());
         playback(real_pl); //playlist); //.play()); //play once
-    }); //, 10); //kludge: give async callbacks time to finish
+    }) //, 10); //kludge: give async callbacks time to finish
+    .fail(function(err) { console.log("ERROR ".red, err);
+//            console.trace();
+//            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
+//            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
+    });
 //playback(playlist.scheduled()); //play according to schedule
 }
 
@@ -283,7 +288,7 @@ function Seq(opts)
     return seq;
 }
 */
-    
+
 
 test2();
 //test4();
