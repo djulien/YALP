@@ -1,4 +1,5 @@
 //ipc wrappers to allow the ipc plumbing to be easily changed out in future
+//there are so many npm modules, it's hard to know which one to use so this abstraction allows alternates to be used
 //Send(channel, data)
 //all messages are broadcast-style to allow multiple readers
 //Receive(channel, data)
@@ -6,8 +7,9 @@
 
 'use strict';
 
+//node-ipc supports local and tcp/udp variants, which should make it easy to go to distributed later
+//otoh, messenger has a very simple api, so let's start out with that one
 
-//this one supports local and tcp/udp variants, which should make it easy to go to distributed later:
 var ipc = require('node-ipc'); //https://github.com/RIAEvangelist/node-ipc
 
 //ipc.config.id = 'yalp';
@@ -17,7 +19,7 @@ ipc.config.silent = true; //no logging
 ipc.config.maxConnections = 5;
 ipc.config.retry = 1000; //client reconnect retry time, msec
 
-        
+
 var names = {};
 
 function Receive(channel, data, cb)
@@ -74,7 +76,7 @@ function Send(channel, data)
         {
         });
         ipc.server.start();
-        
+
     }
     ipc.server.broadcast(channel, data);
 }
@@ -120,7 +122,7 @@ debugger;
 
 module.exports.Send = function(id, buf)
 {
-ipc.server.broadcast('app.msg', {id: seqnum++, msg: "data"});    
+ipc.server.broadcast('app.msg', {id: seqnum++, msg: "data"});
 }
 
 

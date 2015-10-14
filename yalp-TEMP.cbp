@@ -87,7 +87,7 @@
 		<Unit filename="my-plugins/utils/credentials.js" />
 		<Unit filename="my-plugins/utils/elapsed.js" />
 		<Unit filename="my-plugins/utils/email.js" />
-		<Unit filename="my-plugins/utils/ipc" />
+		<Unit filename="my-plugins/utils/ipc.js" />
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
 		<Unit filename="my-plugins/utils/make-global.js" />
 		<Unit filename="my-plugins/utils/mem-scale.js" />
