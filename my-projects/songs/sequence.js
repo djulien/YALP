@@ -281,7 +281,7 @@ Sequence.prototype.play = function(opts) //manual start
 //        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
     this.buffered = 0; //TODO
     var this_seq = this;
-    this.seqstart();
+    this.seqstart(); //NOTE: this will probably send out first (init) frame prematurely
     var svvol = this.volume;
 
     var filename = this.media[this.selected]; //.path;
@@ -304,6 +304,7 @@ Sequence.prototype.play = function(opts) //manual start
                 .once('open', function () //speaker
                 {
                     if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                    this.starttime = Now(); //this is the actual audio start time; first (init) frame can be premature, but subsequent frames must be synced correctly
                     this_seq.emit('start', filename.path);
                     if (this_seq.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this_seq.elapsed.scaled());
                     this.elapsed = new elapsed(); //restart it at actual audio start

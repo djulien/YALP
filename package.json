@@ -127,6 +127,7 @@
     "nan": "^2.1.0",
     "node-glob-loader": "^0.0.15",
     "node-hook": "^0.2.0",
+    "node-ipc": "^3.0.0",
     "node-mpg123-util": "git+https://github.com/djulien/node-mpg123-util.git",
     "nodemailer": "^1.5.0",
     "object-sizeof": "^1.0.6",

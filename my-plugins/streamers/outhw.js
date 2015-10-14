@@ -60,7 +60,7 @@ Outhw.prototype._write = function(chunk, encoding, done_cb)
     {
         if (!this_outhw.isouthw) throw "wrong 'this'"; //paranoid/sanity context check
         var delay = chunk.at - Now(); //NOTE: do not use cached value here, so delay is accurate
-        if ((delay < 0) || (delay > 5)) console.log("%s: id '%s', len %d, delay %d msec going out NOW".red, (delay < 0)? "overdue": "premature", chunk.id, chunk.data.length, delay);
+        if ((delay < -2) || (delay > 5)) console.log("%s: id '%s', len %d, delay %d msec going out NOW".red, (delay < 0)? "overdue": "premature", chunk.id, chunk.data.length, delay);
 //        else console.log("outhw: id '%s', len %d, delay %d msec going out on time".cyan, chunk.id, chunk.data.len, delay);
         this_outhw.out(chunk.id, chunk.data, chunk.data.length);
         done_cb();

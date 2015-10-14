@@ -175,6 +175,9 @@ exec sudo -u root wetty -p 3000
 git checkout <hash> to get an older copy
 git checkout master to go to latest
 
+install node-gyp manually:
+ npm install -g node-gyp
+ 
 CONFIG:
 list ports:
   dmesg | grep tty
@@ -279,6 +282,14 @@ https://www.npmjs.com/package/wavi
 http://smartcomments.github.io/
 http://www.markupjavascript.com/2014/02/js-documentation-generator-tools-jsdoc-yuidoc-docco.html
 http://yui.github.io/yuidoc/
+
+IPC:
+ http://stackoverflow.com/questions/6463945/whats-the-most-efficient-node-js-inter-process-communication-library-method
+ http://stackoverflow.com/questions/17866864/inter-process-event-emitter-for-node-js
+  https://github.com/weixiyen/messenger.js
+ https://github.com/pgriess/node-msgpack
+https://groups.google.com/forum/#!topic/nodejs/Pxbb_kgOQEs
+JSON.stringify() and JSON.parse() are optimized/fast
 
 streaming server?
  https://github.com/sebpiq/node-web-audio-api
