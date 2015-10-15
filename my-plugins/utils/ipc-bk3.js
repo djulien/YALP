@@ -46,10 +46,9 @@ for (;;) receive('evt', data);
 var path = require('path');
 var fs = require('fs-ext'); //https://github.com/baudehlo/node-fs-ext; NOTE: this one seems to need npm install from git
 //var messenger = require('messenger'); //https://github.com/weixiyen/messenger.js
-//var Wormhole = require('wormhole'); //https://github.com/aikar/wormhole
-var SimpleMessages = require('simplemessages'); //https://www.npmjs.com/package/simplemessages
+var Wormhole = require('wormhole'); //https://github.com/aikar/wormhole
 var Q = require('q'); //https://github.com/kriskowal/q
-//var net = require('net');
+var net = require('net');
 
 /*this was going to be server-based name lookup
 var registry = {};
@@ -132,57 +131,41 @@ module.exports = function(name)
 {
     var port = name2port(name);
     console.log("que '%s' is on port %d", name, port);
-    var sender = null, receiver = null; //, reply_cbs = {}; //, client_cb = {}, server_cb = {};
+    var sender = null, receiver = null, reply_cbs = {}; //, client_cb = {}, server_cb = {};
     var retval = //don't know whether caller wants to send or receive or both, so just return a wrapper of deferred client/server
     {
-        on: function(channel, cb_rcv) //receiver (socket server)
+        on: function(channel, rcv_cb)
         {
             if (!receiver)
                 receiver = Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
                 {
-//                    net.createServer(function(client) { resolve(client); }).listen(port);
-                    var server = SimpleMessages.createServer(function(socket)
+                    net.createServer(function(client)
                     {
-                        socket.thisisit = true;
-                        resolve(socket);
-                    });
-                    server.listen(port);
+                        resolve(client);
+                    }).listen(port);
                 });
-            receiver.then(function(socket)
+            receiver.then(function(client)
             {
-                if (!socket.thisisit) throw "wrong resolve value";
 //                if (!server_cb[channel]) server_cb[channel] =
-                socket.on(channel, function(data_rcv)
+                Wormhole(client, channel, function(msg_data)
                 {
-                    cb_rcv(data_rcv, function(data_reply) //give to caller
+                    rcv_cb(msg_data, function(reply_data)
                     {
-                        server.write(data_reply);
+                        client.write(channel, reply_data);
                     });
-//                    return true; //in case other call-backs are active for this channel
+                    return true; //in case other call-backs are active for this channel
                 });
             });
         },
-        send: function(channel, data_send, cb_reply) //socket client
+        send: function(channel, data, reply_cb)
         {
             if (!sender)
                 sender = Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
                 {
-//                    var client = net.createConnection(port, function() { resolve(client); });
-                    var client = SimpleMessages.createClient(port, "localhost", function()
+                    var client = net.createConnection(port, function()
                     {
-                        client.thisisit = true;
                         resolve(client);
                     });
-                });
-            sender.then(function(socket)
-            {
-                if (!socket.thisisit) throw "wrong resolve value";
-                socket.write(data_send);
-                process.on('exit', function() { socket.end(); });
-            });
-
-
-
                 });
             sender.then(function(client)
             {

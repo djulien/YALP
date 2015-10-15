@@ -177,7 +177,7 @@ git checkout master to go to latest
 
 install node-gyp manually:
  npm install -g node-gyp
- 
+
 CONFIG:
 list ports:
   dmesg | grep tty
@@ -261,6 +261,7 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  https://www.npmjs.com/package/event-stream
  https://www.npmjs.com/package/binary-reader
  http://zguide.zeromq.org/page:all??
+ http://www.rediscookbook.org/implement_a_fifo_queue.html
 
 SERIAL PORT:
 https://www.npmjs.com/search?q=serial%20port
@@ -339,6 +340,7 @@ http://stackoverflow.com/questions/18875674/whats-the-difference-between-depende
 https://devcenter.heroku.com/articles/node-best-practices
 http://www.sitepoint.com/complete-guide-reducing-page-weight/
 
+https://github.com/sindresorhus/awesome-nodejs
 binaryjs?
 pico tts?
 npm shelljs
