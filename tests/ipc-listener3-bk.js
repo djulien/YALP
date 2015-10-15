@@ -5,7 +5,7 @@ listener.on('msg', function(req, data)
 {
 //	message.reply({'you':'got it'})
 	seen = data.seqnum;
-	console.log("rcv: data ", message, data);
+//	console.log("rcv: data ", message, data);
 });
 
 listener.on('reset', function(req, data)
@@ -16,6 +16,6 @@ listener.on('reset', function(req, data)
 
 setInterval(function()
 {
-	console.log("last seen: %d (+%d)", seen, seen - prev);
+	if (seen != prev) console.log("last seen: %d (+%d)", seen, seen - prev);
 	prev = seen;
 }, 1000);

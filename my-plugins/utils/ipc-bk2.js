@@ -43,12 +43,9 @@ for (;;) receive('evt', data);
 //node-ipc supports local and tcp/udp variants, which should make it easy to go to distributed later
 //otoh, messenger has a very simple api, so let's start out with that one
 
-var path = require('path');
 var fs = require('fs-ext'); //https://github.com/baudehlo/node-fs-ext; NOTE: this one seems to need npm install from git
-//var messenger = require('messenger'); //https://github.com/weixiyen/messenger.js
-var Wormhole = require('wormhole'); //https://github.com/aikar/wormhole
-var Q = require('q'); //https://github.com/kriskowal/q
-var net = require('net');
+var path = require('path');
+var messenger = require('messenger'); //https://github.com/weixiyen/messenger.js
 
 /*this was going to be server-based name lookup
 var registry = {};
@@ -113,7 +110,6 @@ function name2port(name) //, cb)
 //{
 //}
 
-/*
 module.exports.Listener = function(name)
 {
     var port = name2port(name);
@@ -125,60 +121,15 @@ module.exports.Listener = function(name)
 }
 
 
-module.exports = function(name)
+module.exports.Sender = function(name)
 {
     var port = name2port(name);
-    console.log("que '%s' is on port %d", name, port);
-    var retval = //don't know whether caller wants to send or receive or both, so just return a wrapper of deferred client/server
-    {
-        on: function(channel, rcv_cb)
-        {
-            Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
-            {
-                net.createServer(function(client)
-                {
-                    resolve(client);
-                }).listen(port);
-            }).then(function(client)
-            {
-                if (!server_cb[channel])
-                    Wormhole(client, channel, function (msg)
-                    {
-                        msg_cb(msg); //received from client
-                    });
-            });
-        },
-        send: function(channel, data)
-        {
-            var client = Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
-            {
-            });
-        },
-    };
-    return retval;
+    var client = messenger.createSpeaker(port);
+//    var svsend = client.send;
+//    client.send = function(msgid, data, cb) {}; //add a call-back function because it might be async due to name lookup
+    console.log("created sender for port %d", port);
+    return client;
+}
 
-        retval.send = function(channel, data, reply_cb)
-        {
-            if (!client) tmp_client = net.createConnection(port, function()
-            {
-                client = tmp_client;
-            }
-            if (!client_cb[channel])
-                Wormhole(client, channel, function (err, response)
-                {
-//                    cb(err, response);
-                });
-            }
-            return client.write(channel, data);
-        };
-        };
-    });
-    return retval;
-});
-
-
-    // client.write now overloaded to encode data.
-    client.write('auth', {auth: 'Please login!'});
-    client.write('chat', {greet: 'Welcome to our server!'});
 
 //eof
