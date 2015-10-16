@@ -1,12 +1,17 @@
-//ipc wrappers to allow the ipc plumbing to be easily changed out in future
+//ipc wrappers to hide the plumbing and allow it to be easily changed out in future
 //there are so many npm modules, it's hard to know which one to use so this abstraction allows alternates to be used
-//all YALP messages are broadcast-style to allow multiple readers
-//most are streaming-style apps, so they send or receive, not both
+//all YALP messages fall into 3 cases:
+//1. send + forget
+//2. send + wait for 1 reply
+//3. send + wait for many replies
+//all of these fit neatly into the standard client/server send/reply model
+//rather than try to implement a multi-cast solution, subscription-style requests are send instead; no broadcast-style messages
+//most ipc is streaming-style anyway
 
 /*
 //============================================
 //scheduler:
-send('cmd', 'play');
+send('cmd', 'play'); reply only needed for more robust communication
 send('cmd', 'pause');
 //============================================
 //motion:
@@ -18,32 +23,36 @@ send('cmd', 'pause');
 send('cmd', 'volume #');
 //============================================
 //playlist:
-for (;;) receive('cmd', data);
-for (;;) broadcast('playback', data);
+receive('cmd', requested-cmd); reply for robustness
+receive('playback', subscription-req); reply repeatedly
 //============================================
 //hwout:
-for (;;) receive('playback', data);
-for (;;) broadcast('iostats', data);
+send('playback', subscription-req); receive replies repeatedly
+receive('iostats', subscription-req); reply repeatedly
 //============================================
 //preview:
-for (;;) receive('playback', data);
+send('playback', subscription-req); receive replies repeatedly
 //============================================
 //monitor:
-for (;;) receive('playback', data);
-for (;;) receive('iostats', data);
+send('playback', subscription-req); receive replies repeatedly
+send('iostats', subscription-req); receive replies repeatedly
+send('evt', subscription-req); receive replies repeatedly
 //============================================
-//trace:
-for (;;) receive('playback', data);
-for (;;) receive('evt', data);
+//trace/log:
+send('playback', subscription-req); receive replies repeatedly
+send('evt', subscription-req); receive replies repeatedly
 */
 
 'use strict';
 
 //node-ipc supports local and tcp/udp variants, which should make it easy to go to distributed later
-//otoh, messenger has a very simple api, so let's start out with that one
+//otoh, messenger has a very simple api, so maybe we should start out with that one
+//otoh^2, net api is simple enough - just call it directly
 
 var path = require('path');
 var fs = require('fs-ext'); //https://github.com/baudehlo/node-fs-ext; NOTE: this one seems to need npm install from git
+var CircularJSON = require('circular-json');
+var objectStream = require('objectstream').createStream; //https://www.npmjs.com/package/objectstream
 //var messenger = require('messenger'); //https://github.com/weixiyen/messenger.js
 //var Wormhole = require('wormhole'); //https://github.com/aikar/wormhole
 //var SimpleMessages = require('simplemessages'); //https://www.npmjs.com/package/simplemessages
@@ -83,10 +92,11 @@ function name2port(name) //, cb)
 //  console.log("Trying to aquire lock for the %s time", counter);
     fs.flockSync(fd, 'exnb');
 //    console.log('Aquired lock', counter);
+//TODO: use objectstream
     var buffer = new Buffer(1024);
     var rdlen = fs.readSync(fd, buffer, 0, buffer.length);
     if (rdlen) cache = JSON.parse(buffer.slice(0, rdlen));
-    console.log("got json", cache);
+//    console.log("got json", cache);
     if (!(name in cache)) //allocate a new port#
     {
         var used = [];
@@ -100,6 +110,7 @@ function name2port(name) //, cb)
             return true;
         });
         cache[name] = next_avail;
+//TODO: use objectstream
         var newbuf = JSON.stringify(cache);
         console.log("upd json: ", newbuf);
         fs.writeSync(fd, newbuf, 0, newbuf.length, 0);
@@ -133,36 +144,43 @@ module.exports = function(name)
     var receivers = {}, senders = {}; //, seqnum = 0;
     var retval = //don't know whether caller wants to send or receive or both, so just return a client + server promise wrapper
     {
-        on: function(channel, cb) //receiver (socket server); normally only called once per channel
+        rcv: function(channel, cb) //receiver (socket server); channels allow multiple receiver sockets; rcv should only be called once per channel
         {
             if (arguments.length == 1) { cb = channel; channel = '*'; }
             if (typeof cb !== 'function') throw "Call-back must be a function (" + typeof cb + " supplied)";
-            name += ':' + channel; //use a separate socket for each channel
-            var receiver = receivers[name];
-            if (!receiver) receiver = receivers[name] = {cbs: [], };
+            var receiver = receivers[name + ':' + channel];
+            if (!receiver) receiver = receivers[name + ':' + channel] = {cbs: [], };
             receiver.cbs.push(cb); //allow multiple callbacks per channel, although not recommended (msgs will come in to multiple callbacks)
             if (receiver.server) return;
             receiver.server = net.createServer(function(socket)
             {
+//                objectMode(socket);
 //                receiver.socket = socket;
+                var objsocket = objectStream(socket);
                 console.log('CONNECTED: remote ' + socket.remoteAddress + ':' + socket.remotePort + ", local " + socket.localPort);
-                socket.on('data', function(data)
+                objsocket.on('data', function(data)
                 {
-//                    console.log('DATA ' + socket.remoteAddress + ': ' + data_rcv);
-//                    socket.write('You said "' + data_rcv + '"');
+                    console.log('RCV DATA ' + socket.remoteAddress + ':' + socket.remotePort, data);
+//                    objsocket.write('You said "' + data_rcv + '"');
 //                     var channel_data = (/*(typeof data_rcv === 'object') &&*/ ('channel' in data_rcv)) data_rcv.channel: '*';
 //                     if (!rcv_cbs[rcv_channel]) not waiting for this channel
                     receiver.cbs.forEach(function(cb)
                     {
-                        cb(data, function(reply_data) { receiver.server.write(reply_data); }); //TODO: if error due to closed socket, ignore?
+                        cb(data, function(reply_data)
+                        {
+//                            console.log("REPLY: ", reply_data);
+//                            objsocket.write(JSON.stringify(reply_data)); //TODO: if error due to closed socket, ignore?
+//                            wrobj(socket, reply_data);
+                            objsocket.write(reply_data);
+                        });
                     });
                 });
-                socket.on('close', function(data)
+                objsocket.on('close', function(data)
                 {
                     console.log('CLOSED: ' + socket.remoteAddress + ':' + socket.remotePort);
                     receiver.server = null; //reopen next time
                 });
-            }.listen(name2port(name), "localhost");
+            }).listen(name2port(name + ':' + channel), "localhost");
         },
 
         send: function(channel, data, cb) //socket client; can be called multiple times per channel
@@ -171,40 +189,51 @@ module.exports = function(name)
             {
                 case 0: channel = '*'; break; //force socket closed
                 case 1: data = channel; channel = '*'; break;
-                case 2: if (typeof data === 'function') { cb = data; data = channel; channel = '*'; }
+                case 2: if (typeof data !== 'function') break; cb = data; data = channel; channel = '*'; break;
+                case 3: if (!channel) channel = '*'; break;
             }
-            name += ':' + channel; //use a separate socket for each channel
-            var sender = senders[name];
-            if (!sender) sender = senders[name] = {}; //{cbs: [], };
-            if (!sender.promise) sender.promise = Q.promise(resolve, reject)
+            var sender = senders[name + ':' + channel];
+            if (!sender) sender = senders[name + ':' + channel] = {}; //{cbs: [], };
+            if (!sender.promise) sender.promise = Q.promise(function(resolve, reject) //defer send until socket is open
             {
                 var client = new net.Socket();
-                client.connect(name2port(name), "localhost", function()
+//broken                var objclient = objectStream(client);
+                client.connect(name2port(name + ':' + channel), "localhost", function()
                 {
-                    console.log('CONNECTED TO: ' + "localhost" + ':' + port);
-                    resolve(client);
+                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(name + ':' + channel)); //CircularJSON.stringify(client));
+//                    client.itsmebob = true;
+//                    client.write("hello bob");
+//                    objectMode(client);
+                    var objclient = objectStream(client);
+                    resolve(objclient);
                 });
-                client.on('data', function(data)
+                var objclient = objectStream(client);
+                objclient.on('data', function(data)
                 {
-                    console.log('reply DATA: ' + data);
+//                    console.log('RCV DATA: ', data);
 //no                    sender.destroy();
 //                    cb = sender.cbs.pop();
                     if (!sender.cb) throw "Unexpected response on " + name;
-                    else { sender.cb(data); sender.cb = null; } //satisfy pending callback and then reset for another one
+                    else if (!sender.cb(data)) sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+//                    else console.log("ASK FOR MORE");
                 });
-                client.on('close', function()
+                objclient.on('close', function()
                 {
                     console.log('Connection closed');
                     sender.promise = null; //reopen next time
                     if (sender.cb) { sender.cb(-1); sender.cb = null; } //satisfy pending callback and then reset for another one
                 });
-            }
+            });
             sender.promise.then(function(client) //defer send until socket client is ready
             {
-                if (!data) { client.destroy(); return; } //eof
+//                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
                 if (cb) //response wanted
                     if (sender.cb) throw name + " already has a pending response";
                     else sender.cb = cb;
+//                console.log("SEND ", data);
+//                if (!client.itsmebob) throw "write to wrong obj";
+//                client.write(JSON.stringify(data));
+//                wrobj(client, data);
                 client.write(data);
             });
         },
@@ -212,5 +241,48 @@ module.exports = function(name)
     return retval;
 }
 
+
+//NOTE: docs say tcp/ip is a stream, so you have to use delimiters and a read loop in order to ensure objects don't get broken into chunks
+//http://stackoverflow.com/questions/6038995/extract-integer-from-a-tcp-stream
+/*
+function objectMode(stream)
+{
+    var oldread = stream.read;
+    stream.xread = function()
+    {
+        var objlen = stream.readUInt16BE(0);
+        var buf = new Buffer(objlen);
+//        buf.fill();
+        stream.copy(buf, 0, 0, objlen);
+        return JSON.parse(buf);
+        return oldread();
+    }
+    var oldwrite = stream.write;
+    stream.write = function(data)
+    {
+        data = JSON.stringify(data);
+        if (data.length > 65535) throw "Object size too big for stream: " + data.length;
+        var retval = 0;
+        retval += stream.writeUInt16BE(data.length);
+        retval += stream.oldwrite(data);
+        return retval; //total length written
+    }
+}
+function wrobj(stream, data)
+{
+    var buf = JSON.stringify(data);
+    stream.writeUInt16BE(buf.length);
+    stream.write(buf);
+}
+
+function rdobj(stream)
+{
+    var objlen = stream.readUInt16BE(0);
+    var buf = new Buffer(objlen);
+//    buf.fill();
+    stream.copy(buf, 0, 0, objlen);
+    return JSON.parse(buf);
+}
+*/
 
 //eof

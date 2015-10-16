@@ -138,11 +138,13 @@
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/index.js" />
 		<Unit filename="tests/ipc-cmd.js" />
+		<Unit filename="tests/ipc-consumer.js" />
 		<Unit filename="tests/ipc-iostats.js" />
 		<Unit filename="tests/ipc-motion.js" />
 		<Unit filename="tests/ipc-outhw.js" />
 		<Unit filename="tests/ipc-playlist.js" />
 		<Unit filename="tests/ipc-preview.js" />
+		<Unit filename="tests/ipc-provider.js" />
 		<Unit filename="tests/ipc-schedule.js" />
 		<Unit filename="tests/ipc-trace.js" />
 		<Unit filename="tests/mail.js" />
