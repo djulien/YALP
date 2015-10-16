@@ -138,6 +138,7 @@ module.exports.Listener = function(name)
 }
 */
 
+var loop  = 0;
 //for net examples see http://www.hacksparrow.com/tcp-socket-programming-in-node-js.html
 module.exports = function(name)
 {
@@ -168,7 +169,7 @@ module.exports = function(name)
                     {
                         cb(data, function(reply_data)
                         {
-//                            console.log("REPLY: ", reply_data);
+if (loop++ < 5)                            console.log("REPLY: ", reply_data);
 //                            objsocket.write(JSON.stringify(reply_data)); //TODO: if error due to closed socket, ignore?
 //                            wrobj(socket, reply_data);
                             objsocket.write(reply_data);
