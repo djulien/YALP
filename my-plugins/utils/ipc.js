@@ -1,8 +1,7 @@
 //ipc wrappers to allow the ipc plumbing to be easily changed out in future
 //there are so many npm modules, it's hard to know which one to use so this abstraction allows alternates to be used
-
 //all YALP messages are broadcast-style to allow multiple readers
-//they are all streaming-style apps, so each app only sends or receives, not both
+//most are streaming-style apps, so they send or receive, not both
 
 /*
 //============================================
@@ -47,9 +46,9 @@ var path = require('path');
 var fs = require('fs-ext'); //https://github.com/baudehlo/node-fs-ext; NOTE: this one seems to need npm install from git
 //var messenger = require('messenger'); //https://github.com/weixiyen/messenger.js
 //var Wormhole = require('wormhole'); //https://github.com/aikar/wormhole
-var SimpleMessages = require('simplemessages'); //https://www.npmjs.com/package/simplemessages
+//var SimpleMessages = require('simplemessages'); //https://www.npmjs.com/package/simplemessages
 var Q = require('q'); //https://github.com/kriskowal/q
-//var net = require('net');
+var net = require('net');
 
 /*this was going to be server-based name lookup
 var registry = {};
@@ -73,6 +72,8 @@ catch (exc) {};
 
 function name2port(name) //, cb)
 {
+    var cache = {};
+    if (name in cache) return cache[name];
 //NO use a peer server to manage a "registry" of names vs. ports:
 //all callers must be async, but the ipc api is async anyway for request() and receive(); just make send() that way as well
 //    client.request('regcli', name, function(port_assigned){ console.log(data); });
@@ -84,13 +85,12 @@ function name2port(name) //, cb)
 //    console.log('Aquired lock', counter);
     var buffer = new Buffer(1024);
     var rdlen = fs.readSync(fd, buffer, 0, buffer.length);
-    if (!rdlen) rdlen = buffer.write("{}", 0, 2);
-    var regnames = JSON.parse(buffer.slice(0, rdlen));
-    console.log("got json", regnames);
-    if (!(name in regnames)) //allocate a new port#
+    if (rdlen) cache = JSON.parse(buffer.slice(0, rdlen));
+    console.log("got json", cache);
+    if (!(name in cache)) //allocate a new port#
     {
         var used = [];
-        for (var i in regnames) used.push(regnames[i]);
+        for (var i in cache) used.push(cache[i]);
         used.sort();
         var next_avail = first_port;
         used.every(function(port)
@@ -99,15 +99,15 @@ function name2port(name) //, cb)
             ++next_avail;
             return true;
         });
-        regnames[name] = next_avail;
-        var newbuf = JSON.stringify(regnames);
+        cache[name] = next_avail;
+        var newbuf = JSON.stringify(cache);
         console.log("upd json: ", newbuf);
         fs.writeSync(fd, newbuf, 0, newbuf.length, 0);
     }
     fs.flockSync(fd, 'un');
     fs.close(fd);
 //        return console.log("Couldn't unlock file", counter);
-    return regnames[name];
+    return cache[name];
 }
 
 
@@ -127,75 +127,85 @@ module.exports.Listener = function(name)
 }
 */
 
-
+//for net examples see http://www.hacksparrow.com/tcp-socket-programming-in-node-js.html
 module.exports = function(name)
 {
-    var port = name2port(name);
-    console.log("que '%s' is on port %d", name, port);
-    var sender = null, receiver = null; //, reply_cbs = {}; //, client_cb = {}, server_cb = {};
-    var retval = //don't know whether caller wants to send or receive or both, so just return a wrapper of deferred client/server
+    var receivers = {}, senders = {}; //, seqnum = 0;
+    var retval = //don't know whether caller wants to send or receive or both, so just return a client + server promise wrapper
     {
-        on: function(channel, cb_rcv) //receiver (socket server)
+        on: function(channel, cb) //receiver (socket server); normally only called once per channel
         {
-            if (!receiver)
-                receiver = Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
-                {
-//                    net.createServer(function(client) { resolve(client); }).listen(port);
-                    var server = SimpleMessages.createServer(function(socket)
-                    {
-                        socket.thisisit = true;
-                        resolve(socket);
-                    });
-                    server.listen(port);
-                });
-            receiver.then(function(socket)
+            if (arguments.length == 1) { cb = channel; channel = '*'; }
+            if (typeof cb !== 'function') throw "Call-back must be a function (" + typeof cb + " supplied)";
+            name += ':' + channel; //use a separate socket for each channel
+            var receiver = receivers[name];
+            if (!receiver) receiver = receivers[name] = {cbs: [], };
+            receiver.cbs.push(cb); //allow multiple callbacks per channel, although not recommended (msgs will come in to multiple callbacks)
+            if (receiver.server) return;
+            receiver.server = net.createServer(function(socket)
             {
-                if (!socket.thisisit) throw "wrong resolve value";
-//                if (!server_cb[channel]) server_cb[channel] =
-                socket.on(channel, function(data_rcv)
+//                receiver.socket = socket;
+                console.log('CONNECTED: remote ' + socket.remoteAddress + ':' + socket.remotePort + ", local " + socket.localPort);
+                socket.on('data', function(data)
                 {
-                    cb_rcv(data_rcv, function(data_reply) //give to caller
+//                    console.log('DATA ' + socket.remoteAddress + ': ' + data_rcv);
+//                    socket.write('You said "' + data_rcv + '"');
+//                     var channel_data = (/*(typeof data_rcv === 'object') &&*/ ('channel' in data_rcv)) data_rcv.channel: '*';
+//                     if (!rcv_cbs[rcv_channel]) not waiting for this channel
+                    receiver.cbs.forEach(function(cb)
                     {
-                        server.write(data_reply);
+                        cb(data, function(reply_data) { receiver.server.write(reply_data); }); //TODO: if error due to closed socket, ignore?
                     });
-//                    return true; //in case other call-backs are active for this channel
                 });
-            });
+                socket.on('close', function(data)
+                {
+                    console.log('CLOSED: ' + socket.remoteAddress + ':' + socket.remotePort);
+                    receiver.server = null; //reopen next time
+                });
+            }.listen(name2port(name), "localhost");
         },
-        send: function(channel, data_send, cb_reply) //socket client
+
+        send: function(channel, data, cb) //socket client; can be called multiple times per channel
         {
-            if (!sender)
-                sender = Q.Promise(function(resolve, reject, notify) //can't bind yet (channel and direction not yet unspecified) so just store a promise
-                {
-//                    var client = net.createConnection(port, function() { resolve(client); });
-                    var client = SimpleMessages.createClient(port, "localhost", function()
-                    {
-                        client.thisisit = true;
-                        resolve(client);
-                    });
-                });
-            sender.then(function(socket)
+            switch (arguments.length)
             {
-                if (!socket.thisisit) throw "wrong resolve value";
-                socket.write(data_send);
-                process.on('exit', function() { socket.end(); });
-            });
-
-
-
-                });
-            sender.then(function(client)
+                case 0: channel = '*'; break; //force socket closed
+                case 1: data = channel; channel = '*'; break;
+                case 2: if (typeof data === 'function') { cb = data; data = channel; channel = '*'; }
+            }
+            name += ':' + channel; //use a separate socket for each channel
+            var sender = senders[name];
+            if (!sender) sender = senders[name] = {}; //{cbs: [], };
+            if (!sender.promise) sender.promise = Q.promise(resolve, reject)
             {
-                if (!reply_cbs[channel]) reply_cbs[channel] = Wormhole(client, channel, function(err, reply_data)
+                var client = new net.Socket();
+                client.connect(name2port(name), "localhost", function()
                 {
-                    if ('id' in reply_data) pending[reply_data.id](err, reply_data);
-                    else throw "Reply data has no 'id'";
-//??                    return true; //in case other call-backs are active for this channel
-                })
-                if (reply_cb)
-                    if ('id' in data) pending[data.id] = reply_cb;
-                    else throw "Data needs 'id' if you want a reply";
-                client.write(channel, data);
+                    console.log('CONNECTED TO: ' + "localhost" + ':' + port);
+                    resolve(client);
+                });
+                client.on('data', function(data)
+                {
+                    console.log('reply DATA: ' + data);
+//no                    sender.destroy();
+//                    cb = sender.cbs.pop();
+                    if (!sender.cb) throw "Unexpected response on " + name;
+                    else { sender.cb(data); sender.cb = null; } //satisfy pending callback and then reset for another one
+                });
+                client.on('close', function()
+                {
+                    console.log('Connection closed');
+                    sender.promise = null; //reopen next time
+                    if (sender.cb) { sender.cb(-1); sender.cb = null; } //satisfy pending callback and then reset for another one
+                });
+            }
+            sender.promise.then(function(client) //defer send until socket client is ready
+            {
+                if (!data) { client.destroy(); return; } //eof
+                if (cb) //response wanted
+                    if (sender.cb) throw name + " already has a pending response";
+                    else sender.cb = cb;
+                client.write(data);
             });
         },
     };
