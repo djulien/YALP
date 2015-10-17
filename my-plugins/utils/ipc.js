@@ -153,15 +153,19 @@ module.exports = function(name)
             if (!receiver) receiver = receivers[name + ':' + channel] = {cbs: [], };
             receiver.cbs.push(cb); //allow multiple callbacks per channel, although not recommended (msgs will come in to multiple callbacks)
             if (receiver.server) return;
+            var states = {}; //keep track of client connection states so we know when to break subscription streams
             receiver.server = net.createServer(function(socket)
             {
 //                objectMode(socket);
 //                receiver.socket = socket;
                 var objsocket = objectStream(socket);
-                console.log('CONNECTED: remote ' + socket.remoteAddress + ':' + socket.remotePort + ", local " + socket.localPort);
+                objsocket.id = socket.remoteAddress + ':' + socket.remotePort;
+                console.log("CONNECTED: remote %s, local %d", objsocket.id, socket.localPort);
+//                var states = {}; //keep track of client connection states so we know when to break subscription streams
                 objsocket.on('data', function(data)
                 {
-                    console.log('RCV DATA ' + socket.remoteAddress + ':' + socket.remotePort, data);
+                    console.log('RCV DATA %s', objsocket.id, data);
+                    states[objsocket.id] = 1;
 //                    objsocket.write('You said "' + data_rcv + '"');
 //                     var channel_data = (/*(typeof data_rcv === 'object') &&*/ ('channel' in data_rcv)) data_rcv.channel: '*';
 //                     if (!rcv_cbs[rcv_channel]) not waiting for this channel
@@ -169,17 +173,32 @@ module.exports = function(name)
                     {
                         cb(data, function(reply_data)
                         {
+//                            if (!receiver.server) { console.log("closed, don't write %d", ++loop); return -1; } //tell caller to stop calling
+                            if (states[objsocket.id] <= 0)
+                                console.log("%s, don't write %s", (states[objsocket.id] < 0)? "error": "closed", objsocket.id);
+                            else
+                            {
 if (loop++ < 5)                            console.log("REPLY: ", reply_data);
 //                            objsocket.write(JSON.stringify(reply_data)); //TODO: if error due to closed socket, ignore?
 //                            wrobj(socket, reply_data);
-                            objsocket.write(reply_data);
-                        });
+                                states[objsocket.id] = objsocket.write(reply_data)? 1: 2; //false => queued, true => flushed
+                            }
+                            return states[objsocket.id]; //tell caller whether to stop sending
+                        }, states);
                     });
                 });
                 objsocket.on('close', function(data)
                 {
-                    console.log('CLOSED: ' + socket.remoteAddress + ':' + socket.remotePort);
-                    receiver.server = null; //reopen next time
+                    console.log('CLOSED: %s', objsocket.id);
+                    /*delete*/ states[objsocket.id] = 0;
+//                    receiver.server = null; //reopen next time
+                });
+                objsocket.on('error', function(err) //NOTE: need to catch this in order to avoid exception + exit in write()
+                {
+                    console.log('ERROR: %s', objsocket.id, err.errno || err);
+                    /*delete*/ states[objsocket.id] = -1;
+//                    if ((err.errno == 'EPIPE') && (err.syscall == 'write'))
+//                        receiver.server = null; //reopen next time
                 });
             }).listen(name2port(name + ':' + channel), "localhost");
         },
@@ -199,16 +218,21 @@ if (loop++ < 5)                            console.log("REPLY: ", reply_data);
             {
                 var client = new net.Socket();
 //broken                var objclient = objectStream(client);
-                client.connect(name2port(name + ':' + channel), "localhost", function()
+//                var status = 0;
+                console.log("try connect ...");
+                client.connect(name2port(name + ':' + channel), "localhost");
+                var objclient = objectStream(client);
+                console.log("ons ...");
+                client.on('connect', function() //NOTE: don't chain this from above
                 {
                     console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(name + ':' + channel)); //CircularJSON.stringify(client));
 //                    client.itsmebob = true;
 //                    client.write("hello bob");
 //                    objectMode(client);
+//                    status = 1;
                     var objclient = objectStream(client);
                     resolve(objclient);
                 });
-                var objclient = objectStream(client);
                 objclient.on('data', function(data)
                 {
 //                    console.log('RCV DATA: ', data);
@@ -224,6 +248,21 @@ if (loop++ < 5)                            console.log("REPLY: ", reply_data);
                     sender.promise = null; //reopen next time
                     if (sender.cb) { sender.cb(-1); sender.cb = null; } //satisfy pending callback and then reset for another one
                 });
+                objclient.on('error', function(err)
+                {
+                    console.log("error", err.code || err);
+                    if (err.syscall == "connect") setTimeout(function() //retry again later
+                    {
+                        console.log("retry connect to %s", name + ':' + channel);
+//                        retval.send(channel, data, cb);
+                        client.connect(name2port(name + ':' + channel), "localhost");
+                    }, 1000);
+                });
+                process.on('exit', function(code) //sometimes socket doesn't close, so try to force it here
+                {
+                    console.log("destrory client on proc exit(%d)", code);
+                    client.destroy();
+                });
             });
             sender.promise.then(function(client) //defer send until socket client is ready
             {
@@ -231,7 +270,7 @@ if (loop++ < 5)                            console.log("REPLY: ", reply_data);
                 if (cb) //response wanted
                     if (sender.cb) throw name + " already has a pending response";
                     else sender.cb = cb;
-//                console.log("SEND ", data);
+                console.log("SEND ", data);
 //                if (!client.itsmebob) throw "write to wrong obj";
 //                client.write(JSON.stringify(data));
 //                wrobj(client, data);

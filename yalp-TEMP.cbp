@@ -65,6 +65,7 @@
 		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
 		<Unit filename="my-plugins/my-extensions/loader-logging.js" />
 		<Unit filename="my-plugins/my-extensions/no-try.js" />
+		<Unit filename="my-plugins/my-extensions/unhandled.js" />
 		<Unit filename="my-plugins/my-extensions/win-control-c.js" />
 		<Unit filename="my-plugins/package.json" />
 		<Unit filename="my-plugins/routes/delete/user-bk.js" />

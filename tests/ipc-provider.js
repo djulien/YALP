@@ -8,15 +8,16 @@ que.rcv('reset', function(data, reply)
     reply("okay, i reset to " + seqnum);
 });
 
-que.rcv('subscribe', function(data_ignore, reply)
+que.rcv('subscribe', function(data_ignore, reply, states)
 {
 //debugger;
+    console.log("subscribe req:", data_ignore);
     send();
 
-    function send()
+    function send() //1-shot
     {
-        if (seqnum < 5) console.log("reply ", {seqnum: seqnum});
-        reply({seqnum: seqnum++});
+        if (seqnum < 5) console.log("reply ", {seqnum: seqnum}, states);
+        if (reply({seqnum: seqnum++}) <= 0) { console.log("stopped sending"); return; } //stop sending
 //        if (seqnum % 10) //~1K/sec
 //        if (seqnum % 100) //~7.5K/sec
         if (seqnum % 1000) //~33K/sec

@@ -20,6 +20,7 @@ module.exports = true; //dummy ret val in case caller needs a real value
     require('./enforce-strict'); //help catch errors; NOTE: strict must be first stmt, so this one must be done first
 //    require('./expand-macros'); //macro expansions
 //    require('./line-numbers'); //makes finding debug, console, or other stmts easier
+    require('./unhandled'); //catch unhandled stuff
     if (cfg['line-stamps'] !== false) require('./line-stamps'); //makes debug easier; NOTE: do this one first so line#s are correct
     if (cfg['loader-logging'] !== false) require('./loader-logging'); //makes debug easier
     if (cfg['no-try'] !== false) require('./no-try'); //makes finding source of errors easier
