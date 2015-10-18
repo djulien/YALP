@@ -285,8 +285,8 @@ http://www.markupjavascript.com/2014/02/js-documentation-generator-tools-jsdoc-y
 http://yui.github.io/yuidoc/
 
 IPC:
+* http://stackoverflow.com/questions/17866864/inter-process-event-emitter-for-node-js
  http://stackoverflow.com/questions/6463945/whats-the-most-efficient-node-js-inter-process-communication-library-method
- http://stackoverflow.com/questions/17866864/inter-process-event-emitter-for-node-js
   https://github.com/weixiyen/messenger.js
  https://github.com/pgriess/node-msgpack
 https://groups.google.com/forum/#!topic/nodejs/Pxbb_kgOQEs
@@ -339,6 +339,7 @@ https://strongloop.com/strongblog/comparison-tools-to-automate-restarting-node-j
 http://stackoverflow.com/questions/18875674/whats-the-difference-between-dependencies-devdependencies-and-peerdependencies/22004559#22004559
 https://devcenter.heroku.com/articles/node-best-practices
 http://www.sitepoint.com/complete-guide-reducing-page-weight/
+http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
 
 https://github.com/sindresorhus/awesome-nodejs
 binaryjs?

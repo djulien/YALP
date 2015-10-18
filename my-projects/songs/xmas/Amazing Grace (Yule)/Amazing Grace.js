@@ -1,16 +1,13 @@
-//YALP custom sequence proxy; collects misc data and presents it as a sequence object to YALP
-
+//YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-var Sequence = require('my-projects/songs/sequence');
-
-var seq /*_wrapper*/ = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
-//.then(function(seq)
-//{
-//seq.addMedia('my-projects/songs/xmas/Amaz*/**/*.mp3');
-//seq.timing = './tracks.txt'; //Audacity label file
+var Sequence = require('my-projects/songs/sequence'); //base class
+var seq = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 
+
+//seq.addMedia('my-projects/songs/xmas/Amaz*/**/*.mp3');
+//seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
 seq
     .addCue({text: 'fx:init', })
@@ -19,6 +16,15 @@ seq
     .addCue({from: 2.4, text: 'fx:three', })
     .addCue({from: 3.2, text: 'fx:four', });
 //    .sortCues();
+
+
+seq.models =
+[
+    'M-tree',
+    'Gdoor',
+    'Shepherd1',
+    'Shepherd2',
+];
 
 
 //render frames on demand:
@@ -38,15 +44,6 @@ seq.render = function(cue)
 }
 
 
-seq.models =
-[
-    'M-tree',
-    'Gdoor',
-    'Shepherd1',
-    'Shepherd2',
-];
-
-module.exports.debug();
-//});
+//module.exports.debug();
 
 //eof

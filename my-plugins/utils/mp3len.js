@@ -1,4 +1,5 @@
-//get playback length of mp3 file
+//get mp3 playback length
+//ID3 tags are unreliable, so this code actually scans the headers and adds up the frame times
 
 var fs = require('fs');
 //var binread = require('binary-reader'); //https://github.com/gagle/node-binary-reader
@@ -9,6 +10,10 @@ var fs = require('fs');
 
 //NOTE: this is synchronous for now, so caller can prep playlist immediately
 //TODO: rewrite as async and use node-binary, node-struct, or binary-parser module?
+
+//The number of bits/frame is:  frame_size*bit_rate/sample_rate.
+//For MPEG1, frame_size = 1152 samples/frame
+//For MPEG2, frame_size =  576 samples/frame
 
 module.exports = function(filename, use_cbr_estimate, cb)
 {
@@ -170,6 +175,8 @@ function framesize(layer, bitrate, sample_rate, padding_bit)
     return Math.floor(((factor[0] * bitrate * 1000 / sample_rate) + padding_bit) * factor[1]);
 }
 
+
+//eof
 
 //======================================================
 //old tries:
@@ -382,6 +389,3 @@ debugger;
         })
         .close();
 */
-
-
-//eof

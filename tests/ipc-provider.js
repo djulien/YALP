@@ -16,7 +16,7 @@ que.rcv('subscribe', function(data_ignore, reply, states)
 
     function send() //1-shot
     {
-        if (seqnum < 5) console.log("reply ", {seqnum: seqnum}, states);
+//        if (seqnum < 5) console.log("reply ", {seqnum: seqnum}, states);
         if (reply({seqnum: seqnum++}) <= 0) { console.log("stopped sending"); return; } //stop sending
 //        if (seqnum % 10) //~1K/sec
 //        if (seqnum % 100) //~7.5K/sec

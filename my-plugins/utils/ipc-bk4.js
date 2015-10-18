@@ -138,141 +138,14 @@ module.exports.Listener = function(name)
 }
 */
 
-//var loop  = 0;
+var loop  = 0;
+require('longjohn');
 //for net examples see http://www.hacksparrow.com/tcp-socket-programming-in-node-js.html
 module.exports = function(name)
 {
-//    var loop  = 0;
-    var senders = {}, receivers = {}; //, seqnum = 0;
-//var state = 0;
+    var receivers = {}, senders = {}; //, seqnum = 0;
     var retval = //don't know whether caller wants to send or receive or both, so just return a client + server promise wrapper
     {
-        send: function(channel, data, cb) //socket client; can be called multiple times per channel
-        {
-            switch (arguments.length)
-            {
-                case 0: channel = '*'; break; //force socket closed
-                case 1: data = channel; channel = '*'; break;
-                case 2: if (typeof data !== 'function') break; cb = data; data = channel; channel = '*'; break;
-                case 3: if (!channel) channel = '*'; break;
-            }
-            var sender = senders[name + ':' + channel];
-            if (!sender) sender = senders[name + ':' + channel] = {}; //{cbs: [], };
-            if (!sender.promise) sender.promise = Q.promise(function(resolve, reject) //defer send until socket is open
-            {
-//state = 1;
-//                var client = new net.Socket();
-                console.log("try connect ...");
-                var client = net.connect(name2port(name + ':' + channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
-//state = 2;
-//                sender.objclient = objectStream(sender.client);
-//                var status = 0;
-//                console.log("try connect ...");
-debugger;
-//                client.myconnect = true;
-//NO                client.connect({port: name2port(name + ':' + channel), host: "localhost", }); //this creates 2 connection requests
-//                client.myconnect = false;
-//state = 3;
-//                var objclient = objectStream(client);
-//state = 4;
-                console.log("ons ...");
-                client.on('connect', function() //NOTE: don't chain this from above?
-                {
-debugger;
-                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(name + ':' + channel) + " from " + client.port); //CircularJSON.stringify(client));
-//                    client.itsmebob = true;
-//                    client.write("hello bob");
-//                    objectMode(client);
-//                    status = 1;
-                    client.objclient = objectStream(client); //TODO: does this need to be repeated after reconnect also?
-                    resolve(client.objclient);
-                    client.objclient.on('data', function(data)
-                    {
-//                        if (loop++ < 10) console.log('RCV DATA: ', data);
-//no                    sender.destroy();
-//                    cb = sender.cbs.pop();
-                        if (!sender.cb) throw "Unexpected response on " + name;
-                        else if (!sender.cb(data)) sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
-//                    else console.log("ASK FOR MORE");
-                    });
-                    client.objclient.on('close', function()
-                    {
-                        console.log('Connection closed');
-                        sender.promise = client = objclient = null; //reopen next time
-                        if (sender.cb) if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
-                    });
-                });
-                client.on('error', function(err) //NOTE: this must be on client rather than objclient in case error occurs < connect
-                {
-debugger;
-                    console.log("error", err.code || err);
-                    console.log("syscall ", err.syscall); //, ", state ", state); //, " myconnect? ", client.myconnect, " state ", state);
-//                    console.log("client", client);
-//                    if (!client.myconnect) return; //ignore this one
-//                    console.log("stack", err.stack);
-//                        if (err.syscall == "connect") setTimeout(function() //retry again later
-//                        {
-//                            console.log("retry connect to %s", name + ':' + channel);
-//                        sender.promise = null;
-//                        retval.send(channel, data, cb); //try it all again
-//                        client = net.connect(name2port(name + ':' + channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
-//                        client.connect(name2port(name + ':' + channel), "localhost");
-//                            sender.client.reconnect();
-//                        }, 1000);
-//                        if (!sender.promise.resolved)
-/*
-                    setTimeout(function() //retry in a little while
-                    {
-                        console.log("retry connect to %s", name + ':' + channel, ", resolved? ", client? !!client.objclient: '-'); //sender.promise.resolved);
-//                            client.reconnect();
-                        sender.promise = client = null; //reopen next time
-                        retval.send(channel, data, cb); //retry the whole call
-                    }, 1000);
-*/
-//                        else sender.promise = client = objclient = null; //reopen next time
-                    retry();
-                });
-                client.on('close', function()
-                {
-                    console.log('Connection closed');
-//                    sender.promise = client = null; //client.objclient = null; //reopen next time
-                    if (!sender.cb) return;
-                    if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
-////////////                    retry();
-                    if (!client.objclient) return;
-                    sender.promise = client = null; //reopen next time
-                    retval.send(channel, data, cb); //retry the whole call
-                });
-//                process.once('exit', function(code) //sometimes socket doesn't close, so try to force it here
-//                {
-//                    console.log("destrory client on proc exit(%d)", code);
-//                    if (client) client.destroy();
-//                });
-                function retry()
-                {
-                    setTimeout(function() //retry in a little while
-                    {
-                        console.log("retry connect to %s", name + ':' + channel, ", resolved? ", client? !!client.objclient: '-'); //sender.promise.resolved);
-//                            client.reconnect();
-                        sender.promise = client = null; //reopen next time
-                        retval.send(channel, data, cb); //retry the whole call
-                    }, 1000);
-                }
-            });
-            sender.promise.then(function(objclient) //defer send until socket client is ready
-            {
-//                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
-                if (cb) //response wanted
-                    if (sender.cb) throw name + " already has a pending response";
-                    else sender.cb = cb;
-                console.log("SEND ", data);
-//                if (!client.itsmebob) throw "write to wrong obj";
-//                client.write(JSON.stringify(data));
-//                wrobj(client, data);
-                objclient.write(data);
-            });
-        },
-
         rcv: function(channel, cb) //receiver (socket server); channels allow multiple receiver sockets; rcv should only be called once per channel
         {
             if (arguments.length == 1) { cb = channel; channel = '*'; }
@@ -284,8 +157,7 @@ debugger;
             var states = {}; //keep track of client connection states so we know when to break subscription streams
             receiver.server = net.createServer(function(socket)
             {
-//                socket.unref();
-//                 objectMode(socket);
+//                objectMode(socket);
 //                receiver.socket = socket;
                 var objsocket = objectStream(socket);
                 objsocket.id = socket.remoteAddress + ':' + socket.remotePort;
@@ -307,7 +179,7 @@ debugger;
                                 console.log("%s, don't write %s", (states[objsocket.id] < 0)? "error": "closed", objsocket.id);
                             else
                             {
-//                                if (loop++ < 5) console.log("REPLY: ", reply_data);
+if (loop++ < 5)                            console.log("REPLY: ", reply_data);
 //                            objsocket.write(JSON.stringify(reply_data)); //TODO: if error due to closed socket, ignore?
 //                            wrobj(socket, reply_data);
                                 states[objsocket.id] = objsocket.write(reply_data)? 1: 2; //false => queued, true => flushed
@@ -330,19 +202,82 @@ debugger;
 //                        receiver.server = null; //reopen next time
                 });
             }).listen(name2port(name + ':' + channel), "localhost");
-//            process.on('SIGINT', function()
-//            {
-//                console.log('Got SIGINT.');
-//            //process.stdin.resume();//so the program will not close instantly
-////                process.exit(2);
-//                console.log("close subscribed socket");
-//                receiver.server = null; //socket.destroy();
-//            });
-//            process.on('beforeExit', function() //kludge: make sure socket is closed on exit
-//            {
-//                console.log("close subscribed socket");
-//                receiver.server = null; //socket.destroy();
-//            });
+        },
+
+        send: function(channel, data, cb) //socket client; can be called multiple times per channel
+        {
+            switch (arguments.length)
+            {
+                case 0: channel = '*'; break; //force socket closed
+                case 1: data = channel; channel = '*'; break;
+                case 2: if (typeof data !== 'function') break; cb = data; data = channel; channel = '*'; break;
+                case 3: if (!channel) channel = '*'; break;
+            }
+            var sender = senders[name + ':' + channel];
+            if (!sender) sender = senders[name + ':' + channel] = {}; //{cbs: [], };
+            if (!sender.promise) sender.promise = Q.promise(function(resolve, reject) //defer send until socket is open
+            {
+                var client = new net.Socket();
+//broken                var objclient = objectStream(client);
+//                var status = 0;
+                console.log("try connect ...");
+                client.connect(name2port(name + ':' + channel), "localhost");
+                var objclient = objectStream(client);
+                console.log("ons ...");
+                client.on('connect', function() //NOTE: don't chain this from above
+                {
+                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(name + ':' + channel) + " from " + client.port); //CircularJSON.stringify(client));
+//                    client.itsmebob = true;
+//                    client.write("hello bob");
+//                    objectMode(client);
+//                    status = 1;
+                    var objclient = objectStream(client);
+                    resolve(objclient);
+                });
+                objclient.on('data', function(data)
+                {
+//                    console.log('RCV DATA: ', data);
+//no                    sender.destroy();
+//                    cb = sender.cbs.pop();
+                    if (!sender.cb) throw "Unexpected response on " + name;
+                    else if (!sender.cb(data)) sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+//                    else console.log("ASK FOR MORE");
+                });
+                objclient.on('close', function()
+                {
+                    console.log('Connection closed');
+                    sender.promise = null; //reopen next time
+                    if (sender.cb) { sender.cb(-1); sender.cb = null; } //satisfy pending callback and then reset for another one
+                });
+                objclient.on('error', function(err)
+                {
+                    console.log("error", err.code || err);
+                    console.log("stack", err.stack);
+                    if (err.syscall == "connect") setTimeout(function() //retry again later
+                    {
+                        console.log("retry connect to %s", name + ':' + channel);
+//                        retval.send(channel, data, cb);
+                        client.connect(name2port(name + ':' + channel), "localhost");
+                    }, 1000);
+                });
+                process.on('exit', function(code) //sometimes socket doesn't close, so try to force it here
+                {
+                    console.log("destrory client on proc exit(%d)", code);
+                    client.destroy();
+                });
+            });
+            sender.promise.then(function(client) //defer send until socket client is ready
+            {
+//                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
+                if (cb) //response wanted
+                    if (sender.cb) throw name + " already has a pending response";
+                    else sender.cb = cb;
+                console.log("SEND ", data);
+//                if (!client.itsmebob) throw "write to wrong obj";
+//                client.write(JSON.stringify(data));
+//                wrobj(client, data);
+                client.write(data);
+            });
         },
     };
     return retval;

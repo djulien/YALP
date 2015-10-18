@@ -1,5 +1,8 @@
 'use strict';
 
+//require('longjohn');
+require('events').EventEmitter.prototype._maxListeners = 3; //catch leaks sooner
+
 //https://nodejs.org/api/process.html#process_event_unhandledrejection
 process.on('unhandledRejection', function(reason, p)
 {
@@ -17,8 +20,9 @@ process.on('uncaughtException', function(err)
 });
 
 
-// CTRL+C 
+// CTRL+C
 //http://stackoverflow.com/questions/14031763/doing-a-cleanup-action-just-before-node-js-exits
+if (false)
 process.on('SIGINT', function()
 {
   console.log('Got SIGINT.');
@@ -34,6 +38,7 @@ process.on('exit', function(code)
 //    console.log('This will not run');
 //  }, 0);
     console.log('process.exit(%d)', code);
+    console.log("stack:", (new Error()).stack);
 });
 
 //eof
