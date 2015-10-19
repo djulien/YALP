@@ -151,11 +151,13 @@
     "speaker": "^0.2.6",
     "sprintf-js": "^1.0.3",
     "stream": "^0.0.2",
+    "term-canvas": "0.0.5",
     "tokenizer": "^1.1.2",
     "traverse": "^0.6.6",
     "trivial-port": "^0.3.2",
     "tty.js": "^0.2.15",
-    "wormhole": "^3.0.0"
+    "wormhole": "^3.0.0",
+    "xmldoc": "^0.3.2"
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
   "comment2-devDependencies": "actually, put RPi-specific deps (mostly GPIO) into dev so they can be excluded from generic dev machine",

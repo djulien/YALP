@@ -23,7 +23,7 @@ module.exports = CueList;
 //var baseclass = require('stream').Readable;
 //can't get streaming to work; just use events instead
 //var baseclass = require('events').EventEmitter;
-var baseclass = require('my-plugins/utils/my-eventemitter2'); //eventemitter2').EventEmitter2; //https://github.com/asyncly/EventEmitter2
+var baseclass = require('my-plugins/utils/my-eventemitter2').EventEmitter2; //eventemitter2').EventEmitter2; //https://github.com/asyncly/EventEmitter2
 var inherits = require('inherits');
 
 //options: auto_load, silent, cache (true/false/duration)
@@ -35,7 +35,7 @@ function CueList(opts)
     this.cues = [];
 //    this.dirty = false;
     this.isCueList = true;
-    this.selected = undefined; //0
+//    this.selected = undefined; //0
     this.elapsed = new elapsed(); //used for load/init time tracking until first playback
     var stack = callsite();
 //NO    this.path = module.parent.parent.filename; //parent = sequence baseclass, grandparent = sequence instance
@@ -50,7 +50,7 @@ function CueList(opts)
     this.cache = (opts.cache !== false)?
         new NodeCache({stdTTL: opts.cache || 6 * 60 * 60, checkPeriod: 600, }): //default 6 hours, TODO: delete period?
         {
-            get: function(key) { return undefined; }, //dummy function
+            get: function(key) { return undefined; }, //dummy functions
             set: function(key, value) {},
             del: function(key) {},
         };
@@ -62,81 +62,22 @@ function CueList(opts)
             var hit = oldget(key);
             this.emit((typeof hit !== 'undefined')? 'cache.hit': 'cache.miss', key);
             return hit;
-        }
+        }.bind(this.cache);
         this.cache.set = function(key, value, ttl)
         {
             var ok = oldset.apply(this.cache, arguments);
             this.emit(ok? 'cache.save': 'error', key);
             return ok;
-        }
+        }.bind(this.cache);
     }
 
-    var m_speed = 1.0; //private so caller must use setter
-    Object.defineProperty(this, "speed",
+//NOTE: speed only alters the start/end times of cues, doesn't affect actual cuelist streaming
+    require('my-projects/mixins/speed')(this, function(newval)
     {
-        get: function() { return m_speed; },
-        set: function(newval)
-        {
-            m_speed = newval;
-            if (newval != 1.0) throw "TODO: speed";
-        },
-    });
-
-//promise-keepers:
-    var this_cuelist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
-    var m_promise = Q.Promise(function(resolve, reject, notify)
-    {
-        if (!this_cuelist.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
-        this_cuelist.ready = function(msg)
-        {
-            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
-            else if (!arguments.length) msg = sprintf("Cuelist '%s' is ready after %s", this.name, this_cuelist.elapsed.scaled());
-            this_cuelist.emit('cuelist.ready', msg);
-            getFrame.call(this_cuelist, 0); //pre-fetch first frame so it will be available with no delay at start of playback
-            this.debug();
-            resolve(this_cuelist);
-        };
-        this_cuelist.error = function(msg)
-        {
-            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
-            this_cuelist.emit('error', msg); //redundant; this one will be emitted automatically
-            this.debug();
-            reject(msg);
-        };
-        this_cuelist.warn = function(msg)
-        {
-            this_cuelist.emit('cuelist.warn', msg);
-            notify(msg);
-        };
-    })
-    .timeout(5000, "Cuelist is taking too long to load!");
-//not needed?? caller has until process.nextTick to pend changes anyway
-//    this.isReady = function(cb) //expose promise call-back as a method so playlist api can be used before it's ready
-//    {
-//        return m_promise.then(cb);
-//    }
-
-    var m_pending = 0;
-//NOTE: at least one pend/unpend must occur in order for playlist to be marked ready (resolved)
-    this.pend = function(count, msg)
-    {
-        if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
-//http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
-        if (typeof count === 'string') { msg = count; count = null; Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (arguments.length > 2) msg = sprintf.apply(null, Array.prototype.slice.call(arguments, 1));
-        if (arguments.length > 1) this.warn(msg);
-        m_pending += (count || 1);
-    }
-    this.unpend = function(count, msg)
-    {
-        if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
-        if (typeof count === 'string') { msg = count; count = null; Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (arguments.length > 2) msg = sprintf.apply(null, Array.prototype.slice.call(arguments, 1));
-        if (arguments.length > 1) this.warn(msg);
-        m_pending -= (count || 1);
-        if (m_pending) return;
-        this.ready();
-    }
+        if (newval != 1.0) throw "TODO: speed";
+        this.cues.forEach(function(cue, inx) { cue.from *= newval; cue.to *= newval; }); //TODO: sync
+    }.bind(this));
+    require('my-projects/mixins/promise-keeper')(this, 5000);
 
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {
@@ -145,44 +86,45 @@ function CueList(opts)
         switch (cmd || '')
         {
 //enforce event emitter interface by using private functions:
-            case "play": play.apply(this, opts); return;
-            case "pause": pause.apply(this, opts); return;
-            case "resume": resume.apply(this, opts); return;
+            case "play": play.apply(this, Array.prototype.slice.call(arguments, 1)); return;
+            case "pause": pause.call(this, opts); return;
+            case "resume": resume.call(this, opts); return;
 //            case "next": next.apply(this, opts); return;
-            case "stop": stop.apply(this, opts); return;
-//            case "speed": this_cuelist.speed = opts; return;
+            case "stop": stop.call(this, opts); return;
+//            case "volume": this.volume(opts); return;
+            case "speed": this.speed = opts; return;
             default: this.warn("Unknown command: '%s'", cmd || '');
         }
-    });
+    }.bind(this));
 
-//NOTE: at least one song must be added by any of the 3 ways below in order for playlist to be marked ready; a playlist without any songs is useless anyway
+//NOTE: at least one set of cues must be added by any of the ways below in order for cuelist to be marked ready; a cuelist without any cues is useless anyway
     if (opts.auto_collect !== false)
     {
-        glob(path.join(path.dirname(this.path), "**", "{timing,cues}!(*-bk)"), function(files)
+        glob(path.join(path.dirname(this.path), "**", "{timing,cues}!(*-bk)"), function(err, files)
         {
             if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
             this.warn("Cuelist auto-collect found %d candidate seq file%s", files.length, (files.length != 1)? 's': '');
-            (files || []).forEach(function(file, inx) { this.addCues(file); }, this); //CAUTION: need to preserve context within forEach loop
-        });
-        glob(path.join(path.dirname(this.path), "**", "!(*-bk).vix"), function(files)
+            (files || []).forEach(function(file, inx) { this.addCues(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
+        glob(path.join(path.dirname(this.path), "**", "!(*-bk).vix"), function(err, files)
         {
             if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
             this.warn("Cuelist auto-collect found %d Vixen seq file%s", files.length, (files.length != 1)? 's': '');
-            (files || []).forEach(function(file, inx) { this.addVixen(file); }, this); //CAUTION: need to preserve context within forEach loop
-        });
-        glob(path.join(path.dirname(this.path), "**", "!(*-bk).{xseq,fseq}"), function(files)
+            (files || []).forEach(function(file, inx) { this.addVixen(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
+        glob(path.join(path.dirname(this.path), "**", "!(*-bk).{xseq,fseq}"), function(err, files)
         {
             if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
             this.warn("Cuelist auto-collect found %d xLights seq file%s", files.length, (files.length != 1)? 's': '');
-            (files || []).forEach(function(file, inx) { this.addxLights(file); }, this); //CAUTION: need to preserve context within forEach loop
-        });
+            (files || []).forEach(function(file, inx) { this.addxLights(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
     }
-    process.nextTick(function() //allow caller to add songs or make other changes after playlist ctor returns but before playlist is marked ready
+    process.nextTick(function() //allow caller to add cues or make other changes after ctor returns but before cuelist is marked ready
     {
-        if (!this_cuelist.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
-        (this_cuelist.cues || []).forEach(function(file, inx) { this_cuelist.addCues(file); }, this_cuelist); //CAUTION: need to preserve context within forEach loop
-//        if (this_playlist.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this_playlist.schedule.length);
-    });
+        if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
+        (this.cues || []).forEach(function(file, inx) { this.addCues(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+//        if (this.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
+    }.bind(this));
 };
 inherits(CueList, baseclass);
 
@@ -198,9 +140,15 @@ CueList.prototype.debug = function()
     {
         if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
         buf.push(sprintf("cue [%d/%d]: name '%s', from %d, to %d, text '%s'", inx, this.cues.length, cue.name || '??', cue.from || 0, cue.to || 0, cue.text || '??'));
-    }, this); //CAUTION: need to preserve context within forEach loop
+    }.bind(this)); //CAUTION: need to preserve context within forEach loop
     this.debug_cues = buf.join('\n');
     debugger; //https://nodejs.org/api/debugger.html
+}
+
+
+CueList.prototype.addVixen(filename)
+{
+    if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
 }
 
 
@@ -210,8 +158,6 @@ CueList.prototype.debug = function()
 //        buf.clear(frnum);
 //        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length, };
 //    }
-
-
 
 
 CueList.prototype.addFixedFrames = function(interval)
@@ -262,16 +208,21 @@ SequenceStreamer.prototype.addCues = function(filename)
 //        var fstat = fs.statSync(filename);
 //        if (!fstat.isFile()) { console.log("not a file: %s".red, relpath(filename)); return; }
 //        this.cues.push(filename);
+    if (typeof filename.length !== 'undefined')
+    {
+        filename.forEach(function(cue, inx) { this.addCue(cue); }.bind(this));
+        return this; //allow chaining
+    }
     this.pend();
     var section = "timing", src = shortname(filename), linenum = 0, back_trim = null, numwarn = [0, 0];
-    var this_seq = this;
+//    var this_seq = this;
 //TODO: use cached values if file !changed
     var stream = byline(fs.createReadStream(filename))
         .on('readable', function()
         {
             for (;;)
             {
-//                if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//                if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
                 var linebuf = stream.read();
                 if (!linebuf) break;
                 linebuf = linebuf.toString('utf8'); ++linenum;
@@ -279,31 +230,31 @@ SequenceStreamer.prototype.addCues = function(filename)
                 var matches;
                 if (matches = linebuf.match(/^#\s*(.+):?\s*$/)) //, 'heading');
                 {
-//                        if (this_seq.cues.length && (this_seq.cues[this_seq.cues.length - 1].to == 'next')
-//                        flush.apply(this_seq);
+//                        if (this.cues.length && (this.cues[this.cues.length - 1].to == 'next')
+//                        flush.apply(this);
                     section = matches[1]; //token;
                     back_trim = null;
-//                        if (this_seq.cues[name]) console.log("dupl heading %s".yellow, name);
+//                        if (this.cues[name]) console.log("dupl heading %s".yellow, name);
                 }
                 else if (matches = linebuf.match(/^\s*([\d.]+)(\s+([\d.]+))?(\s+(.+))?\s*$/)) //, 'from');
                 {
-//                        flush.apply(this_seq);
+//                        flush.apply(this);
                     var from = Math.round(1000 * matches[1]); //token;
-                    if (from > this_seq.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this_seq.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
-                    if (back_trim) this_seq.cues[this_seq.cues.length - 1].to = from; back_trim = null; //fill in gap from previous entry
-                    var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this_seq.duration /*9999000*/; //'next'; //will be filled in by next entry; use junk value past end to preserve to >= from validation
+                    if (from > this.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
+                    if (back_trim) this.cues[this.cues.length - 1].to = from; back_trim = null; //fill in gap from previous entry
+                    var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this.duration /*9999000*/; //'next'; //will be filled in by next entry; use junk value past end to preserve to >= from validation
                     if (matches[3] && (to < from)) { if (!numwarn[1]++) console.log("%s:%d ends %d before starts %d: %s", src, linenum, to / 1000, from / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
                     var text = matches[5] || null;
-//                        var cues = this_seq.cues[name] = this_seq.cues[name] || [];
+//                        var cues = this.cues[name] = this.cues[name] || [];
 //                        console.log("hd %s, from %d, to %d, text %s", section, from, to, text);
-//                    this_seq.cues.push({from: from || 0, to: to || 9999 /*this_seq.duration*/, text: text || '', src: src || null, name: section || 'ext', });
-                    this_seq.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum, });
-//                    this_seq.addCue(section, from, to, text, src + ':' + linenum);
-                    this_seq.cues_dirty = true;
+//                    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext', });
+                    this.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum, });
+//                    this.addCue(section, from, to, text, src + ':' + linenum);
+                    this.cues_dirty = true;
                 }
                 else console.log("junk cue line ignored in %s:%d: %s".yellow, src, linenum, linebuf);
             }
-        })
+        }.bind(this))
 /*
     var tkz = new Tokenizer(); //mycallback
 //regex https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp
@@ -315,23 +266,23 @@ SequenceStreamer.prototype.addCues = function(filename)
         .pipe(tkz)
         .on('token', function(token, type)
         {
-            if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
             switch (type)
             {
                 case 'heading':
-                    flush.apply(this_seq);
+                    flush.apply(this);
                     name = token;
-                    if (this_seq.cues[name]) console.log("dupl heading %s".yellow, name);
+                    if (this.cues[name]) console.log("dupl heading %s".yellow, name);
                     break;
                 case 'from':
-                    flush.apply(this_seq);
+                    flush.apply(this);
                     from = 1 * token;
                     break;
                 case 'to':
                     to = 1 * token;
                     break;
                 case 'text':
-                    flush.apply(this_seq);
+                    flush.apply(this);
                     console.log("ignoring junk: '%s'".red, token);
                     break;
                 default:
@@ -342,12 +293,12 @@ SequenceStreamer.prototype.addCues = function(filename)
         .on('end', function()
         {
 //                flush();
-            if (!this_seq.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//            console.log("%d cues from %s, dirty? %d", this_seq.cues.length, relpath(filename), this_seq.cues_dirty);
+            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//            console.log("%d cues from %s, dirty? %d", this.cues.length, relpath(filename), this.cues_dirty);
             if (Math.max(numwarn[0], numwarn[1]) > 1) console.log("(%d more warnings)", Math.max(numwarn[0] - 1, 0) + Math.max(numwarn[1] - 1, 0));
-            this_seq.unpend(); //ing) this_seq.ready(); //emit('ready');
-        })
-        .on('error', function(err) { /*this_seq.unpend()*/; this_seq.error /*console.log*/("cues: not a file: %s: %s" + relpath(filename) + " " + err); });
+            this.unpend(); //ing) this.ready(); //emit('ready');
+        }.bind(this))
+        .on('error', function(err) { /*this.unpend()*/; this.error /*console.log*/("cues: not a file: %s: %s" + relpath(filename) + " " + err); }.bind(this));
 
 //        function flush()
 //        {
@@ -458,12 +409,12 @@ SequenceStreamer.prototype.push = function(chunk)
     this.eof = (!arguments.length || (chunk === null)); //!chunk; //caller can restart flow by pushing more data
 //    console.log("seqdata: push[%d] due %s", this.index, this.eof? '-': Now.asString(chunk.at), !this.eof? JSON.stringify(chunk): '(eof)');
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
-    var this_ss = this;
+//    var this_ss = this;
     if (!this.eof) this.dest.emit('data-rcv', chunk, function() //recip can have multiple senders, so tell receiver how to reply
     {
-        if (!this_ss.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
-        this_ss.emit('data-ack');
-    });
+        if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check
+        this.emit('data-ack');
+    }.bind(this));
 //if (this.name == "Capital C") { var x = null; x.whatever(); }
 //    this.eof = !chunk; //caller can restart flow by pushing more data
 //    if (!this.isstreamer) throw "wrong 'this'"; //paranoid/sanity context check

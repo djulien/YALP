@@ -10,11 +10,12 @@ var seq /*_promise*/ = module.exports = require('my-projects/songs/sequence.js')
 //seq.tracks = './tracks.txt'; //Audacity label file
 
 
-seq.cues = [];
-seq
-    .addCue({text: 'lit:1', from: 1, })
-    .addCue({text: 'lit:2', from: 2, })
-    .addCue({text: 'lit:3', from: 3, });
+seq.cues =
+[
+    {text: 'lit:1', from: 1, },
+    {text: 'lit:2', from: 2, },
+    {text: 'lit:3', from: 3, },
+];
 //    .addFixedFrames(50);
 //    .sortCues();
 
@@ -37,7 +38,6 @@ seq.models =
     'Shepherd2',
 ];
 
-module.exports.debug();
-//});
+//module.exports.debug();
 
 //eof

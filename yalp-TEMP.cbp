@@ -118,6 +118,7 @@
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/notes.txt" />
 		<Unit filename="my-projects/songs/readme.txt" />
 		<Unit filename="my-projects/songs/sequence.js" />
+		<Unit filename="my-projects/songs/vixen2.js" />
 		<Unit filename="my-projects/songs/xmas/Amazing Grace (Yule)/Amazing Grace.js" />
 		<Unit filename="my-projects/songs/xmas/Amazing Grace (Yule)/ESOL2012a-Amazing Grace (Yule).vix" />
 		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/Capital C.js" />
@@ -163,6 +164,7 @@
 		<Unit filename="tests/shell-repl-bk.js" />
 		<Unit filename="tests/streams-main.js" />
 		<Unit filename="tests/test-canvas.js" />
+		<Unit filename="tests/vix2test.js" />
 		<Extensions>
 			<envvars />
 			<code_completion />

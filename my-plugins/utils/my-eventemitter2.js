@@ -8,7 +8,6 @@ var events = module.exports = require('eventemitter2'); //https://github.com/asy
 var shortname = require('my-plugins/utils/shortname');
 console.log("TODO: ipc events".red);
 
-
 var base_emit = events.EventEmitter2.prototype.emit;
 events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpful for debug or just general comfort
 {
