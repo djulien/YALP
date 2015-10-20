@@ -18,6 +18,7 @@ events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpf
 //            arguments[1] = arguments[1][type];
 //            console.log.apply(null, arguments);
     console.log(/*colors[type]*/"%s event: %s"[type], shortname(module.parent.filename), arguments[0] || '??', arguments[1] || '??');
+    debugger;
 //    }
     base_emit.apply(this, arguments); //CAUTION: avoid inf loop when overriding emit with emit_logged
 }

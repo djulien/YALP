@@ -1,9 +1,10 @@
 'use strict';
 //this takes ~ 6 - 10% of 1 cpu/core for 16 ch @ 10 msec no interval clumping
 
-const SEQ = 'my-projects/Hween2015/GhostBusters/Hween2012-prod-GhostBusters.vix'; //SEQ-GHOSTBUST.vix';
-const AUDIO = 'my-projects/Hween2015/GhostBusters/SEQ-GHOSTBUST.mp3'
-const GRAPHICS = true; //false; //true;
+const SEQ = 'my-projects/Hween2015/GhostBusters/SEQ-GHOSTBUST.vix';
+//const SEQ = 'my-projects/Hween2015/GhostBusters/Hween2012-prod-GhostBusters.vix'; //SEQ-GHOSTBUST.vix';
+//const AUDIO = my-projects/Hween2015/GhostBusters/SEQ-GHOSTBUST.mp3'
+const GRAPHICS = false; //true;
 
 require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 var Q = require('q');
@@ -105,6 +106,8 @@ function render(seq)
     if (!seq.frnum) seq.frnum = 0;
 //    if (seq.channels.length > 16) throw "too many channels: " + seq.channels.length;
     var buf = "";
+    buf += seq.chvals(seq.frnum).toString('hex').replace(/([0-9a-f]{2})/g, "$1 ");
+    if (false)
     for (var ch = 0; ch < seq.channels.length; ++ch)
     {
         var chval = 0;

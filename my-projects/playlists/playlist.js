@@ -81,7 +81,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
     if (this.name == 'index') this.name = shortname(path.dirname(this.path)); //try to give it a more meaningful name
 //    this.schedule = null; //TODO
     this.setMaxListeners(4); //catch leaks sooner (EventEmitter)
-    if (opts.silent !== false) this.emit = this.emit_logged;
+    if (opts.silent !== false) this.emit = this.emit_logged.bind(this);
 
     var m_oldvolume; //cached for unmute
     this.mute = function(off)
@@ -106,7 +106,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
         if (newval != 1.0) throw "TODO: speed";
         if (this.selected < this.songs.length) this.songs[this.selected].speed = newval;
     }.bind(this));
-    require('my-projects/mixins/promise-keeper')(this, 10000);
+    require('my-projects/mixins/promise-keepers')(this, 10000);
 
 //    var this_playlist = this;
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
@@ -153,6 +153,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
     process.nextTick(function() //allow caller to add songs or make other changes after ctor returns but before playlist is marked ready
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+        if (this.schedule && (typeof this.schedule.length === 'undefined')) this.schedule = [this.schedule]; //convert singleton to array
         (this.songs || []).forEach(function(file, inx) { this.addSong.call(this, file); }.bind(this)); //, this_playlist); //CAUTION: need to preserve context within forEach loop
         if (this.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
         if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
@@ -175,14 +176,18 @@ Playlist.prototype.debug = function()
     if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
 //    setTimeout(function() //give async data time to arrive
     var buf = ['playlist info:'];
-    this.songs.forEach(function(song, inx)
+    (this.songs || []).forEach(function(song, inx)
     {
-        buf.push(sprintf("song[%d/%d]: name '%s', path '%s', duration %d", inx, this.songs.length, song.name || '??', song.path || '?', song.duration || 0));
+//        console.log(typeof song.duration, song.duration); //might not be loaded yet
+        if (song.isSequence)
+            buf.push(sprintf("song[%d/%d]: name '%s', path '%s', duration %d", inx, this.songs.length, song.name || '??', song.path || '?', song.duration || 0)); //song duration might not be loaded yet if this is called before .ready()
+        else
+            buf.push(sprintf("song[%d/%d]: " + song)); //not loaded yet
     }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
-    buf.push(sprintf("total duration: %s msec", this.duration));
-    this.schedule.forEach(function(sched, inx)
+    buf.push(sprintf("total duration: %d msec", this.duration || 0));
+    (this.schedule || []).forEach(function(sched, inx)
     {
-        buf.push(sprintf("sched[%d/%d]: name '%s', day from %d, to %d, time from %d, to %d", inx, this.schedule.length, sched.name || '(no name)', sched.day_from || 0, sched.day_to || 0, sched.time_from || 0, sched.time_to || 0));
+        buf.push(sprintf("sched[%d/%d]: name '%s', day from %d, to %d, time from %s, to %s", inx, this.schedule.length, sched.name || '(no name)', sched.day_from || 0, sched.day_to || 0, sched.time_from || 0, sched.time_to || 0));
     }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
     this.debug_songs = buf.join('\n');
     debugger; //https://nodejs.org/api/debugger.html

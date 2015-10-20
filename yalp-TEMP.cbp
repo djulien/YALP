@@ -99,7 +99,7 @@
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/mixins/duration.js" />
-		<Unit filename="my-projects/mixins/promise-keeper.js" />
+		<Unit filename="my-projects/mixins/promise-keepers.js" />
 		<Unit filename="my-projects/mixins/speed.js" />
 		<Unit filename="my-projects/mixins/volume.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />

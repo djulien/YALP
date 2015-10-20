@@ -36,9 +36,16 @@ module.exports = function Vixen2seq(filename)
     if (partial)
         console.log("num ch# %d, partial frame? %d", numch, !!partial);
 ////    top.decoded = chvals;
+    var frbuf = new Buffer(numch);
     this.chvals = function(frinx, chinx)
     {
-        return chvals[chinx * this.numfr + frinx];
+        if (typeof chinx === 'undefined') //return all ch vals for a frame
+        {
+            for (var chinx = 0; chinx < numch; ++chinx)
+                frbuf[chinx] = chvals[chinx * this.numfr + frinx];
+            return frbuf;
+        }
+        return ((chinx < numch) && (frinx < this.numfr))? chvals[chinx * this.numfr + frinx]: 0;
 //no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
     }
     debugger;
@@ -50,6 +57,7 @@ module.exports = function Vixen2seq(filename)
         wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
         top.byname.Channels.children.forEach(function(child, inx)
         {
+            if (!(this instanceof Vixen2seq)) throw "Wrong this type";
             var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
             wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
         }.bind(this));

@@ -114,12 +114,22 @@ function test2()
 //    return;
 //    console.log("%s duration: %s, #songs %d, scheduled? %d", playlist.name, scaled(playlist.duration), playlist.songs.length, !!playlist.scheduler);
 //    setTimeout(function()
-    playlist.ready(function(real_pl)
+    playlist.on('playlist.ready', function(pl)
     {
         console.log("playlist ready after %s", loading.scaled());
-        playback(real_pl); //playlist); //.play()); //play once
+//        playback(pl); //playlist); //.play()); //play once
+        pl.volume = 1.0;
+        pl.emit('cmd', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
     }) //, 10); //kludge: give async callbacks time to finish
-    .fail(function(err) { console.log("ERROR ".red, err);
+    .on('playlist.begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
+    .on('song.start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
+    .on('song.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+    .on('playlist.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+//      .on('pause', function(err, info) { if (err) showerr("pause", err); else status("pause", info.current); })
+//      .on('resume', function(err, info) { if (err) showerr("resume", err); else status("resume", info.current); })
+    .on('song.stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
+    .on('playlist.end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
+    .on('error', function(err) { console.log("ERROR ".red, err);
 //            console.trace();
 //            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
 //            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
@@ -132,15 +142,16 @@ function playback(player)
 {
     player.volume = 1.0;
     player
-      .on('begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
-      .on('start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
-      .on('progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+      .on('playlist.begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
+      .on('song.start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
+      .on('song.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+      .on('playlist.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
 //      .on('pause', function(err, info) { if (err) showerr("pause", err); else status("pause", info.current); })
 //      .on('resume', function(err, info) { if (err) showerr("resume", err); else status("resume", info.current); })
-      .on('stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
-      .on('end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
+      .on('song.stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
+      .on('playlist.end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
       .on('error', function(err) { if (err) showerr("end", err); })
-      .play({loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
+      .emit('cmd', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
 //    setTimeout(function() { player.volume = 0.5; }, 2000);
 //    setTimeout(function() { player.volume = 0.3; }, 3000);
 //    setTimeout(function() { player.volume = 2.0; }, 6000);

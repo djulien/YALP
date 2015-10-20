@@ -104,11 +104,12 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
     this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
     if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
 //    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);
-
 //    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (file, index)
 //    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
 //    try { this.cache = require(path.dirname(this.path) + "/cache"); } //.json"); }
 //    catch (exc) { this.cache = {}; }; //NOTE: https://nodejs.org/api/fs.html#fs_fs_exists_path_callback recommends just trying it rather than fstat first
+    this.setMaxListeners(4); //catch leaks sooner (EventEmitter)
+    if (opts.silent !== false) this.emit = this.emit_logged.bind(this);
 
     require('my-projects/mixins/duration')(this, 'media');
     require('my-projects/mixins/volume')(this, function(newval)
@@ -120,7 +121,7 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
         if (newval != 1.0) throw "TODO: speed";
 //TODO        if (this.selected < this.songs.length) this.songs[this.selected].speed = newval;
     }.bind(this));
-    require('my-projects/mixins/promise-keeper')(this, 7500);
+    require('my-projects/mixins/promise-keepers')(this, 7500);
 
 //    var this_seq = this;
     this.on('cmd', function(cmd, opts)
@@ -177,6 +178,7 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
     process.nextTick(function() //allow caller to add media or make other changes after ctor returns but before seq is marked ready
     {
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+        if (this.models && (typeof this.models.length === 'undefined')) this.models = [this.models]; //convert singleton to array
 //        (this.songs || []).forEach(function(file, inx) { this.addSong(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
         if (this.models.length) console.log("TODO: Sequence models not yet implemented (found %d items)".red, this.models.length);
 //        if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));

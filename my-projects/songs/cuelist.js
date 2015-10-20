@@ -45,7 +45,7 @@ function CueList(opts)
     debugger;
 //    this.outhw = new Outhw();
     this.setMaxListeners(4); //catch leaks sooner (EventEmitter)
-    if (opts.silent !== false) this.emit = this.emit_logged;
+    if (opts.silent !== false) this.emit = this.emit_logged.bind(this);
 
     this.cache = (opts.cache !== false)?
         new NodeCache({stdTTL: opts.cache || 6 * 60 * 60, checkPeriod: 600, }): //default 6 hours, TODO: delete period?
@@ -77,7 +77,7 @@ function CueList(opts)
         if (newval != 1.0) throw "TODO: speed";
         this.cues.forEach(function(cue, inx) { cue.from *= newval; cue.to *= newval; }); //TODO: sync
     }.bind(this));
-    require('my-projects/mixins/promise-keeper')(this, 5000);
+    require('my-projects/mixins/promise-keepers')(this, 5000);
 
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {

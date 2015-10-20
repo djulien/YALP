@@ -20,15 +20,15 @@ hween.songs =
     "my-projects/songs/xmas/*Capital*",
     "my-projects/songs/xmas/*Wookie*",
 ];
-hween.opening = "thx"; //TODO
-hween.closing = "goodnight"; //TODO
+//hween.opening = "thx"; //TODO
+//hween.closing = "goodnight"; //TODO
 
 
 var AM = 0, PM = 1200;
 hween.schedule =
 [
     {
-        name: 'week',
+        name: 'weekof',
         day_from: 1024, //mmdd
         day_to: 1030, //mmdd
         time_from: 530 +PM, //hhmm
