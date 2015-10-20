@@ -4,10 +4,13 @@
 //require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
+var sprintf = require('sprintf-js').sprintf;
+var path = require('path');
 //NOTE: async var xml2js = require('xml2js'); //https://github.com/Leonidas-from-XIV/node-xml2js
 //var parser = new xml2js.Parser();
 var xmldoc = require('xmldoc'); //https://github.com/nfarina/xmldoc
 var glob = require('glob');
+var shortname = require('my-plugins/utils/shortname');
 
 
 module.exports = function Vixen2seq(filename)
@@ -24,19 +27,39 @@ module.exports = function Vixen2seq(filename)
     if (partial)
         console.log("duration: %d msec, interval %d msec, #frames %d, last partial? %d, #channels %d", this.duration, this.interval, this.numfr, !!partial, (top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
-    this.chvals = top.byname.EventValues.value;
+    var chvals = top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
-    this.chvals = new Buffer(this.chvals, 'base64'); //.toString("ascii"); //http://stackoverflow.com/questions/14573001/nodejs-how-to-decode-base64-encoded-string-back-to-binary
-//    console.log("decoded " + this.chvals.length + " ch vals");
-    this.numch = Math.floor(this.chvals.length / this.numfr);
-    partial = (this.numch * this.numfr != this.chvals.length);
+    chvals = new Buffer(chvals, 'base64'); //no.toString("ascii"); //http://stackoverflow.com/questions/14573001/nodejs-how-to-decode-base64-encoded-string-back-to-binary
+//    console.log("decoded " + chvals.length + " ch vals");
+    var numch = Math.floor(chvals.length / this.numfr);
+    partial = (numch * this.numfr != chvals.length);
     if (partial)
-        console.log("num ch# %d, partial frame? %d", this.numch, !!partial);
+        console.log("num ch# %d, partial frame? %d", numch, !!partial);
 ////    top.decoded = chvals;
-    this.channel = function(frinx, chinx)
+    this.chvals = function(frinx, chinx)
     {
-        return this.chvals[chinx * this.numfr + frinx];
-//        return this.chvals.charCodeAt(frinx * this.numch + chinx); //chinx * this.numfr + frinx);
+        return chvals[chinx * this.numfr + frinx];
+//no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
+    }
+    debugger;
+    this.channels = {length: numch, }; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    if (top.byname.Channels)
+    {
+        if (top.byname.Channels.children.length != numch) console.log("#ch mismatch: %d vs. %d", top.byname.Channels.children.length, numch);
+        var wrstream = fs.createWriteStream(path.join(filename, '..', shortname(filename) + '-channels.txt'), {flags: 'w', });
+        wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
+        top.byname.Channels.children.forEach(function(child, inx)
+        {
+            var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
+            wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
+        }.bind(this));
+        wrstream.end('#eof\n');
+    }
+    if (top.byname.Audio)
+    {
+        this.audio = path.join(filename, '..', top.byname.Audio.value);
+        this.audiolen = top.byname.Audio.attr.duration;
+        if (top.byname.Audio.attr.filename != top.byname.Audio.value) console.log("audio filename mismatch: '%s' vs. '%s'".red, top.byname.Audio.attr.filename || '(none)', top.byname.Audio.value || '(none)');
     }
     return this;
 /*
