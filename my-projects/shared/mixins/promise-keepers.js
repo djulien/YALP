@@ -3,6 +3,7 @@
 
 var Q = require('q'); //https://github.com/kriskowal/q
 var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
+var caller = require('my-plugins/utils/caller');
 
 module.exports = addPromiseKeeper;
 
@@ -74,6 +75,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (args.length > 1) this.warn(msg);
 //console.log("playlist %s pend+ %d", this.name, m_pending);
         m_pending += (count || 1);
+        console.log("PEND from %s: now %d", caller(), m_pending);
     }.bind(that);
     that.unpend = function(count, msg)
     {
@@ -84,9 +86,11 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (args.length > 1) this.warn(msg);
 //        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
         m_pending -= (count || 1);
+        console.log("UNPEND from %s: now %d", caller(), m_pending);
         if (m_pending) return;
         this.ready();
     }.bind(that);
 }
+
 
 //eof

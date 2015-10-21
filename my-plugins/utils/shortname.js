@@ -5,7 +5,12 @@ var path = require('path');
 
 module.exports = function(filename)
 {
-    return path.basename(filename, path.extname(filename));
+    for (;;)
+    {
+        var retval = path.basename(filename, path.extname(filename));
+        if (retval != "index") return retval;
+        filename = path.dirname(filename); //use parent folder name; basename was not descriptive enough
+    }
 }
 
 //eof

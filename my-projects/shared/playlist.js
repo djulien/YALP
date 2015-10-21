@@ -126,7 +126,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
             case "stop": stop.call(this, opts); return;
             case "volume": this.volume = opts; return;
             case "speed": this.speed = opts; return;
-            default: this.warn("Unknown command: '%s'", cmd || '');
+            default: this.warn("Unknown command: '%s'", JSON.stringify(cmd || ''));
         }
     }.bind(this));
 //pass-thru methods to shared player object:
@@ -236,7 +236,7 @@ Playlist.prototype.addSong = function(seqpath)
             }
 //            var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
             seq
-                .on('song.ready', function() { this.unpend("Playlist loaded '%s'", relpath(filename)); }.bind(this)) //once('ready', function()
+                .on('sequence.ready', function() { this.unpend("Playlist loaded '%s'", relpath(filename)); }.bind(this)) //once('ready', function()
                 .on('error', function(err) { this.error("ERROR add song '" + relpath(filename) + "': " + err); }.bind(this));
 //        propagate(song, this);
             seq.index = this.songs.length;

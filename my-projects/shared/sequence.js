@@ -98,7 +98,7 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
     this.media = []; //opts.path || ''; //TODO: allow > 1?
 //    this.selected = 0;
     this.isSequence = true;
-//    this.elapsed = new elapsed(); //junk value until played
+    this.elapsed = new elapsed(); //used for load/init time tracking until first playback
     var stack = callsite();
 //NO    this.path = module.parent.filename; //already known by caller, but set it anyway in case wild card was used
 //    stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });

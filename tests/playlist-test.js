@@ -118,8 +118,8 @@ function test2()
     {
         console.log("playlist ready after %s", loading.scaled());
 //        playback(pl); //playlist); //.play()); //play once
-        pl.volume = 1.0;
-        pl.emit('cmd', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
+        playlist.volume = 1.0;
+        playlist.emit('cmd', 'play', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
     }) //, 10); //kludge: give async callbacks time to finish
     .on('playlist.begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
     .on('song.start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
