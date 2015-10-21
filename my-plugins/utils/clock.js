@@ -1,11 +1,18 @@
 //plug-in to provide a consistent time base and hide implementation
 'use strict';
 
+var started = module.exports.Now();
+
 module.exports.Now = function()
 {
     if (global.v8debug) module.exports.Now.asString(); //allow latest time to be seen more easily in node inspector
 //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now
     return Date.now? Date.now(): (new Date()).getTime(); //poly fill < ECMA-262 5th edition; TODO: use process.hrtime (nsec)?
+}
+
+module.exports.elapsed = function(when)
+{
+    return when || module.exports.Now() - started;
 }
 
 module.exports.Now.asString = function(when)
@@ -15,6 +22,10 @@ module.exports.Now.asString = function(when)
     return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
 }
 
+module.exports.elapsed.asString = function()
+{
+    module.exports.Now.asString(module.exports.elapsed());
+}
 
 //add method to an object:
 module.exports.addNow = function(that, name)

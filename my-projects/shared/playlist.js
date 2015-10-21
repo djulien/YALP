@@ -69,7 +69,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
 //    opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {index: 1 * opts, }: {};
 
     this.songs = [];
-//    this.selected = undefined; //0
+    this.selected = 0; //undefined;
     this.isPlaylist = true; //for paranoid/sanity checking of "this"
     this.elapsed = new elapsed(); //used for load/init time tracking until first playback
 //    this.outhw = new Outhw();
@@ -163,6 +163,8 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
 
     this.validate = function()
     {
+        for (var i = this.songs.length; i > 0; --i) if (typeof this.songs[i - 1] !== 'object') this.songs.splice(i - 1, 1); //remove strings that were converted to objects
+//        console.log("#songs ", this.songs.length, this.songs);
         if (this.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
         if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
         if (this.closing) console.log("TODO: Closing song not yet supported; found '%s'".red, relpath(this.closing));
@@ -236,8 +238,8 @@ Playlist.prototype.addSong = function(seqpath)
             }
 //            var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
             seq
-                .on('sequence.ready', function() { this.unpend("Playlist loaded '%s'", relpath(filename)); }.bind(this)) //once('ready', function()
-                .on('error', function(err) { this.error("ERROR add song '" + relpath(filename) + "': " + err); }.bind(this));
+                .once('sequence.ready', function() { this.unpend("Sequence loaded '%s'", relpath(filename)); }.bind(this)) //once('ready', function()
+                .once('error', function(err) { this.error("ERROR add song '" + relpath(filename) + "': " + err); }.bind(this));
 //        propagate(song, this);
             seq.index = this.songs.length;
             this.songs.push(seq);
@@ -294,27 +296,32 @@ function play(opts)
         console.log("mem: %s, %s, %s, %s ...".blue, memscale(meminfo.rss), memscale(meminfo.vsize || 0), memscale(meminfo.heapTotal), memscale(meminfo.heapUsed));
     }
 //    var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
+//    console.log("playlist play [%d]", this.selected, this.songs.length);
+//    console.log(typeof this.songs[this.selected], this.songs[this.selected].isSequence);
 
-    this.songs[this.selected] //.play(0)
-        .once('song.start', function() { /*console.log("PLEVT: start")*/; this.emit('song.start', null, evtinfo); }.bind(this)) //song
-        .on('song.progress', function() { /*console.log("PLEVT: progress")*/; this.emit('song.progress', null, evtinfo); }.bind(this))
+    if (!this.songs[this.selected].hasevt)
+        this.songs[this.selected] //.play(0)
+            .on/*ce*/('song.start', function() { /*console.log("PLEVT: start")*/; this.emit('song.start', null, evtinfo); }.bind(this)) //song
+            .on('song.progress', function() { /*console.log("PLEVT: progress")*/; this.emit('song.progress', null, evtinfo); }.bind(this))
 //            .once('pause', function() { /*console.log("PLEVT: pause")*/; this.emit('pause', null, evtinfo); }.bind(this))
 //            .once('resume', function() { /*console.log("PLEVT: resume")*/; this.emit('resume', null, evtinfo); }.bind(this))
-        .on('error', function(errinfo) { console.log("PLEVT: error"); this.emit('error', errinfo, evtinfo); }.bind(this))
-        .once('song.stop', function()
-        {
-            if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+            .on('error', function(errinfo) { console.log("PLEVT: error"); this.emit('error', errinfo, evtinfo); }.bind(this))
+            .on/*ce*/('song.stop', function()
+            {
+                if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //                console.log("PLEVT: stop, loop? %d, single? %d, selected %d < length %d? %d, next %d", !!opts.loop, !!opts.single, this.selected, this.songs.length, this.selected < this.songs.length - 1, next);
-            this.emit('song.stop', null, evtinfo); //song
-            if (this.progress) clearInterval(this.progress); this.progress = null; //don't leave dangling timer
+                this.emit('song.stop', null, evtinfo); //song
+                if (this.progress) clearInterval(this.progress); this.progress = null; //don't leave dangling timer
 //single: loop--: repeat current
 //multi: first play thru to end of list, then check loop--
 //                if (opts.loop && (opts.single || (this.selected < this.songs.length - 1)))
-            opts.index = next; opts.emit = false;
-            if ((!opts.single && (this.selected < this.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
-                this.emit('cmd', "play", opts); //{index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
-            else this.emit('playlist.end', null, evtinfo); //playlist
-        }.bind(this))
+                opts.index = next; opts.emit = false;
+                if ((!opts.single && (this.selected < this.songs.length - 1)) || --opts.loop) //first play to end of list, then check loop
+                    this.emit('cmd', "play", opts); //{index: next, single: opts.single, loop: opts.loop, emit: false, }); //push({cmd: "play", index: next, }); //avoid recursion
+                else this.emit('playlist.end', null, evtinfo); //playlist
+            }.bind(this))
+            .hasevt = true;
+    this.songs[this.selected] //.play(0)
         .emit('cmd', 'play'); //.play(0);
 }
 

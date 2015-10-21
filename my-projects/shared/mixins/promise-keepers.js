@@ -75,7 +75,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (args.length > 1) this.warn(msg);
 //console.log("playlist %s pend+ %d", this.name, m_pending);
         m_pending += (count || 1);
-        console.log("PEND from %s: now %d", caller(), m_pending);
+//        console.log("PEND from %s: now %d", caller(), m_pending);
     }.bind(that);
     that.unpend = function(count, msg)
     {
@@ -86,7 +86,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (args.length > 1) this.warn(msg);
 //        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
         m_pending -= (count || 1);
-        console.log("UNPEND from %s: now %d", caller(), m_pending);
+//        console.log("UNPEND from %s: now %d", caller(), m_pending);
         if (m_pending) return;
         this.ready();
     }.bind(that);

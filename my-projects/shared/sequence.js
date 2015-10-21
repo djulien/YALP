@@ -24,6 +24,7 @@ require('buffertools').extend(); //https://github.com/bnoordhuis/node-buffertool
 var elapsed = require('my-plugins/utils/elapsed');
 var relpath = require('my-plugins/utils/relpath');
 var shortname = require('my-plugins/utils/shortname');
+var Now = require('my-plugins/utils/clock').Now;
 var CueList = null; //TODO require('./cuelist');
 //var scaled = require('my-plugins/utils/time-scale');
 //var mm = require('musicmetadata'); //https://github.com/leetreveil/musicmetadata
@@ -308,7 +309,7 @@ function play(opts) //manual start
 //                console.log("raw_encoding: %d, sampleRate: %d, channels: %d, signed? %d, float? %d, ulaw? %d, alaw? %d, bitDepth: %d".cyan, format.raw_encoding, format.sampleRate, format.channels, format.signed, format.float, format.ulaw, format.alaw, format.bitDepth);
 //                console.log("fmt @%s: ", this.elapsed.scaled(), JSON.stringify(format));
 //                console.log(this.media || "not there".red);
-            this.pipe(this.speaker = new Speaker(format))
+            this.decoder.pipe(this.speaker = new Speaker(format))
 //                    .on('end', function ()
 //                    {
 //                        console.log('speaker end time is: %s', this.elapsed.scaled());
@@ -348,10 +349,10 @@ function play(opts) //manual start
 */
                     if (this.media.length > 1) throw "Play more media"; //TODO
                 }.bind(this))
-                .on('error', function (err) //stream or speaker
+                .once('error', function (err) //stream or speaker
                 {
                     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//??                        this.speaker = this.decoder = null;
+                    this.speaker = this.decoder = null;
                     console.log('audio error: '.red, err);
                     this.error("audio error: " + err); //emit('error', err, filename.path);
 //                        this.seqstop();
@@ -363,10 +364,10 @@ function play(opts) //manual start
 //                        console.log('audio finish time is: %s', this.elapsed.scaled());
                 }.bind(this));
         }.bind(this))
-        .on('error', function (err)
+        .once('error', function (err)
         {
             if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//??                        this.speaker = this.decoder = null;
+            this.speaker = this.decoder = null;
             this.error("lame decoder error: " + err); //emit('error', err, filename.path);
 //            console.log('lame decoder error: '.red, err);
 //                this.seqstop();
