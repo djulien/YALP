@@ -2,7 +2,7 @@
 
 'use strict';
 
-var Sequence = require('my-projects/songs/sequence.js'); //base class
+var Sequence = require('my-projects/shared/sequence.js'); //base class
 //var Model = require('my-projects/models.js'); //base class
 //var Model =
 //var Fx =

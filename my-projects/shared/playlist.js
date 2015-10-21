@@ -96,17 +96,17 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
         this.volume = m_oldvolume; m_oldvolume = undefined;
     }
 
-    require('my-projects/mixins/duration')(this, 'songs');
-    require('my-projects/mixins/volume')(this, function(newval)
+    require('./mixins/duration')(this, 'songs');
+    require('./mixins/volume')(this, function(newval)
     {
         if (this.selected < this.songs.length) this.songs[this.selected].volume = newval;
     }.bind(this));
-    require('my-projects/mixins/speed')(this, function(newval)
+    require('./mixins/speed')(this, function(newval)
     {
         if (newval != 1.0) throw "TODO: speed";
         if (this.selected < this.songs.length) this.songs[this.selected].speed = newval;
     }.bind(this));
-    require('my-projects/mixins/promise-keepers')(this, 10000);
+    require('./mixins/promise-keepers')(this, 10000);
 
 //    var this_playlist = this;
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
@@ -116,9 +116,12 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
         switch (cmd || '')
         {
 //enforce event emitter interface by using private functions:
-            case "play": play.apply(this, Array.prototype.slice.call(arguments, 1)); return;
+            case "play":
+                if (resume.call(this, opts)) return;
+                play.apply(this, Array.prototype.slice.call(arguments, 1));
+                return;
             case "pause": pause.call(this, opts); return;
-            case "resume": resume.call(this, opts); return;
+//            case "resume": resume.call(this, opts); return;
 //            case "next": next.apply(this, args); return;
             case "stop": stop.call(this, opts); return;
             case "volume": this.volume = opts; return;
@@ -136,29 +139,34 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
 //NOTE: at least one song must be added by any of the 3 ways below in order for playlist to be marked ready; a playlist without any songs is useless anyway
     if (opts.auto_collect !== false)
     {
-        this.pend("Auto-collecting songs ...");
+        this.pend("Auto-collecting songs from '%s' ...", relpath(path.dirname(this.path)));
 //        if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
 //        this.warn("Auto-collecting songs ...");
 //        console.log("PL auto-collect: %s".blue, path.dirname(this.path) + "/**/!(*-bk).js");
         glob(path.join(path.dirname(this.path), "**", "!(*-bk).js"), function(err, files) //); //mp3"); //, {}, function (err, files)
         {
             if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-            this.warn("Playlist auto-collect found %d candidate seq file%s", files.length, (files.length != 1)? 's': '');
-            (files || []).forEach(function(file, inx) { this.addSong(file); }.bind(this)); //, this_playlist); //CAUTION: need to preserve context within forEach loop
+//            this.warn("Playlist auto-collect found %d candidate seq file%s", files.length, (files.length != 1)? 's': '');
+            (files || []).forEach(function(filename, inx) { this.addSong(filename); }.bind(this)); //, this_playlist); //CAUTION: need to preserve context within forEach loop
             this.unpend(); //kludge: force readiness if no files to load; at least one song must be pended before this, otherwise playlist will be prematurely marked ready
         }.bind(this)); //CAUTION: need to preserve context within glob callback
     }
-    (opts.paths || []).forEach(function(file, inx) { this.addSong(file); }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
+//    (opts.paths || []).forEach(function(filename, inx) { this.addSong(filename); }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
 //    this.paths.forEach(function (seq, inx) { this.duration += seq.duration; }, this); //CAUTION: need to preserve context within forEach loop
     process.nextTick(function() //allow caller to add songs or make other changes after ctor returns but before playlist is marked ready
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+//        if (this.songs && (typeof this.songs.length === 'undefined')) this.songs = [this.songs]; //convert singleton to array
         if (this.schedule && (typeof this.schedule.length === 'undefined')) this.schedule = [this.schedule]; //convert singleton to array
-        (this.songs || []).forEach(function(file, inx) { this.addSong.call(this, file); }.bind(this)); //, this_playlist); //CAUTION: need to preserve context within forEach loop
+        (this.songs || []).forEach(function(filename, inx) { this.addSong.call(this, filename); }.bind(this)); //, this_playlist); //CAUTION: need to preserve context within forEach loop
+    }.bind(this));
+
+    this.validate = function()
+    {
         if (this.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
         if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
         if (this.closing) console.log("TODO: Closing song not yet supported; found '%s'".red, relpath(this.closing));
-    }.bind(this));
+    }
 
 //no    if (!this.pending) this.ready(); //this.emit('ready'); //caller might want to add something, so don't mark it ready yet
 //    return this; //not needed for ctor
@@ -176,7 +184,8 @@ Playlist.prototype.debug = function()
     if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
 //    setTimeout(function() //give async data time to arrive
     var buf = ['playlist info:'];
-    (this.songs || []).forEach(function(song, inx)
+    if (this.songs.length === 'undefined') buf.push(sprintf("song: '%s'", relpath(this.songs)));
+    else (this.songs || []).forEach(function(song, inx)
     {
 //        console.log(typeof song.duration, song.duration); //might not be loaded yet
         if (song.isSequence)
@@ -185,7 +194,8 @@ Playlist.prototype.debug = function()
             buf.push(sprintf("song[%d/%d]: " + song)); //not loaded yet
     }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
     buf.push(sprintf("total duration: %d msec", this.duration || 0));
-    (this.schedule || []).forEach(function(sched, inx)
+    if (this.schedule.length === 'undefined') buf.push("schedule: " + JSON.stringify(this.schedule));
+    else (this.schedule || []).forEach(function(sched, inx)
     {
         buf.push(sprintf("sched[%d/%d]: name '%s', day from %d, to %d, time from %s, to %s", inx, this.schedule.length, sched.name || '(no name)', sched.day_from || 0, sched.day_to || 0, sched.time_from || 0, sched.time_to || 0));
     }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
@@ -200,25 +210,34 @@ Playlist.prototype.addSong = function(seqpath)
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
     if (typeof seqpath === 'object') return; //skip sequences that are already loaded
-    this.pend("Loading candidate song(s) from %s", seqpath); //NOTE: need to do this immediately so playlist will be pending at process.nextTick
+    this.pend("Loading candidate song(s) from '%s'", relpath(seqpath)); //NOTE: need to do this immediately so playlist will be pending at process.nextTick
 //        console.log("PL add song %s".blue, seqpath);
 //        opts = (typeof opts === 'object')? opts: (typeof opts !== 'undefined')? {path: opts, }: {};
-//    glob.sync(seqpath).forEach(function (file, index)
+//    glob.sync(seqpath).forEach(function (filename, index)
 //    var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
     glob(seqpath, function(err, files) //, index)
     {
         if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-        (files || []).forEach(function(file, inx)
+        (files || []).forEach(function(filename, inx)
         {
             if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-            this.duration = 0; //invalidate cached value if a song file was found
-            this.pend(); //"Playlist resolved candidate %s", file);
-            var seq = require(file); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
-            if (!seq.isSequence) { this.unpend("Not a sequence"); return; }
+            this.duration = 0; //invalidate cached value if new song is added
+            this.pend(); //"Playlist resolved candidate %s", filename);
+            var seq = null;
+            try
+            {
+                seq = require(filename); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
+                if (!seq.isSequence) { this.unpend("Not a sequence '%s'", relpath(filename)); return; }
+            }
+            catch (exc)
+            {
+                this.unpend("Broken sequence '%s': " + exc, relpath(filename));
+                return;
+            }
 //            var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
             seq
-                .on('song.ready', function() { this.unpend("Playlist loaded '%s'", relpath(file)); }.bind(this)) //once('ready', function()
-                .on('error', function(err) { this.error("ERROR add song '" + relpath(file) + "': " + err); }.bind(this));
+                .on('song.ready', function() { this.unpend("Playlist loaded '%s'", relpath(filename)); }.bind(this)) //once('ready', function()
+                .on('error', function(err) { this.error("ERROR add song '" + relpath(filename) + "': " + err); }.bind(this));
 //        propagate(song, this);
             seq.index = this.songs.length;
             this.songs.push(seq);
@@ -304,9 +323,10 @@ function play(opts)
 function pause()
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-    if (this.songs[this.selected].paused) return;
+    if (this.songs[this.selected].paused) return false;
     this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
     this.songs[this.selected].emit('cmd', 'pause'); //pause();
+    return true;
 //        return this.songs[this.selected].pause()
 //            .once('pause', function() { console.log("PLEVT: pause"); this.emit('pause', null, evtinfo); })
 //            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this.emit('error', errinfo); });
@@ -316,9 +336,10 @@ function pause()
 function resume()
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-    if (!this.songs[this.selected].paused) return;
+    if (!this.songs[this.selected].paused) return false;
     this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
     this.songs[this.selected].emit('cmd', 'resume'); //.resume();
+    return true;
 //        return this.songs[this.selected].play()
 //            .once('play', function() { console.log("PLEVT: play"); this.emit('resume', null, evtinfo); })
 //            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this.emit('error', errinfo); });
@@ -330,7 +351,7 @@ function stop()
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
     if (this.progress) clearInterval(this.progress); this.progress = null;
     this.elapsed.pause(); // = {now: this.elapsed.now, }; //freeze elapsed timer
-    return this.songs[this.selected].emit('cmd', 'stop'); //stop();
+    this.songs[this.selected].emit('cmd', 'stop'); //stop();
 //            .once('stop', function() { console.log("PLEVT: stop"); this.emit('stop', null, evtinfo); })
 //            .on('error', function(errinfo) { console.log("PLEVT: error", errinfo); this.emit('error', errinfo); });
 }

@@ -2,7 +2,7 @@
 
 'use strict';
 
-var seq /*_promise*/ = module.exports = require('my-projects/songs/sequence.js')({auto_collect: true});
+var seq /*_promise*/ = module.exports = require('my-projects/shared/sequence.js')({auto_collect: true});
 //.then(function(seq)
 //{
 //seq.name = 'C';

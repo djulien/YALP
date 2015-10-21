@@ -12,6 +12,7 @@
 
 //var fileio = require('fileio'); //'../plugins/services/fileio');
 //var Player = require('my-plugins/media/my-player');
+var mp3len = require('my-plugins/utils/mp3len');
 var fs = require('fs');
 var glob = require('glob');
 var path = require('path');
@@ -76,7 +77,7 @@ var inherits = require('inherits');
 function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 {
     if (!(this instanceof Sequence)) return new Sequence(opts); //, resolve, reject, notify); //make "new" optional; make sure "this" is set
-    baseclass.call(this, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+    baseclass.call(this); //, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
 //console.log("seq ctor in");
 //    var m_stream = new baseclass({ objectMode: true, });
 //    var m_evte = new EventEmitter;
@@ -88,10 +89,12 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 //    this.cues = [];
 //    this.seqdata = new seqdata();
     this.models = [];
+
     this.cuelist = null; //TODO new CueList(opts);
     this.addCue = function() { return this; }; //TODO
     this.addCues = function() { return this; }; //TODO
     this.addFixedFrames = function() { return this; } //TODO
+
     this.media = []; //opts.path || ''; //TODO: allow > 1?
 //    this.selected = 0;
     this.isSequence = true;
@@ -104,24 +107,24 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
     this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
     if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
 //    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);
-//    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (file, index)
+//    glob.sync(path.dirname(this.path) + "/* + seqpath).forEach(function (filename, index)
 //    if (fs.statSync(path.dirname(this.path) + "/cache.json").isFile()? require('../../package.json')
 //    try { this.cache = require(path.dirname(this.path) + "/cache"); } //.json"); }
 //    catch (exc) { this.cache = {}; }; //NOTE: https://nodejs.org/api/fs.html#fs_fs_exists_path_callback recommends just trying it rather than fstat first
     this.setMaxListeners(4); //catch leaks sooner (EventEmitter)
     if (opts.silent !== false) this.emit = this.emit_logged.bind(this);
 
-    require('my-projects/mixins/duration')(this, 'media');
-    require('my-projects/mixins/volume')(this, function(newval)
+    require('./mixins/duration')(this, 'media');
+    require('./mixins/volume')(this, function(newval)
     {
         if (this.decoder) mp3volume.setVolume(this.decoder.mh, newval); //TODO
     }.bind(this));
-    require('my-projects/mixins/speed')(this, function(newval)
+    require('./mixins/speed')(this, function(newval)
     {
         if (newval != 1.0) throw "TODO: speed";
 //TODO        if (this.selected < this.songs.length) this.songs[this.selected].speed = newval;
     }.bind(this));
-    require('my-projects/mixins/promise-keepers')(this, 7500);
+    require('./mixins/promise-keepers')(this, 7500);
 
 //    var this_seq = this;
     this.on('cmd', function(cmd, opts)
@@ -130,9 +133,12 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
         switch (cmd || '')
         {
 //enforce event emitter interface by using private functions:
-            case "play": play.apply(this, Array.prototype.slice.call(arguments, 1)); return;
+            case "play":
+                if (resume.call(this, opts)) return;
+                play.apply(this, Array.prototype.slice.call(arguments, 1));
+                return;
             case "pause": pause.call(this, opts); return;
-            case "resume": resume.call(this, opts); return;
+//            case "resume": resume.call(this, opts); return;
             case "stop": stop.call(this, opts); return;
             case "volume": this.volume = opts; return;
             case "speed": this.speed = opts; return;
@@ -144,7 +150,7 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 //NOTE: at least one media file must be added below in order for seq to be marked ready; a seq without any media is useless anyway
     if (opts.auto_collect !== false)
     {
-//        this.pend();
+        this.pend("Auto-collecting media, models, and cues from '%s' ...", relpath(path.dirname(this.path)));
 //        var callerdir = path.dirname(stack()[2].getFileName()); //start searches relative to actual sequence folder
 //        console.log("caller dir: " + relpath(callerdir));
 //        var files = glob.sync(callerdir + "/!(*-bk).mp3"); //look for any mp3 files in same dir
@@ -154,22 +160,36 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
             if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //        console.log("SEQ: auto-collect got %d candidate media files from %s".blue, files.length, path.dirname(this.path) + "/**/!(*-bk).{" + AUDIO_EXTs + "}"); //relpath(path.dirname(this.path)));
             this.warn("Sequence auto-collect found %d candidate media file%s", files.length, (files.length != 1)? 's': '');
-            (files || []).forEach(function(file, inx) { this.addMedia(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+            (files || []).forEach(function(filename, inx) { this.addMedia(filename); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+            this.unpend(); //kludge: force readiness if no files to load; at least one song must be pended before this, otherwise playlist will be prematurely marked ready
         }.bind(this)); //CAUTION: need to preserve context within glob callback
-//        glob(path.join(path.dirname(this.path), "**", "*{timing,cue}*!(*-bk)", function(err, files)
-//        {
-////        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
-//            (files || []).forEach(function(file, inx) { this.addCues(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
-//        }.bind(this));
+        glob(path.join(path.dirname(this.path), "**", "*{timing,cue}*!(*-bk).{txt,js}"), function(err, files)
+        {
+            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        console.log("SEQ: auto-collect got %d candidate timing files".blue, files.length);
+            (files || []).forEach(function(filename, inx) { this.addCues(filename); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+//??            this.unpend(); //kludge: force readiness if no files to load; at least one song must be pended before this, otherwise playlist will be prematurely marked ready
+        }.bind(this));
 //TODO: auto-collect models? they are likely in different folder - how to find?
+        glob(path.join(path.dirname(this.path), "**", "*{model}*!(*-bk).js"), function(err, files)
+        {
+            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+//        console.log("SEQ: auto-collect got %d candidate model files".blue, files.length);
+            (files || []).forEach(function(filename, inx) { this.addModel(filename); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+//??            this.unpend(); //kludge: force readiness if no files to load; at least one song must be pended before this, otherwise playlist will be prematurely marked ready
+        }.bind(this));
 //        this.unpend(); //kludge: force readiness if no files to load
     }
-    (opts.paths || (opts.path? [opts.path]: [])).forEach(function(file, inx)
+/*
+    (opts.paths || (opts.path? [opts.path]: [])).forEach(function(filename, inx)
     {
-        if (file.match('/(' + AUDIO_EXTs.replace(/,/g, '|') + ')$/i')) this.addMedia(file);
-        else this.addCues(file);
+        if (filename.match('/(' + AUDIO_EXTs.replace(/,/g, '|') + ')$/i')) this.addMedia(filename);
+//        var file = require(filename); //seqpath); //maybe add try/catch here to allow graceful continuation? OTOH, glob said it was there, so it's okay to require it
+//        if (!file.isModel)
+        else if (filename.match(/model/i)) this.addModel(filename);
+        else this.addCues(filename);
     }.bind(this)); //CAUTION: need to preserve context within forEach loop
-    if (opts.interval) this.addFixedFrames(opts.interval); //generate frame cues at specified interval
+*/
 //    {
 //        if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //        for (var time = 0, frnum = 0; time < this.duration; time += opts.interval, ++frnum)
@@ -178,11 +198,19 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
     process.nextTick(function() //allow caller to add media or make other changes after ctor returns but before seq is marked ready
     {
         if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-        if (this.models && (typeof this.models.length === 'undefined')) this.models = [this.models]; //convert singleton to array
-//        (this.songs || []).forEach(function(file, inx) { this.addSong(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        if (this.media && (typeof this.media.length === 'undefined')) { var filename = this.media; this.media = []; addMedia(filename); } //convert singleton to array
+//        if (this.models && (typeof this.models.length === 'undefined')) this.models = [this.models]; //convert singleton to array
+        if (this.cues && (typeof this.cues.length === 'undefined')) { var filename = this.cues; this.cues = []; addCues(filename); } //convert singleton to array
+//        (this.songs || []).forEach(function(filename, inx) { this.addSong(filename); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        if (opts.interval) this.addFixedFrames(opts.interval); //generate frame cues at specified interval
+    }.bind(this));
+
+    this.validate = function()
+    {
+        if ((typeof opts.limit !== 'undefined') && (this.media.length >= opts.limit)) this.error("Too many media files: found %d (limit was %d)", this.media.length, opts.limit);
         if (this.models.length) console.log("TODO: Sequence models not yet implemented (found %d items)".red, this.models.length);
 //        if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
-    }.bind(this));
+    }
 
 //no    if (!this.pending) this.ready(); //this.emit('ready'); //caller might want to add something, so don't mark it ready yet
 //    return this; //not needed for ctor
@@ -192,13 +220,32 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 inherits(Sequence, baseclass); //http://stackoverflow.com/questions/8898399/node-js-inheriting-from-eventemitter
 
 
+//format info for easier viewing in node inspector:
+Sequence.prototype.debug = function()
+{
+    if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
+    if (baseclass.debug) baseclass.debug.call(this);
+//    setTimeout(function() //give async data time to arrive
+    var buf = ['sequence info:'];
+    if (this.media.length === 'undefined') buf.push(sprintf("media: '%s'", relpath(this.media)));
+    else (this.media || []).forEach(function(song, inx)
+    {
+        buf.push(sprintf("media[%d/%d]: path '%s', duration %d", inx, this.songs.length, song.path || '??', song.duration || 0)); //song duration might not be loaded yet if this is called before .ready()
+    }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
+    buf.push(sprintf("total duration: %d msec", this.duration || 0));
+    this.debug_info = buf.join('\n');
+    debugger; //https://nodejs.org/api/debugger.html
+//    }, 1000);
+}
+
+
 Sequence.prototype.addMedia = function(filename)
 {
     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//        if (player.canPlay(file)
+//        if (player.canPlay(filename)
 //        seq.index = this.songs.length;
-//        console.log("add media %s".blue, file);
-    this.pend("Loading candidate media from %s", filename); //NOTE: need to do this immediately so playlist will be pending at process.nextTick
+//        console.log("add media %s".blue, filename);
+    this.pend("Loading candidate media from '%s'", filename); //NOTE: need to do this immediately so playlist will be pending at process.nextTick
 //TODO: use async here
     var fstat = fs.statSync(filename); //TODO: glob
     if (!fstat.isFile()) { /*console.log("not a file: %s".red, relpath(filename))*/; this.unpend(); return; }
@@ -245,7 +292,7 @@ function play(opts) //manual start
 //        require('callsite')().forEach(function(caller) { console.log("SEQ.play called from %s@%s:%d", caller.getFunctionName() || 'anonymous', relpath(caller.getFileName()), caller.getLineNumber()); });
     this.buffered = 0; //TODO
 //    var this_seq = this;
-    this.seqstart(); //NOTE: this will probably send out first (init) frame prematurely
+//TODO    this.seqstart(); //NOTE: this will probably send out first (init) frame prematurely
     var svvol = this.volume;
 
     var filename = this.media[this.selected]; //.path;
@@ -286,7 +333,7 @@ function play(opts) //manual start
                     this.elapsed.pause();
                     this.speaker = this.decoder = null;
 //                        console.log("audio '%s' ended @%s", path.basename(filename.path), this.elapsed.scaled());
-                    this.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
+//TODO                    this.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
                     this.emit('song.stop', filename.path);
 /*
                     var cache = this.cache[filename.path] || {};
@@ -331,10 +378,11 @@ function play(opts) //manual start
 function pause()
 {
     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-    if (this.paused) return;
+    if (this.paused) return false;
     this.elapsed.pause(); // = {now: this.elapsed.now, } //freeze elapsed timer
 //        mute.pause();
     this.paused = true;
+    return true;
 //TODO    this.songs[this.selected].emit('cmd', 'pause'); //pause();
 //        this.interrupt = true; //async
 //TODO            .once('pause', function() { this.emit('pause', null, evtinfo); })
@@ -345,10 +393,11 @@ function pause()
 function resume()
 {
     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-    if (!this.paused) return;
+    if (!this.paused) return false;
     this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so total elapsed time is still correct
 //        mute.resume();
     this.paused = false;
+    return true;
 //TODO    this.songs[this.selected].emit('cmd', 'resume'); //.resume();
 //        this.interrupt = true; //async
 //            .once('play', function() { this.emit('resume', null, evtinfo); })

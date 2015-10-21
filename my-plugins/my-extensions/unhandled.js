@@ -12,10 +12,13 @@ process.on('unhandledRejection', function(reason, p)
 
 
 //https://nodejs.org/api/process.html#process_event_uncaughtexception
+var relpath = require('my-plugins/utils/relpath');
+var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
 process.on('uncaughtException', function(err)
 {
   console.log('Caught exception: ', err);
   console.log("stack:", err.stack);
+  callsite().forEach(function(stack, inx) { console.log(stack.getFunctionName() || '(anonymous)', relpath(stack.getFileName()) + ':' + stack.getLineNumber()); });
   process.exit(1); //process is in unknown state at this point; safest action is to exit the process
 });
 

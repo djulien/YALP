@@ -1,7 +1,7 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-var Sequence = require('my-projects/songs/sequence'); //base class
+var Sequence = require('my-projects/shared/sequence'); //base class
 var seq = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 

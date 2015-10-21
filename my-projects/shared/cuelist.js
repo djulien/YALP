@@ -72,12 +72,12 @@ function CueList(opts)
     }
 
 //NOTE: speed only alters the start/end times of cues, doesn't affect actual cuelist streaming
-    require('my-projects/mixins/speed')(this, function(newval)
+    require('./mixins/speed')(this, function(newval)
     {
         if (newval != 1.0) throw "TODO: speed";
         this.cues.forEach(function(cue, inx) { cue.from *= newval; cue.to *= newval; }); //TODO: sync
     }.bind(this));
-    require('my-projects/mixins/promise-keepers')(this, 5000);
+    require('./mixins/promise-keepers')(this, 5000);
 
     this.on('cmd', function(cmd, opts) //kludge: async listener function to avoid recursion in multi-song play loop
     {

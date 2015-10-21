@@ -5,7 +5,7 @@
 //require('longjohn'); //http://www.mattinsler.com/post/26396305882/announcing-longjohn-long-stack-traces-for-nodejs
 
 
-var Playlist = require('my-projects/playlists/playlist'); //base class
+var Playlist = require('my-projects/shared/playlist'); //base class
 var hween = module.exports = new Playlist({logging: 'terse'});
 //hween.name = 'Hween2015';
 //hween.volume = 1.0;

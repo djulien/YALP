@@ -18,6 +18,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 //        var pl = new Playlist(opts, resolve, reject, notify);
         this.ready = function(msg)
         {
+            if (this.validate) this.validate();
             if (arguments.length > 1) msg = sprintf.apply(null, arguments);
             else if (!arguments.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
 //            if (opts.silent !== false) console.log(msg.green);
@@ -40,6 +41,12 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         }.bind(this);
         this.warn = function(msg)
         {
+            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
+//            if (!msg)
+//            {
+//                require('callsite')().forEach(function(stack, inx) { console.log(stack.getFunctionName() || '(anonymous)', require('my-plugins/utils/relpath')(stack.getFileName()) + ':' + stack.getLineNumber()); });
+//                throw "no msg";
+//            }
 //            if (opts.silent !== false) console.log("Playlist '%s' warning: ".yellow, msg);
 //            if (opts.debug !== false) debugger;
             this.emit(chkprop.substr(2).toLowerCase() + '.warn', msg);
@@ -59,18 +66,22 @@ function addPromiseKeeper(that, deadline) //, chkprop)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
 //http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
-        if (typeof count === 'string') { msg = count; count = null; Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (arguments.length > 2) msg = sprintf.apply(null, Array.prototype.slice.call(arguments, 1));
-        if (arguments.length > 1) this.warn(msg);
+        var args = Array.prototype.slice.call(arguments); //extract sprintf params
+//    console.log(arguments.length + " pend args: ", arguments);
+        if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
+        if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+//    console.log(" => ", args.length, args);
+        if (args.length > 1) this.warn(msg);
 //console.log("playlist %s pend+ %d", this.name, m_pending);
         m_pending += (count || 1);
     }.bind(that);
     that.unpend = function(count, msg)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
-        if (typeof count === 'string') { msg = count; count = null; Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (arguments.length > 2) msg = sprintf.apply(null, Array.prototype.slice.call(arguments, 1));
-        if (arguments.length > 1) this.warn(msg);
+        var args = Array.prototype.slice.call(arguments); //extract sprintf params
+        if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
+        if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+        if (args.length > 1) this.warn(msg);
 //        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
         m_pending -= (count || 1);
         if (m_pending) return;

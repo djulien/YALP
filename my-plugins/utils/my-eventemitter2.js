@@ -14,11 +14,14 @@ events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpf
 //    var colors = require('colors/safe');
 //    if (opts.silent !== false)
 //    {
-    var type = args.match(/error/i)? 'red': args.match(/warn/i)? 'yellow': args.match(/ready|done/i)? 'green': 'blue';
+    if (arguments[0] != "newListener")
+    {
+        var type = args.match(/error/i)? 'red': args.match(/warn/i)? 'yellow': args.match(/ready|done/i)? 'green': 'blue';
 //            arguments[1] = arguments[1][type];
 //            console.log.apply(null, arguments);
-    console.log(/*colors[type]*/"%s event: %s"[type], shortname(module.parent.filename), arguments[0] || '??', arguments[1] || '??');
-    debugger;
+        console.log(/*colors[type]*/"%s event: %s"[type], shortname(module.parent.filename), arguments[0] || '??', arguments[1] || '??');
+        debugger;
+    }
 //    }
     base_emit.apply(this, arguments); //CAUTION: avoid inf loop when overriding emit with emit_logged
 }
