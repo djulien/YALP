@@ -1,32 +1,52 @@
 //log to file + console with seq# and timestamping
 'use strict';
 
-var fs = require('fs);
+require('colors');
+var fs = require('fs');
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf;
 var clock = require('my-plugins/utils/clock');
+var caller = require('my-plugins/utils/caller');
+var elapsed = require('my-plugins/utils/elapsed');
 
+var logfile = null;
 var seqnum = 0, prev = 0;
-var log = null;
+var start = new elapsed();
+var filename = path.join(process.cwd(), "yalp.log"); //save it in case cwd changes
 
-module.exports.log = function(msg)
+module.exports.LogDetail = 1;
+
+//level 0 => always logged
+module.exports.logger = function(level, msg)
 {
-    if (!log)
+    var args = Array.prototype.slice.call(arguments); //extract sprintf varargs
+//    console.log(arguments.length + " log args: ", arguments);
+    if (typeof level === 'string') { msg = level; level = 0; args.splice(0, 0, 1); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
+    if (level > module.exports.LogDetail) return;
+    if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+//    else if (!args.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
+    msg = msg /*.replace(/(?:@)logger.*$/, '')*/ + caller(-3);
+
+//    debugger;
+    var stamp = /*logfile*/ seqnum? '+' + start.now: '=' + clock.Now.asString();
+    if (!logfile)
     {
-        log = fs.createWriteStream(path.join(process.cwd(), "yalp.log"), {flags: seqnum? 'a': 'w'});
-        setInterval(function() //flush every 2 sec
+//        start = new elapsed();
+        logfile = fs.createWriteStream(filename, {flags: seqnum? 'a': 'w'});
+        logfile.write("hello\n");
+        logfile.on('error', function(err) { console.log(("LOG ERROR: " + err).red); process.exit(1); });
+        setInterval(function() //flush every 2 sec if there's been activity
         {
             if (seqnum == prev) return;
             prev = seqnum;
-            log.end("(flush)");
-            log = null;
-        }, 2000);
+            logfile.end("(flush)\n");
+            logfile = null;
+        }, 2000 *100);
     }
-//    var args = Array.prototype.slice.call(arguments); //extract sprintf params
-    if (arguments.length > 1) msg = sprintf.apply(null, arguments);
-    msg = sprintf("[%d %s] %s", seqnum++, clock.Now.asString(), msg);
+
+    msg = sprintf("%s[%d %s] %s", (level > module.exports.LogDetail)? 'X': '', seqnum++, stamp, msg);
     console.log(msg);
-    log.write(msg + '\n');
+    logfile.write(msg.replace(/\x1b\[\d+m/g, "") + '\n'); //strip color codes in log file
 }
 
 //eof

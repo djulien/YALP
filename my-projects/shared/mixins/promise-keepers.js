@@ -36,7 +36,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
             if (arguments.length > 1) msg = sprintf.apply(null, arguments);
 //            if (opts.silent !== false) console.log("Playlist '%s' ERROR after %s: ".red, msg, this.name, this.elapsed.scaled(), msg);
 //            if (opts.debug !== false) debugger;
-            this.emit('error', msg); //redundant; this one will be emitted automatically
+            this.emit('error', msg); //??redundant; this one will be emitted automatically
             this.debug();
             reject(msg);
         }.bind(this);

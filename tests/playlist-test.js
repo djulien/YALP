@@ -7,7 +7,8 @@
 //    require(__filename); //re-load myself with language extensions enabled
 //}
 //else { ... }
-console.log("START UP");
+var logger = require('my-plugins/utils/logger').logger;
+logger("START UP");
 
 require('colors');
 var scaled = require('my-plugins/utils/time-scale');

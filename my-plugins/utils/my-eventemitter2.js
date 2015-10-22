@@ -5,8 +5,11 @@
 
 require('colors'); //var colors = require('colors/safe');
 var events = module.exports = require('eventemitter2'); //https://github.com/asyncly/EventEmitter2
-var shortname = require('my-plugins/utils/shortname');
-console.log("TODO: ipc events".red);
+//var shortname = require('my-plugins/utils/shortname');
+//var caller = require('my-plugins/utils/caller');
+var logger = require('my-plugins/utils/logger').logger;
+
+logger("TODO: ipc events".red);
 
 var base_emit = events.EventEmitter2.prototype.emit;
 events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpful for debug or just general comfort
@@ -19,7 +22,7 @@ events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpf
         var type = args.match(/error/i)? 'red': args.match(/warn/i)? 'yellow': args.match(/ready|done/i)? 'green': 'blue';
 //            arguments[1] = arguments[1][type];
 //            console.log.apply(null, arguments);
-        console.log(/*colors[type]*/"%s event: %s"[type], shortname(module.parent.filename), arguments[0] || '??', arguments[1] || '??');
+        logger(10, /*colors[type]*/"%s event: %s"[type], /*shortname(module.parent.filename) caller(3),*/ arguments[0] || '??', arguments[1] || '??');
         debugger;
     }
 //    }

@@ -1,8 +1,6 @@
 //plug-in to provide a consistent time base and hide implementation
 'use strict';
 
-var started = module.exports.Now();
-
 module.exports.Now = function()
 {
     if (global.v8debug) module.exports.Now.asString(); //allow latest time to be seen more easily in node inspector
@@ -36,5 +34,7 @@ module.exports.addNow = function(that, name)
         get: function() { return module.exports.Now(); },
     });
 }
+
+var started = module.exports.Now();
 
 //eof

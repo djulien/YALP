@@ -37,11 +37,11 @@ function CueList(opts)
     this.isCueList = true;
 //    this.selected = undefined; //0
     this.elapsed = new elapsed(); //used for load/init time tracking until first playback
-    var stack = callsite();
+//    var stack = callsite();
 //NO    this.path = module.parent.parent.filename; //parent = sequence baseclass, grandparent = sequence instance
 //    stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
 //NOTE: can't use module.parent because it will be the same for all callers (due to module caching)
-    this.path = stack[(stack[1].getFileName() == __filename)? 3: 2].getFileName(); //skip past optional nested "new" above
+    this.path = caller(2); //stack[(stack[1].getFileName() == __filename)? 3: 2].getFileName(); //skip past optional nested "new" above
     debugger;
 //    this.outhw = new Outhw();
     this.setMaxListeners(4); //catch leaks sooner (EventEmitter)

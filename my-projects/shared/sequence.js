@@ -19,7 +19,8 @@ var path = require('path');
 var byline = require('byline');
 var inherits = require('inherits');
 var Tokenizer = require('tokenizer');
-var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
+//var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
+var caller = require('my-plugins/utils/relpath');
 require('buffertools').extend(); //https://github.com/bnoordhuis/node-buffertools
 var elapsed = require('my-plugins/utils/elapsed');
 var relpath = require('my-plugins/utils/relpath');
@@ -100,11 +101,12 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 //    this.selected = 0;
     this.isSequence = true;
     this.elapsed = new elapsed(); //used for load/init time tracking until first playback
-    var stack = callsite();
+//    var stack = callsite();
 //NO    this.path = module.parent.filename; //already known by caller, but set it anyway in case wild card was used
 //    stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
 //NOTE: can't use module.parent because it will be the same for all callers (due to module caching)
-    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
+//    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
+    this.path = caller(2);
     this.name = opts.name || path.basename(this.path, path.extname(this.path)); //|| 'NONE';
     if (this.name == "index") this.name = path.basename(path.dirname(this.name)); //use folder name instead to give more meaningful name
 //    console.log("new sequence: name '%s', path '%s'".blue, this.name, this.path);

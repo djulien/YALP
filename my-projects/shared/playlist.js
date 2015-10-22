@@ -11,16 +11,19 @@
 
 require('colors');
 var fs = require('fs');
+var logger = require('my-plugins/utils/logger').logger;
+require('my-plugins/utils/logger').LogDetail = 99;
 var glob = function(pattern, cb) //require('glob');
 {
 //    var colors = require('colors/safe');
-    console.log("glob: looking for %s".blue, pattern);
+    logger(10, "glob: looking for %s".blue, pattern);
     return require('glob').apply(null, arguments);
 }
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
 var shortname = require('my-plugins/utils/shortname');
-var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
+//var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
+var caller = require('my-plugins/utils/caller');
 var relpath = require('my-plugins/utils/relpath');
 var elapsed = require('my-plugins/utils/elapsed');
 var ipc = require('my-plugins/utils/ipc');
@@ -73,10 +76,11 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
     this.isPlaylist = true; //for paranoid/sanity checking of "this"
     this.elapsed = new elapsed(); //used for load/init time tracking until first playback
 //    this.outhw = new Outhw();
-    var stack = callsite();
+//    var stack = callsite();
 //NOTE: can't use module.parent because it will be the same for all callers (due to module caching)
 //    this.path = module.parent.filename; //already known by caller, but set it anyway
-    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
+//    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
+    this.path = caller(2);
     this.name = opts.name || shortname(this.path); //|| 'NONE';
     if (this.name == 'index') this.name = shortname(path.dirname(this.path)); //try to give it a more meaningful name
 //    this.schedule = null; //TODO
@@ -165,9 +169,9 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
     {
         for (var i = this.songs.length; i > 0; --i) if (typeof this.songs[i - 1] !== 'object') this.songs.splice(i - 1, 1); //remove strings that were converted to objects
 //        console.log("#songs ", this.songs.length, this.songs);
-        if (this.schedule) console.log("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
-        if (this.opening) console.log("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
-        if (this.closing) console.log("TODO: Closing song not yet supported; found '%s'".red, relpath(this.closing));
+        if (this.schedule) logger("TODO: Schedule not yet implemented (found %d items)".red, this.schedule.length);
+        if (this.opening) logger("TODO: Opening song not yet supported; found '%s'".red, relpath(this.opening));
+        if (this.closing) logger("TODO: Closing song not yet supported; found '%s'".red, relpath(this.closing));
     }
 
 //no    if (!this.pending) this.ready(); //this.emit('ready'); //caller might want to add something, so don't mark it ready yet
@@ -193,7 +197,7 @@ Playlist.prototype.debug = function()
         if (song.isSequence)
             buf.push(sprintf("song[%d/%d]: name '%s', path '%s', duration %d", inx, this.songs.length, song.name || '??', song.path || '?', song.duration || 0)); //song duration might not be loaded yet if this is called before .ready()
         else
-            buf.push(sprintf("song[%d/%d]: " + song)); //not loaded yet
+            buf.push(sprintf("song[%d/%d]: " + song, inx, this.songs.length)); //not loaded yet
     }.bind(this)); //, this); //CAUTION: need to preserve context within forEach loop
     buf.push(sprintf("total duration: %d msec", this.duration || 0));
     if (this.schedule.length === 'undefined') buf.push("schedule: " + JSON.stringify(this.schedule));
@@ -293,7 +297,7 @@ function play(opts)
     {
         var meminfo = process.memoryUsage();
         var memscale = require('my-plugins/utils/mem-scale');
-        console.log("mem: %s, %s, %s, %s ...".blue, memscale(meminfo.rss), memscale(meminfo.vsize || 0), memscale(meminfo.heapTotal), memscale(meminfo.heapUsed));
+        logger(40, "mem: %s, %s, %s, %s ...".blue, memscale(meminfo.rss), memscale(meminfo.vsize || 0), memscale(meminfo.heapTotal), memscale(meminfo.heapUsed));
     }
 //    var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
 //    console.log("playlist play [%d]", this.selected, this.songs.length);
@@ -305,7 +309,7 @@ function play(opts)
             .on('song.progress', function() { /*console.log("PLEVT: progress")*/; this.emit('song.progress', null, evtinfo); }.bind(this))
 //            .once('pause', function() { /*console.log("PLEVT: pause")*/; this.emit('pause', null, evtinfo); }.bind(this))
 //            .once('resume', function() { /*console.log("PLEVT: resume")*/; this.emit('resume', null, evtinfo); }.bind(this))
-            .on('error', function(errinfo) { console.log("PLEVT: error"); this.emit('error', errinfo, evtinfo); }.bind(this))
+            .on('error', function(errinfo) { /*console.log("PLEVT: error")*/; this.emit('error', errinfo, evtinfo); }.bind(this))
             .on/*ce*/('song.stop', function()
             {
                 if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
@@ -343,6 +347,8 @@ function pause()
 function resume()
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
+    if ((this.selected < 0) || (this.selected >= this.songs.length)) throw "bad song index: " + this.selected;
+    if (!this.songs[this.selected].isSequence) throw "bad seq: " + index;
     if (!this.songs[this.selected].paused) return false;
     this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct
     this.songs[this.selected].emit('cmd', 'resume'); //.resume();
