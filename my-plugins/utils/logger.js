@@ -6,13 +6,14 @@ var fs = require('fs');
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf;
 var clock = require('my-plugins/utils/clock');
-var caller = require('my-plugins/utils/caller');
+var caller = require('my-plugins/utils/caller').caller;
 var elapsed = require('my-plugins/utils/elapsed');
 
 var logfile = null;
 var seqnum = 0, prev = 0;
 var start = new elapsed();
 var filename = path.join(process.cwd(), "yalp.log"); //save it in case cwd changes
+//var depth_adjust = 0;
 
 module.exports.LogDetail = 1;
 
@@ -25,15 +26,15 @@ module.exports.logger = function(level, msg)
     if (level > module.exports.LogDetail) return;
     if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
 //    else if (!args.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
-    msg = msg /*.replace(/(?:@)logger.*$/, '')*/ + caller(-3);
-
+    ++module.exports.logger.depth_adjust; //show my caller, not me
+    msg = msg /*.replace(/@logger:.*$/, ' @')*/ + ' ' + caller(-module.exports.logger.depth_adjust); module.exports.logger.depth_adjust = 0;
+//    msg += "caller(" + svdepth + "): " + caller(0);
 //    debugger;
     var stamp = /*logfile*/ seqnum? '+' + start.now: '=' + clock.Now.asString();
     if (!logfile)
     {
 //        start = new elapsed();
         logfile = fs.createWriteStream(filename, {flags: seqnum? 'a': 'w'});
-        logfile.write("hello\n");
         logfile.on('error', function(err) { console.log(("LOG ERROR: " + err).red); process.exit(1); });
         setInterval(function() //flush every 2 sec if there's been activity
         {
@@ -48,5 +49,8 @@ module.exports.logger = function(level, msg)
     console.log(msg);
     logfile.write(msg.replace(/\x1b\[\d+m/g, "") + '\n'); //strip color codes in log file
 }
+
+module.exports.logger.depth_adjust = 0;
+
 
 //eof

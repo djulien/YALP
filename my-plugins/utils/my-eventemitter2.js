@@ -22,6 +22,7 @@ events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpf
         var type = args.match(/error/i)? 'red': args.match(/warn/i)? 'yellow': args.match(/ready|done/i)? 'green': 'blue';
 //            arguments[1] = arguments[1][type];
 //            console.log.apply(null, arguments);
+        ++logger.depth_adjust; //show my caller, not me
         logger(10, /*colors[type]*/"%s event: %s"[type], /*shortname(module.parent.filename) caller(3),*/ arguments[0] || '??', arguments[1] || '??');
         debugger;
     }

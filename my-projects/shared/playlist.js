@@ -13,17 +13,17 @@ require('colors');
 var fs = require('fs');
 var logger = require('my-plugins/utils/logger').logger;
 require('my-plugins/utils/logger').LogDetail = 99;
-var glob = function(pattern, cb) //require('glob');
-{
-//    var colors = require('colors/safe');
-    logger(10, "glob: looking for %s".blue, pattern);
-    return require('glob').apply(null, arguments);
-}
+var glob = require('glob'); //function(pattern, cb)
+//{
+////    var colors = require('colors/safe');
+//    logger(10, "glob: looking for %s".blue, pattern);
+//    return require('glob').apply(null, arguments);
+//}
 var path = require('path');
 var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
 var shortname = require('my-plugins/utils/shortname');
 //var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
-var caller = require('my-plugins/utils/caller');
+var stack = require('my-plugins/utils/caller').stack;
 var relpath = require('my-plugins/utils/relpath');
 var elapsed = require('my-plugins/utils/elapsed');
 var ipc = require('my-plugins/utils/ipc');
@@ -80,7 +80,7 @@ function Playlist(opts) //, resolve, reject, notify) //factory/ctor
 //NOTE: can't use module.parent because it will be the same for all callers (due to module caching)
 //    this.path = module.parent.filename; //already known by caller, but set it anyway
 //    this.path = stack[(stack[1].getFileName() == __filename)? 2: 1].getFileName(); //skip past optional nested "new" above
-    this.path = caller(2);
+    this.path = stack(2); //file that called this file
     this.name = opts.name || shortname(this.path); //|| 'NONE';
     if (this.name == 'index') this.name = shortname(path.dirname(this.path)); //try to give it a more meaningful name
 //    this.schedule = null; //TODO

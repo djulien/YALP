@@ -3,7 +3,8 @@
 
 var Q = require('q'); //https://github.com/kriskowal/q
 var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
-var caller = require('my-plugins/utils/caller');
+//var caller = require('my-plugins/utils/caller');
+var logger = require('my-plugins/utils/logger').logger;
 
 module.exports = addPromiseKeeper;
 
@@ -24,6 +25,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
             else if (!arguments.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
 //            if (opts.silent !== false) console.log(msg.green);
 //            if (opts.debug !== false) debugger;
+            ++logger.depth_adjust; //show my caller, not me
             this.emit(chkprop.substr(2).toLowerCase() + '.ready', msg);
             this.debug();
             resolve(this);
@@ -36,6 +38,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
             if (arguments.length > 1) msg = sprintf.apply(null, arguments);
 //            if (opts.silent !== false) console.log("Playlist '%s' ERROR after %s: ".red, msg, this.name, this.elapsed.scaled(), msg);
 //            if (opts.debug !== false) debugger;
+            ++logger.depth_adjust; //show my caller, not me
             this.emit('error', msg); //??redundant; this one will be emitted automatically
             this.debug();
             reject(msg);
@@ -50,6 +53,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 //            }
 //            if (opts.silent !== false) console.log("Playlist '%s' warning: ".yellow, msg);
 //            if (opts.debug !== false) debugger;
+            ++logger.depth_adjust; //show my caller, not me
             this.emit(chkprop.substr(2).toLowerCase() + '.warn', msg);
             notify(msg);
         }.bind(this);
@@ -72,7 +76,9 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
         if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
 //    console.log(" => ", args.length, args);
+        ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
+        else logger.depth_adjust = 0;
 //console.log("playlist %s pend+ %d", this.name, m_pending);
         m_pending += (count || 1);
 //        console.log("PEND from %s: now %d", caller(), m_pending);
@@ -83,7 +89,9 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         var args = Array.prototype.slice.call(arguments); //extract sprintf params
         if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
         if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+        ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
+        else logger.depth_adjust = 0;
 //        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
         m_pending -= (count || 1);
 //        console.log("UNPEND from %s: now %d", caller(), m_pending);

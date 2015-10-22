@@ -20,6 +20,7 @@ hook.hook(EXT, function(src, fullpath)
 //    var filename = process.argv[2];
 //    var code = fs.readFileSync(filename) + '';
     var filename = path.basename(fullpath, path.extname(fullpath));
+    if (filename == 'logger') return src; //it probably already has line#s added, so don't add them again
     if (filename == "index") filename = path.join(path.basename(path.dirname(fullpath)), filename); //show one level of parent for common names
 //    console.log("line-stamps parsing " + filename); //fullpath);
 //    return src.replaceAll(/(?<![A-Za-z0-9$_])console\.log\(/, "console.log('@" + filename + ":" + 0 + "', ");
