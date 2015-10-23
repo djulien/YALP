@@ -60,7 +60,7 @@ module.exports = function(filename, use_cbr_estimate, cb)
     }
     fs.closeSync(fd);
 //console.log("actual VBR");
-    return cb(Math.round(1000 * duration) / 1000); //make it accurate to msec
+    return cb(Math.round(1000 * duration) / 1000); //return sec, but make it accurate to msec
 }
 
 function estimateDuration(filesize, bitrate, offset)
@@ -68,7 +68,7 @@ function estimateDuration(filesize, bitrate, offset)
 //console.log("EST CBR");
     var kbps = (bitrate * 1000) / 8;
     var datasize = /*fs.statSync(filename).*/ filesize - offset;
-    return Math.round(1000 * datasize / kbps) / 1000; //make it accurate to msec
+    return Math.round(1000 * datasize / kbps) / 1000; //return sec, but make it accurate to msec
 }
 
 

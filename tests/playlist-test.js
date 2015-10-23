@@ -117,19 +117,19 @@ function test2()
 //    setTimeout(function()
     playlist.on('playlist.ready', function(pl)
     {
-        console.log("playlist ready after %s", loading.scaled());
+        console.log("playlist ready after %s, duration %d", loading.scaled(), playlist.duration || -1);
 //        playback(pl); //playlist); //.play()); //play once
         playlist.volume = 1.0;
         playlist.emit('cmd', 'play', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
     }) //, 10); //kludge: give async callbacks time to finish
-    .on('playlist.begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
-    .on('song.start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
-    .on('song.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
-    .on('playlist.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
-//      .on('pause', function(err, info) { if (err) showerr("pause", err); else status("pause", info.current); })
-//      .on('resume', function(err, info) { if (err) showerr("resume", err); else status("resume", info.current); })
-    .on('song.stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
-    .on('playlist.end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
+//    .on('playlist.begin', function(err, info) { if (err) showerr("begin", err); else console.log("begin".green); })
+//    .on('song.start', function(err, info) { if (err) showerr("start", err); else status("start", info.current); })
+//    .on('song.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+//    .on('playlist.progress', function(err, info) { if (err) showerr("progess", err); else status("progress", info.current); })
+////      .on('pause', function(err, info) { if (err) showerr("pause", err); else status("pause", info.current); })
+////      .on('resume', function(err, info) { if (err) showerr("resume", err); else status("resume", info.current); })
+//    .on('song.stop', function(err, info) { if (err) showerr("stop", err); else status("stop", info.current); }) //, info.next); })
+//    .on('playlist.end', function(err, info) { if (err) showerr("end", err); else console.log("end".cyan); })
     .on('error', function(err) { console.log("ERROR ".red, err);
 //            console.trace();
 //            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
@@ -302,7 +302,19 @@ function Seq(opts)
 */
 
 
+require('my-plugins/utils/logger').LogDetail = 99;
+//require('my-projects/songs/xmas/Amazing Grace (Yule)')
+//require('my-projects/songs/xmas/Christmas Capital C (Go Fish)')
+//require('my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)')
+//.on('error', function(err) { console.log("ERROR: ", err); });
 test2();
 //test4();
 
+//setTimeout(function() { require('my-plugins/tools/logger').logger(); }, 
+//http://stackoverflow.com/questions/17960452/how-can-i-get-a-list-of-callbacks-in-the-node-work-queue-or-why-wont-node-ex
+//setTimeout(function()
+//{
+//    console.log(process._getActiveHandles());
+//    console.log(process._getActiveRequests());
+//}, 10000);
 //eof

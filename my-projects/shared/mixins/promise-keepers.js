@@ -1,7 +1,7 @@
 //add a methods to keep promise
 'use strict';
 
-var Q = require('q'); //https://github.com/kriskowal/q
+//var Q = require('q'); //https://github.com/kriskowal/q
 var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
 //var caller = require('my-plugins/utils/caller');
 var logger = require('my-plugins/utils/logger').logger;
@@ -14,38 +14,44 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 {
 //    var this_playlist = this; //kludge: preserve context; TODO: bind http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
     var chkprop = 'is' + that.constructor.name;
-    var m_promise = Q.Promise(function(resolve, reject, notify)
+//    /*var m_promise =*/ Q.Promise(function(resolve, reject, notify)
+//    {
+//        if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
+//        var pl = new Playlist(opts, resolve, reject, notify);
+    that.ready = function(msg)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
-//        var pl = new Playlist(opts, resolve, reject, notify);
-        this.ready = function(msg)
-        {
-            if (this.validate) this.validate();
-            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
-            else if (!arguments.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
+        if (this.validate) this.validate();
+        if (!this.resolved) return; //already resolved
+        if (arguments.length > 1) msg = sprintf.apply(null, arguments);
+        else if (!arguments.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
 //            if (opts.silent !== false) console.log(msg.green);
 //            if (opts.debug !== false) debugger;
-            ++logger.depth_adjust; //show my caller, not me
-            this.emit(chkprop.substr(2).toLowerCase() + '.ready', msg);
-            this.debug();
-            resolve(this);
-        }.bind(this);
-        this.error = function(msg)
-        {
+        ++logger.depth_adjust; //show my caller, not me
+        this.emit(chkprop.substr(2).toLowerCase() + '.ready', msg);
+        this.debug();
+//            resolve(this);
+        clearTimeout(this.resolved); this.resolved = null;
+    }.bind(that);
+    that.error = function(msg)
+    {
+        if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
+        if (!this.resolved) return; //already resolved
 //            console.trace();
 //            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
 //            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });
-            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
+        if (arguments.length > 1) msg = sprintf.apply(null, arguments);
 //            if (opts.silent !== false) console.log("Playlist '%s' ERROR after %s: ".red, msg, this.name, this.elapsed.scaled(), msg);
 //            if (opts.debug !== false) debugger;
-            ++logger.depth_adjust; //show my caller, not me
-            this.emit('error', msg); //??redundant; this one will be emitted automatically
-            this.debug();
-            reject(msg);
-        }.bind(this);
-        this.warn = function(msg)
-        {
-            if (arguments.length > 1) msg = sprintf.apply(null, arguments);
+        ++logger.depth_adjust; //show my caller, not me
+        this.emit('error', msg); //??redundant; this one will be emitted automatically
+        this.debug();
+//            reject(msg);
+        clearTimeout(this.resolved); this.resolved = null;
+    }.bind(that);
+    that.warn = function(msg)
+    {
+        if (arguments.length > 1) msg = sprintf.apply(null, arguments);
 //            if (!msg)
 //            {
 //                require('callsite')().forEach(function(stack, inx) { console.log(stack.getFunctionName() || '(anonymous)', require('my-plugins/utils/relpath')(stack.getFileName()) + ':' + stack.getLineNumber()); });
@@ -53,12 +59,17 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 //            }
 //            if (opts.silent !== false) console.log("Playlist '%s' warning: ".yellow, msg);
 //            if (opts.debug !== false) debugger;
-            ++logger.depth_adjust; //show my caller, not me
-            this.emit(chkprop.substr(2).toLowerCase() + '.warn', msg);
-            notify(msg);
-        }.bind(this);
-    }.bind(that))
-    .timeout(deadline, chkprop.substr(2) + " is taking too long to load!");
+        ++logger.depth_adjust; //show my caller, not me
+        this.emit(chkprop.substr(2).toLowerCase() + '.warn', msg);
+//            notify(msg);
+    }.bind(that);
+//    }.bind(that))
+//    .timeout(deadline, chkprop.substr(2) + " is taking too long to load!");
+    that.resolved = setTimeout(function()
+    {
+        this.resolved = null;
+        this.error(chkprop.substr(2) + " is taking too long to load!");
+    }.bind(that), deadline);
 //not needed?? caller has until process.nextTick to pend changes anyway
 //    this.isReady = function(cb) //expose promise call-back as a method so playlist api can be used before it's ready
 //    {
@@ -78,7 +89,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 //    console.log(" => ", args.length, args);
         ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
-        else logger.depth_adjust = 0;
+        else logger.depth_adjust = 0; //clear depth adjust in lieu of warn()->emit()->logger() call
 //console.log("playlist %s pend+ %d", this.name, m_pending);
         m_pending += (count || 1);
 //        console.log("PEND from %s: now %d", caller(), m_pending);
@@ -91,7 +102,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
         if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
         ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
-        else logger.depth_adjust = 0;
+        else logger.depth_adjust = 0; //clear depth adjust in lieu of warn()->emit()->logger() call
 //        console.log("playlist %s pend- %d", this.name, m_pending - (num || 1));
         m_pending -= (count || 1);
 //        console.log("UNPEND from %s: now %d", caller(), m_pending);

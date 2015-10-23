@@ -30,7 +30,7 @@ var inherits = require('inherits');
 function CueList(opts)
 {
     if (!(this instanceof CueList)) return new CueList(opts); //make "new" optional; make sure "this" is set
-    baseclass.call(this); //, Object.assign(opts || {}, {objectMode: true, })); //pass options to base class; allow binary data
+    baseclass.call(this); //, Object.assign(opts || {}, {objectMode: true})); //pass options to base class; allow binary data
 
     this.cues = [];
 //    this.dirty = false;
@@ -48,7 +48,7 @@ function CueList(opts)
     if (opts.silent !== false) this.emit = this.emit_logged.bind(this);
 
     this.cache = (opts.cache !== false)?
-        new NodeCache({stdTTL: opts.cache || 6 * 60 * 60, checkPeriod: 600, }): //default 6 hours, TODO: delete period?
+        new NodeCache({stdTTL: opts.cache || 6 * 60 * 60, checkPeriod: 600}): //default 6 hours, TODO: delete period?
         {
             get: function(key) { return undefined; }, //dummy functions
             set: function(key, value) {},
@@ -156,7 +156,7 @@ CueList.prototype.addVixen(filename)
 //    {
 //        var buf = new Buffer(16); //simulate 16 channels
 //        buf.clear(frnum);
-//        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length, };
+//        return {frnum: frnum || 1, when: 50 * frnum, data: buf, len: buf.length};
 //    }
 
 
@@ -166,7 +166,7 @@ CueList.prototype.addFixedFrames = function(interval)
     if (interval < 10) interval *= 1000; //assume caller gave sec; convert to msec
     if (interval < 10) throw "Interval too small: " + interval;
     for (var time = 0, frnum = 0; time < this.duration; time += interval, ++frnum)
-        this.cues.push({name: "frames", from: time, to: Math.min(time + interval, this.duration), text: frnum, });
+        this.cues.push({name: "frames", from: time, to: Math.min(time + interval, this.duration), text: frnum});
     this.cues_dirty = true;
     return this; //allow chaining
 }
@@ -192,7 +192,7 @@ SequenceStreamer.prototype.addCue = function(opts) //name, from, to, text, src)
     if (!opts.to) { opts.to = this.duration; this.back_trim = opts; } //set tentative end, but allow next entry to trim it
     if (opts.to < opts.from) { console.log("ends before starts: ", opts); return; }
     if (!opts.text) opts.text = '';
-//    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext', });
+//    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext'});
     this.cues.push(opts);
     this.cues_dirty = true;
     return this; //allow chaining
@@ -247,8 +247,8 @@ SequenceStreamer.prototype.addCues = function(filename)
                     var text = matches[5] || null;
 //                        var cues = this.cues[name] = this.cues[name] || [];
 //                        console.log("hd %s, from %d, to %d, text %s", section, from, to, text);
-//                    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext', });
-                    this.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum, });
+//                    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext'});
+                    this.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum});
 //                    this.addCue(section, from, to, text, src + ':' + linenum);
                     this.cues_dirty = true;
                 }
