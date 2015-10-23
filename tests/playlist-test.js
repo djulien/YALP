@@ -310,7 +310,7 @@ require('my-plugins/utils/logger').LogDetail = 99;
 test2();
 //test4();
 
-//setTimeout(function() { require('my-plugins/tools/logger').logger(); }, 
+//setTimeout(function() { require('my-plugins/tools/logger').logger(); },
 //http://stackoverflow.com/questions/17960452/how-can-i-get-a-list-of-callbacks-in-the-node-work-queue-or-why-wont-node-ex
 //setTimeout(function()
 //{

@@ -291,7 +291,20 @@ function play(opts)
     this.selected = Math.min(opts.rewind? 0: ('index' in opts)? 1 * opts.index: this.selected || 0, this.songs.length - 1); //clamp to end of list
 //        if (this.selected < 0) throw "Can't find currently selected song";
     var next = opts.single? this.selected: (this.selected + 1) % this.songs.length;
-    var evtinfo = {current: this.songs[this.selected], next: this.songs[next]};
+    var evtinfo = {current: this.songs[this.selected], next: this.songs[next], inspect: function(depth)
+    {
+        var buf = '';
+        for (var i in this)
+            switch(typeof this[i])
+            {
+                case 'function': break;
+                case 'undefined': break;
+                case 'string': buf += ', ' + i + ':"' + this[i] + '"'; break;
+                case 'object': buf += ', ' + i + ':' + (depth? this.inspect.call(this[i], depth - 1): '<object>'); break;
+                default: buf += ', ' + i + ':' + this[i]; break;
+            }
+        return '{' + buf.substr(2) + '}';
+    }};
     if (opts.emit !== false) this.emit('playlist.begin', /*null,*/ evtinfo); //playlist
     this.songs[this.selected].volume = this.volume;
     if (this.progress) clearInterval(this.progress); this.progress = null;
@@ -354,7 +367,7 @@ function pause()
 function resume()
 {
     if (!this.isPlaylist) throw "wrong 'this'"; //paranoid/sanity context check
-    if ((this.selected < 0) || (this.selected >= this.songs.length)) throw "bad song index: " + this.selected;
+    if ((this.selected < 0) || (this.selected >= this.songs.length)) throw "bad song index: " + this.selected + " of " + this.songs.length;
     if (!this.songs[this.selected].isSequence) throw "bad seq: " + index;
     if (!this.songs[this.selected].paused) return false;
     this.elapsed.resume(); // = new elapsed(-this.elapsed.now); //exclude paused time so elapsed time is correct

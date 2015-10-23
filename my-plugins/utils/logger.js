@@ -36,12 +36,14 @@ module.exports.logger = function(level, msg)
     msg = msg /*.replace(/@logger:.*$/, ' @')*/ + ' ' + caller(-module.exports.logger.depth_adjust); module.exports.logger.depth_adjust = 0;
 //    msg += "caller(" + svdepth + "): " + caller(0);
 //    debugger;
-    var stamp = /*logfile*/ seqnum? '+' + start.now: '=' + clock.Now.asString();
+    var stamp = /*logfile*/ seqnum? '+' + start.now / 1000: '=' + clock.Now.asString();
     if (!logfile)
     {
 //        start = new elapsed();
         logfile = fs.createWriteStream(filename, {flags: seqnum? 'a': 'w'});
         logfile.on('error', function(err) { console.log(("LOG ERROR: " + err).red); process.exit(1); });
+//        logfile.on('finish', function() { console.log("LOG FINISH"); });
+//        logfile.on('drain', function() { console.log("LOG DRAIN"); });
         /*timer =*/ setTimeout(function() //flush after 2 sec of no activity; don't use setInterval so main can exit if idle
         {
 //            if (seqnum == prev) return;
@@ -54,7 +56,7 @@ module.exports.logger = function(level, msg)
     msg = sprintf("%s[%d %s] %s", (level > module.exports.LogDetail)? 'X': '', seqnum++, stamp, msg);
     console.log(msg);
     debugger;
-    logfile.write(msg.replace(/\x1b\[\d+m/g, "") + '\n'); //strip color codes in log file
+    logfile.write(msg.replace(/\x1b\[\d+m/g, "") + '\n'); //, 'utf8', function(err) { if (err) console.log("loggr write: err? " + err); }); //strip color codes in log file
 //    console.log("logger", logfile);
 }
 

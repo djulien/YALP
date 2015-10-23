@@ -90,7 +90,7 @@ function Sequence(opts) //, resolve, reject, notify) //factory/ctor
 //    opts = Object.assign({auto_collect: true, reqd: true, limit: 1, playlist: true}, opts);
     if (typeof opts.limit === 'undefined') opts.limit = 1; //TODO: allow more
     if (typeof opts.latency === 'undefined') opts.latency = 200; //msec; nominal delay from lame decoder to start streaming to speaker
-    if (typepf opts.readahead === 'undefined') opts.readahead = 60; //msec; how far in advance to read next frame of data
+    if (typeof opts.readahead === 'undefined') opts.readahead = 60; //msec; how far in advance to read next frame of data
 
 //    this.cues = [];
 //    this.seqdata = new seqdata();
