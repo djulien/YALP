@@ -19,6 +19,7 @@ var path = require('path');
 var byline = require('byline');
 var inherits = require('inherits');
 var Tokenizer = require('tokenizer');
+var memscale = require('my-plugins/utils/mem-scale');
 var sprintf = require('sprintf-js').sprintf;
 //var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
 var stack = require('my-plugins/utils/caller').stack;
@@ -301,6 +302,8 @@ function play(opts) //manual start
     this.buffered = 0; //TODO
 //    var this_seq = this;
 //TODO    this.seqstart(); //NOTE: this will probably send out first (init) frame prematurely
+//    opts.want_gc = opts.want_stats = true; //TODO
+    if (opts.want_gc) global.gc(); //needs --expose-gc on command line
     var svvol = this.volume;
 
     var filename = this.media[this.selected]; //.path;
@@ -324,8 +327,9 @@ function play(opts) //manual start
                 .once('open', function () //speaker
                 {
                     if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                    var meminfo = opts.want_stats? process.memoryUsage(): {rss: 0, vsize: 0, heapTotal: 0, heapUsed: 0};
                     this.starttime = Now(); //this is the actual audio start time; first (init) frame can be premature, but subsequent frames must be synced correctly
-                    this.emit('song.start', {file: filename.path, delay: this.elapsed.now});
+                    this.emit('song.start', {file: filename.path, latency: this.elapsed.now}); //, memrss: memscale(meminfo.rss), memvsize: memscale(meminfo.vsize || 0), memhtot: memscale(meminfo.heapTotal), memhused: memscale(meminfo.heapUsed)});
 //                    if (this.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this.elapsed.scaled());
                     this.elapsed = new elapsed(); //restart it at actual audio start
                 }.bind(this))

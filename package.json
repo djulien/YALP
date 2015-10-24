@@ -119,6 +119,7 @@
     "falafel": "^1.2.0",
     "fs-ext": "git+https://github.com/baudehlo/node-fs-ext.git",
     "glob": "^5.0.14",
+    "heapdump": "^0.3.7",
     "human-format": "^0.5.0",
     "inherits": "^2.0.1",
     "insist": "^1.0.0",

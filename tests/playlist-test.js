@@ -7,6 +7,8 @@
 //    require(__filename); //re-load myself with language extensions enabled
 //}
 //else { ... }
+
+require('heapdump'); //SIGUSR2 to trigger dump
 var logger = require('my-plugins/utils/logger').logger;
 logger("START UP");
 

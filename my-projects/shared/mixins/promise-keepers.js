@@ -60,6 +60,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
 //            if (opts.silent !== false) console.log("Playlist '%s' warning: ".yellow, msg);
 //            if (opts.debug !== false) debugger;
         ++logger.depth_adjust; //show my caller, not me
+        if (m_pending) msg += ", #pending: " + m_pending;
         this.emit(chkprop.substr(2).toLowerCase() + '.warn', msg);
 //            notify(msg);
     }.bind(that);

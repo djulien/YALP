@@ -302,7 +302,15 @@ async code patterns/mechanisms:
 perf:
  http://www.html5rocks.com/en/tutorials/speed/v8/
  https://developers.google.com/speed/pagespeed/
- d8 --trace-opt --trace-deopt primes.js --prof        optimized + deoptimized function names => stdout
+  d8 --trace-opt --trace-deopt primes.js --prof        optimized + deoptimized function names => stdout
+ https://strongloop.com/strongblog/node-js-performance-garbage-collection/
+ http://blog.yld.io/2015/08/10/debugging-memory-leaks-in-node-js-a-walkthrough/
+  ps -p $PID -o rss,vsz
+  top -pid $PID 
+  node --expose-gc server.js      makes gc() available
+   process.on(SIGUSR2, function() { gc(); });
+   kill -SIGUSR2 $(pgrep -lfa node | grep server.js | awk '{print $1}')
+ https://github.com/bnoordhuis/node-heapdump
 debug:
  node-debug for node inspector; debugger stmt to break in debug more only
 

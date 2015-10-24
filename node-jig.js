@@ -1,4 +1,4 @@
-#!/usr/local/bin/node
+#!/usr/local/bin/node --expose-gc
 //this will be executed prior to the requested node.js file
 'use strict';
 

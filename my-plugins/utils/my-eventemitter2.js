@@ -24,7 +24,7 @@ events.EventEmitter2.prototype.emit_logged = function(args) //show events; helpf
 //            arguments[1] = arguments[1][type];
 //            console.log.apply(null, arguments);
         ++logger.depth_adjust; //show my caller, not me
-        logger(10, /*colors[type]*/"%s event: %s"[type], /*shortname(module.parent.filename) caller(3),*/ arguments[0] || '??', inspect(arguments[1] || '??', {depth: 1})); //JSON.stringify(arguments[1] || '??'));
+        logger(10, /*colors[type]*/"%s %s event: %s"[type], /*shortname(module.parent.filename) caller(3),*/ this.constructor.name, arguments[0] || '??', inspect(arguments[1] || '??', {depth: 1})); //JSON.stringify(arguments[1] || '??'));
         debugger;
     }
 //    }
