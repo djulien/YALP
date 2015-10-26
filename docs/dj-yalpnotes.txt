@@ -181,7 +181,11 @@ install node-gyp manually:
 CONFIG:
 list ports:
   dmesg | grep tty
-
+*** putty requires sudo on ubuntu
+ http://ubuntuforums.org/showthread.php?t=2265405&page=2
+ ls -lh /dev/ttyUSB0
+ sudo usermod -a -G groupName userName   + re-login
+ groups <username>
 
 modeller/ide:
 **http://paperjs.org/examples/hit-testing/
@@ -265,7 +269,7 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
 
 SERIAL PORT:
 https://www.npmjs.com/search?q=serial%20port
-https://github.com/voodootikigod/node-serialport -broken in Node 4.1.1
+https://github.com/voodootikigod/node-serialport -broken in Node 4.1.1 on windows??
    https://github.com/voodootikigod/node-serialport/issues/578
    https://github.com/voodootikigod/node-serialport/issues/579
    https://github.com/voodootikigod/node-serialport/pull/566
@@ -274,6 +278,8 @@ https://github.com/voodootikigod/node-serialport -broken in Node 4.1.1
 https://github.com/johnlauer/serial-port-json-server
 * https://github.com/RIAEvangelist/serialport-js
 https://github.com/thewebface/soundweb
+http://andyfelong.com/2015/09/node-js-v4-1-0-on-raspberry-pi-2/
+ For speeding up the build proces, one could use “make -j 4” on the Pi 2 to utilise all 4 cores
 
 ndarrays:
 http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
@@ -284,13 +290,51 @@ http://smartcomments.github.io/
 http://www.markupjavascript.com/2014/02/js-documentation-generator-tools-jsdoc-yuidoc-docco.html
 http://yui.github.io/yuidoc/
 
+graphics editor:
+ http://junior-icon-editor.soft112.com/
+ https://code.google.com/p/svg-edit/
+ https://pixlr.com/web
+ https://www.khanacademy.org/computer-programming/bitmap-editor-with-save-updated/6592462445346816
+ https://www.khanacademy.org/computer-programming/christmas-caroller/6015770660175872
+ http://www.piclist.com/techref/language/java/script/imgdraw.html
+ http://www.i-programmer.info/programming/graphics-and-imaging/2078-canvas-bitmap-operations-bitblt-in-javascript.html
+ http://4umi.com/web/javascript/xbm.php
+ https://www.sumopaint.com/home/
+ https://github.com/mypaint/mypaint/
+ http://literallycanvas.com/
+ http://pinta-project.com/
+ http://www.getpaint.net/index.html
+ http://www.tuxpaint.org/
+ http://alternativeto.net/software/microsoft-paint/?license=opensource
+ http://pixelitor.sourceforge.net/
+ http://viliusle.github.io/miniPaint/
+ http://wpaint.websanova.com/
+
+graphics:
+ https://github.com/wdamien/node-easel
+ http://davidwalsh.name/resize-animated-gif
+ https://github.com/ded/morpheus
+ http://mrcoles.com/favicon-creator/
+ http://www.favicon-generator.org/editor/
+ http://fabricjs.com/
+ http://modeling-languages.com/javascript-drawing-libraries-diagrams/
+
+game engines:
+ https://www.codeandweb.com/texturepacker
+
+text editor:
+ http://www.tinymce.com/
+ https://github.com/ajaxorg/ace
+  https://github.com/ajaxorg/ace-builds/
+
 IPC:
 * http://stackoverflow.com/questions/17866864/inter-process-event-emitter-for-node-js
  http://stackoverflow.com/questions/6463945/whats-the-most-efficient-node-js-inter-process-communication-library-method
   https://github.com/weixiyen/messenger.js
  https://github.com/pgriess/node-msgpack
-https://groups.google.com/forum/#!topic/nodejs/Pxbb_kgOQEs
-JSON.stringify() and JSON.parse() are optimized/fast
+ https://groups.google.com/forum/#!topic/nodejs/Pxbb_kgOQEs
+ JSON.stringify() and JSON.parse() are optimized/fast
+ https://github.com/mirceageorgescu/raspi-tank
 
 streaming server?
  https://github.com/sebpiq/node-web-audio-api
@@ -306,7 +350,7 @@ perf:
  https://strongloop.com/strongblog/node-js-performance-garbage-collection/
  http://blog.yld.io/2015/08/10/debugging-memory-leaks-in-node-js-a-walkthrough/
   ps -p $PID -o rss,vsz
-  top -pid $PID 
+  top -pid $PID
   node --expose-gc server.js      makes gc() available
    process.on(SIGUSR2, function() { gc(); });
    kill -SIGUSR2 $(pgrep -lfa node | grep server.js | awk '{print $1}')

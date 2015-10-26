@@ -4,7 +4,7 @@ body
 {
     xborder: none;
     margin: 0;
-    xoverflow: hidden;
+    xoverflow: hidden; /*TODO?*/
     background: #000; /*only do this on body; use xparent elsewhere*/
 }
 
@@ -68,6 +68,47 @@ a
 #tty-log .status
 {
     color: #ff0;
+}
+
+#save
+{
+    position: absolute;
+    width: 120px;
+    right: 0;
+    height: 16px;
+    bottom: 0;
+}
+
+#javascript-editor
+{
+    margin: 0;
+    position: absolute;
+    top: 0;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    border: 2px dashed #f00; /*debug only*/
+}
+#statusBar
+{
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 20px;
+    background-color: rgb(245, 245, 245);
+    color: gray;
+    border: 2px dashed #00f; /*debug only*/
+}
+.ace_status-indicator
+{
+    color: gray;
+    position: absolute;
+    right: 0;
+    border-left: 1px solid;
+    border: 2px dashed #0f0; /*debug only*/
 }
 
 /*eof*/

@@ -1,6 +1,7 @@
 'use strict';
 
 require('colors');
+require('longjohn');
 require('./win-control-c');
 var cfg = require('my-plugins/cmdline').debug || {};
 

@@ -11,14 +11,11 @@ var hween = module.exports = new Playlist({logging: 'terse'});
 //hween.volume = 1.0;
 
 
-//hween.addSong('my-projects/songs/xmas/Amaz*');
-//hween.addSong('my-projects/songs/xmas/*Capital*');
-//hween.addSong('my-projects/songs/xmas/*Wookie*');
 hween.songs =
 [
-    "my-projects/songs/xmas/Amaz*",
-    "my-projects/songs/xmas/*Capital*",
-    "my-projects/songs/xmas/*Wookie*",
+    "my-projects/Hween2015/Ghost*",
+    "my-projects/Hween2015/Monster*",
+    "my-projects/Hween2015/Thriller*",
 ];
 //hween.opening = "thx"; //TODO
 //hween.closing = "goodnight"; //TODO

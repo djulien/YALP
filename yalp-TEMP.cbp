@@ -51,6 +51,7 @@
 		<Unit filename="my-plugins/colors/index.js" />
 		<Unit filename="my-plugins/fault-mon.js" />
 		<Unit filename="my-plugins/file-mon.js" />
+		<Unit filename="my-plugins/hw/RenXt.js" />
 		<Unit filename="my-plugins/hw/canvas.js" />
 		<Unit filename="my-plugins/hw/console.js" />
 		<Unit filename="my-plugins/hw/dslop.js" />
@@ -80,6 +81,7 @@
 		<Unit filename="my-plugins/routes/socket/repl.js" />
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
+		<Unit filename="my-plugins/routes/use/99-error.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
@@ -104,7 +106,7 @@
 		<Unit filename="my-projects/models/chpool.js" />
 		<Unit filename="my-projects/package.json" />
 		<Unit filename="my-projects/playlists/even-test.js" />
-		<Unit filename="my-projects/playlists/hween2015-a.js" />
+		<Unit filename="my-projects/playlists/hween2015a.js" />
 		<Unit filename="my-projects/playlists/playlist.js" />
 		<Unit filename="my-projects/playlists/xmas2015.js" />
 		<Unit filename="my-projects/shared/cuelist.js" />
@@ -139,17 +141,19 @@
 		<Unit filename="node-jig.js" />
 		<Unit filename="package.json" />
 		<Unit filename="public/css/yalp.css" />
+		<Unit filename="public/editor-1.html" />
 		<Unit filename="public/favicon.ico" />
 		<Unit filename="public/index.html" />
 		<Unit filename="public/js/socket.io.js" />
-		<Unit filename="public/js/uiloader-auto.js" />
-		<Unit filename="public/js/uiloader.js" />
 		<Unit filename="public/socket.html" />
 		<Unit filename="scripts/imhere.js" />
 		<Unit filename="scripts/install-bk.sh" />
 		<Unit filename="scripts/mp3player.js" />
 		<Unit filename="scripts/notilde.sh" />
 		<Unit filename="scripts/symlinks.js" />
+		<Unit filename="scripts/ui-builder.js" />
+		<Unit filename="scripts/ui-entry.js" />
+		<Unit filename="tests/createjs.html" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/index.js" />
@@ -167,11 +171,13 @@
 		<Unit filename="tests/pi-led.js" />
 		<Unit filename="tests/playback.js" />
 		<Unit filename="tests/playlist-test.js" />
+		<Unit filename="tests/renxt-test.js" />
 		<Unit filename="tests/serial-port.js" />
 		<Unit filename="tests/shell-repl-bk.js" />
 		<Unit filename="tests/streams-main.js" />
 		<Unit filename="tests/test-canvas.js" />
 		<Unit filename="tests/vix2test.js" />
+		<Unit filename="yalp.js" />
 		<Extensions>
 			<envvars />
 			<code_completion />

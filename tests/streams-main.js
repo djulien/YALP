@@ -13,7 +13,7 @@ console.log("START UP");
 require('colors');
 var fs = require('fs');
 var util = require('util');
-//var sprintf = require('sprintf').sprintf;
+//var sprintf = require('sprintf-js').sprintf;
 var vsprintf = require("sprintf-js").vsprintf;
 var sizeof = require('object-sizeof');
 var elapsed = require('my-plugins/utils/elapsed');

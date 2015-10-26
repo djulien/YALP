@@ -1,7 +1,10 @@
+'use strict';
 
 var url = require('url');
 var path = require('path');
-var contentDisposition = require('content-disposition'); //https://www.npmjs.com/package/content-disposition
+var logger = require('my-plugins/utils/logger');
+//var contentDisposition = require('content-disposition'); //https://www.npmjs.com/package/content-disposition
+var mime = require('mime-types'); //https://github.com/jshttp/mime-types
 
 var ASSETDIR = "public";
 
@@ -23,7 +26,7 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
     var timer = null;
 //    var outbuf = {};
 
-//    console.log("get[%d]: %s".blue, global.seqnum, req.url);
+    logger("get[%d]: %s".blue, global.seqnum, req.url);
 //    console.log();
     if (req.url == "/") //default doc
     {
@@ -57,12 +60,14 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
 //        if (parsed.pathname == "/") parsed.seqnum = global.seqnum = 0; //easier session debug
         var filetype = path.extname(parsed.pathname).replace(/^\./, "").toLowerCase();
         var timeout = {mp3: 15000, wav: 15000, mp4: 60000, webm: 60000, wmv: 60000}[filetype] || 5000; //msec; bigger files take longer
-        console.log(/*sprintf(*/"GET req# %d: %s, writable? %d, file type '%s', timeout %d".blue, parsed.seqnum, parsed.urlparts, writable, filetype, timeout); //, mypath(req.url)));
+        logger(/*sprintf(*/"GET req# %d: %s, writable? %d, file type '%s', timeout %d".blue, parsed.seqnum, parsed.urlparts, writable, filetype, timeout); //, mypath(req.url)));
 //        timer = setTimeout(function() { reply({ERROR: "timeout"}, 500); }, timeout); //msec
-        console.log("serve file %s".blue, path.join(ASSETDIR, parsed.pathname)); //path.join(ROOTDIR, parsed.pathname));
+        logger("serve file %s".blue, path.join(ASSETDIR, parsed.pathname)); //path.join(ROOTDIR, parsed.pathname));
         var abspath = path.join(global.ROOTDIR, ASSETDIR, parsed.pathname);
-        resp.setHeader('Content-Disposition', contentDisposition(absath));
-//        var stream = fs.createReadStream(absath);
+//        resp.setHeader('Content-Disposition', contentDisposition(abspath, {type: path.extname(abspath)}));
+        resp.setHeader('Content-Type', mime.lookup(abspath));
+//        console.log("send '%s' type '%s'", abspath, mime.lookup(abspath));
+//        var stream = fs.createReadStream(abspath);
 //        stream.pipe(reso);
 //        onFinished(resp, function (err) { destroy(stream); })
         resp.sendFile(abspath, function(err)
@@ -93,17 +98,17 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
     function reply(outbuf, code)
     {
         if (timer) clearTimeout(timer);
-        if (!outbuf) return; //{ /*console.timeEnd("get-reply")*/; console.log("get-static[%d] sent after %d msec", parsed.seqnum, parsed.elapsed()); return; } //already sent data
+        if (!outbuf) return; //{ /*console.timeEnd("get-reply")*/; logger("get-static[%d] sent after %d msec", parsed.seqnum, parsed.elapsed()); return; } //already sent data
         try { resp.writeHead(code || 200, {"Content-Type": "application/json", 'Access-Control-Allow-Origin': '*'}); } //http://stackoverflow.com/questions/10143093/origin-is-not-allowed-by-access-control-allow-origin; resp.state => body
-        catch (exc) { console.log("can't write header: ", exc); }
+        catch (exc) { logger("can't write header: ", exc); }
         outbuf.seq = parsed.seqnum; //for easier debug
-        console.log("reply: " + JSON.stringify(outbuf)); //.toString());
+        logger("reply: " + JSON.stringify(outbuf)); //.toString());
 //        outbuf = {seq: parsed.seqnum, ERROR: exc.toString()};
         resp.end(JSON.stringify(outbuf)); //resp.state => finished
 //http://stackoverflow.com/questions/7042340/node-js-error-cant-set-headers-after-they-are-sent
 //no        next_handler(); //pass control to next handler; TODO: this is probably not needed
 //        console.timeEnd("get-reply");
-        console.log("get-static[%d] replied after %d msec".blue, parsed.seqnum, parsed.elapsed());
+        logger("get-static[%d] replied after %d msec".blue, parsed.seqnum, parsed.elapsed());
     }
 }
 

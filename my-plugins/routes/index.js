@@ -10,17 +10,21 @@ var require_glob = require('node-glob-loader').load; //https://www.npmjs.com/pac
 module.exports = setup; //commonjs
 //console.log("route dirname ", __dirname);
 
+var loop = 0;
+var server = null; //NOTE: also called by socketio.listen
 function setup(app)
 {
-    var server = null;
+//no    var server = null; //NOTE: also called by socketio.listen
+    console.log("no server %d", loop++); //if (loop > 1) throw "called too often";
+    if (server) return;
     var applisten = app.listen;
 //    console.log("app.listen = " + applisten);
     app.listen = function(port, host, cb) //kludge: grab http server when created by express and reuse for socket io; should occur first since require_glob is async
     {
         server = applisten.apply(app, arguments); //creates http server
-//        console.log("route index: got server");
+        console.log("route index: got server?", !!server);
         return server;
-    };
+    }.bind(app);
 //    require_glob(__dirname + '/**/*[!-bk].js', {strict: true, noself: true}, function(exported, filename)
     require_glob(__dirname + '/**/!(*-bk).js', {strict: true, noself: true}, function(exported, filename)
     {
@@ -33,7 +37,7 @@ function setup(app)
 //        if ("socket,process".indexOf(method) != -1) //exported(app);
         if (!app[method])
         {
-//            console.log("starting socket io with server? %d", !!server);
+            console.log("starting socket io with server? %d", !!server);
             if (!server) throw "Tried to open non-http route before http server created";
             exported(server); //reuse http server for socket io; http://stackoverflow.com/questions/17696801/express-js-app-listen-vs-server-listen/17697134#17697134
         }

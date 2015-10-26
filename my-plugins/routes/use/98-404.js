@@ -5,4 +5,13 @@ module.exports.handler = function (req /*:http.IncomingMessage*/, resp /*:http.S
     resp.status(404).send('Sorry cant find that!');
 }
 
+//404 handler:
+//from http://cwbuecheler.com/web/tutorials/2013/node-express-mongo/
+//app.use(function(req, res, next)
+//{
+//    var err = new Error('Not Found');
+//    err.status = 404;
+//    next(err);
+//});
+
 //eof

@@ -16,7 +16,6 @@ require('colors');
 var scaled = require('my-plugins/utils/time-scale');
 var elapsed = require('my-plugins/utils/elapsed');
 
-
 var fs = require('fs');
 var lame = require('lame');
 
@@ -108,7 +107,8 @@ this.elapsed = new elapsed();
 function test2()
 {
     var loading = new elapsed();
-    var playlist = require('my-projects/playlists/xmas2015');
+//    var playlist = require('my-projects/playlists/xmas2015');
+    var playlist = require('my-projects/playlists/hween2015a');
 //    playlist.play(); return; //do this once to load cache
 //    playlist.pipe(outhw); //NOTE: starts playback
 
@@ -119,7 +119,7 @@ function test2()
 //    setTimeout(function()
     playlist.on('playlist.ready', function(pl)
     {
-        console.log("playlist ready after %s, duration %d", loading.scaled(), playlist.duration || -1);
+        logger("playlist ready after %s, duration %d", loading.scaled(), playlist.duration || -1);
 //        playback(pl); //playlist); //.play()); //play once
         playlist.volume = 1.0;
         playlist.emit('cmd', 'play', {loop: 10, }); //single: true, }); //{single: true, index: 1, }); //{loop: 2, single: true, index: 1});
@@ -304,7 +304,7 @@ function Seq(opts)
 */
 
 
-require('my-plugins/utils/logger').LogDetail = 99;
+require('my-plugins/utils/logger').DetailLevel = 99;
 //require('my-projects/songs/xmas/Amazing Grace (Yule)')
 //require('my-projects/songs/xmas/Christmas Capital C (Go Fish)')
 //require('my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)')

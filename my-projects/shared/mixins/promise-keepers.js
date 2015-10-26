@@ -22,7 +22,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
         if (this.validate) this.validate();
-        if (!this.resolved) return; //already resolved
+        if (!this.resolved) throw "already resolved"; //return; //already resolved
         if (arguments.length > 1) msg = sprintf.apply(null, arguments);
         else if (!arguments.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
 //            if (opts.silent !== false) console.log(msg.green);
@@ -36,7 +36,7 @@ function addPromiseKeeper(that, deadline) //, chkprop)
     that.error = function(msg)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
-        if (!this.resolved) return; //already resolved
+        if (!this.resolved) throw "already resolved"; //return; //already resolved
 //            console.trace();
 //            var stack = require('callsite')(); //https://www.npmjs.com/package/callsite
 //            stack.forEach(function(site, inx){ console.log('stk[%d]: %s@%s:%d'.blue, inx, site.getFunctionName() || 'anonymous', relpath(site.getFileName()), site.getLineNumber()); });

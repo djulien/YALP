@@ -16,7 +16,8 @@ possible futures:
     <head>
         <!-- meta charset="utf-8" / -->
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <title>YALP! (Yet Another Lightshow Player)</title>
+        <xmeta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+        <title>YALP! - Yet Another Lightshow Player</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" comment="what does?" />
         <xlink href="lib/font-awesome-4.3.0/css/font-awesome.min.css" rel="stylesheet" comment="icons" />
         <xlink href="lib/w2ui/w2ui-1.4.2.css" rel="stylesheet" type="text/css" comment="this one first" />
@@ -31,6 +32,9 @@ possible futures:
         <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui loader; auto-generated (browserify)"></script>
         <script src="http://code.jquery.com/jquery-latest.min.js"></script>
         <script src="/socket.io/socket.io.js" xsrc="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
+        <script src="./js/ace.js" type="text/javascript" charset="utf-8"></script>
+        <script src="./js/ext-statusbar.js"></script>
+        <xscript src="./js/show_own_source.js"></xscript>
         <script type="text/javascript" charset="utf-8">
 //            alert("doc href " + document.location.href);
 //TODO: browserify this
@@ -76,6 +80,14 @@ possible futures:
                 console.log( "dom ready!" );
             });
 console.log("this message should be present if javascript compiled okay");
+<!-- from https://github.com/ajaxorg/ace-builds/blob/master/editor.html -->
+            var editor = ace.edit("editor");
+            editor.setTheme("ace/theme/twilight");
+//    editor.setTheme("ace/theme/dawn");
+            var StatusBar = ace.require("./statusbar").StatusBar;
+            var statusBar = new StatusBar(editor, document.getElementById("statusBar")); // create a simple selection status indicator
+            editor.session.setMode("ace/mode/javascript");
+//    editor.session.setMode("ace/mode/html");
         </script>
     </head>
     <body>
@@ -84,6 +96,15 @@ console.log("this message should be present if javascript compiled okay");
         <form>
             &gt; <input id="cmdline" type="text" size="10" />
         </form>
+        <pre id="editor">//code here
+function foo(items)
+{
+    var i;
+    for (i = 0; i &lt; items.length; i++)
+        alert("Ace Rocks " + items[i]);
+}
+</pre>
+        <div id="statusBar">ace rocks!</div>
         <xdiv id="x-background" style="z-index: 0;" comment="bottom-most"></xdiv>
         <xdiv id="x-canvas3D" style="z-index: 1;" comment="middle layer"></xdiv>
         <xdiv id="x-layout" style="z-index: 99;" comment="top-most">

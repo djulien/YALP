@@ -1,6 +1,6 @@
 //call after boot
 
-var sprintf = require('sprintf');
+var sprintf = require('sprintf-js').sprintf;
 var email = require('my-plugins/utils/email');
 var ipadrs = require('ip'); //https://www.npmjs.com/package/ip
 var hostname = require('os').hostname();

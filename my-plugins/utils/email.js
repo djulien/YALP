@@ -8,7 +8,7 @@ var cfg = require('my-plugins/cmdline').email; //process command line options an
 var nodemailer = require('nodemailer');
 var colors = require('colors');
 
-module.exports = cfg && emailer; //commonjs
+module.exports = cfg? emailer: function(ignored) {}; //commonjs
 
 
 //var router = express.Router();
@@ -36,7 +36,7 @@ function emailer(title, body)
 {
     if (body.match(/%[ds]/))
     {
-        var sprintf = require('sprintf');
+        var sprintf = require('sprintf-js').sprintf;
         body = sprintf.apply(null, Array.prototype.slice.call(arguments, 1)); //exclude title
     }
     var is_html = body.match(/[<>]/); //assume html if tags present

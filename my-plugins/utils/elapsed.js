@@ -26,12 +26,12 @@ function Elapsed(reset) //factory/ctor
 //    {
 //        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
 //    }
-    var m_start = reset || 0;
-    Object.defineProperty(this, "now",
+    this.started = reset || 0; //#msec elapsed already (caller can back-date)
+    Object.defineProperty(this, "now", //relative to start time
     {
-        get: function() { return (new Date()).getTime() - m_start; }, //(m_start || reset || 0); }, //TODO: use process.hrtime (nsec)?
+        get: function() { return (new Date()).getTime() - this.started; }, //(m_start || reset || 0); }, //TODO: use process.hrtime (nsec)?
     });
-    m_start = /*reset ||*/ this.now; //set time base
+    this.started = /*reset ||*/ this.now; //set time base
     this.scaled = function(msec)
     {
         return timescale(msec || this.now);

@@ -1,0 +1,6 @@
+{
+  "comment": "this is a dummy file to redirect module loader to main .js file",
+  "name": "ignored",
+  "version": "0.1.0",
+  "main": "./Monster Mash.js"
+}
