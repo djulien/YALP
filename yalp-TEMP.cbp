@@ -143,6 +143,7 @@
 		<Unit filename="public/css/yalp.css" />
 		<Unit filename="public/editor-1.html" />
 		<Unit filename="public/favicon.ico" />
+		<Unit filename="public/fx-editor.html" />
 		<Unit filename="public/index.html" />
 		<Unit filename="public/js/socket.io.js" />
 		<Unit filename="public/socket.html" />

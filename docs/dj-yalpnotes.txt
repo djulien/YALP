@@ -310,13 +310,33 @@ graphics editor:
  http://viliusle.github.io/miniPaint/
  http://wpaint.websanova.com/
 
-graphics:
+graphics: just javascript + bare html5 canvas is sufficient, or use a graphics framework
+ http://www.hongkiat.com/blog/48-excellent-html5-demos/
+ http://davidwalsh.name/canvas-demos
  https://github.com/wdamien/node-easel
+  http://www.createjs.com/easeljs
+   
  http://davidwalsh.name/resize-animated-gif
  https://github.com/ded/morpheus
  http://mrcoles.com/favicon-creator/
  http://www.favicon-generator.org/editor/
  http://fabricjs.com/
+  http://fabricjs.com/demos/
+   http://fabricjs.com/matrix-transformation
+   http://fabricjs.com/animated-sprite/
+   http://fabricjs.com/clipping/
+   http://fabricjs.com/svg-caching
+   http://fabricjs.com/freedrawing/
+   http://fabricjs.com/intersection/
+   http://fabricjs.com/shadows
+   http://fabricjs.com/polygon-animation/
+   http://fabricjs.com/particles/
+   http://fabricjs.com/static_canvas/
+   http://fabricjs.com/image-filters/
+   http://fabricjs.com/stickman/
+   http://fabricjs.com/ladybug/
+   http://fabricjs.com/hovering/
+   http://fabricjs.com/cross/
  http://modeling-languages.com/javascript-drawing-libraries-diagrams/
 
 game engines:

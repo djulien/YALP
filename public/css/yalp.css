@@ -87,6 +87,7 @@ a
     bottom: 20px;
     left: 0;
     right: 0;
+    xwidth: 50%;
     border: 2px dashed #f00; /*debug only*/
 }
 #statusBar
@@ -110,5 +111,16 @@ a
     border-left: 1px solid;
     border: 2px dashed #0f0; /*debug only*/
 }
-
+#fx-canvas
+{
+    z-index: 99;
+    margin: 0;
+    position: absolute;
+    top: 0;
+    xbottom: 20px;
+    xleft: 0;
+    width: 480px;
+    height: 480px;
+    right: 0;
+}
 /*eof*/
