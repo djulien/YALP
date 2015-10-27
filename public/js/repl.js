@@ -6,17 +6,28 @@
 //ctx.strokeStyle = "#ddd";
 //ctx.fillStyle = "rgb(255,255,255)";
 
+//var $ = require('jquery');
 var canvas = document.getElementById("fx-canvas");
 var ctx = canvas.getContext("2d");
 
 console.log("w = %d, h = %d", canvas.width, canvas.height);
 var orange = "#ffa500";
-//clear('#fff');
-clear();
+clear('#fff');
+//clear();
+//ctx.lineWidth = 1;
+//ctx.miterLimit = 10;
+//ctx.globalAlpha = 1.0; //0.2;
+//  ctx.shadowOffsetX = 0;
+//  ctx.shadowOffsetY = 0;
+//  ctx.shadowBlur = 0;
+//  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+//ctx.fillStyle = orange;
+//ctx.strokeStyle = '#00f';
+//ctx.strokeStyle = orange;
+//ctx.fillStyle = "#000";
 
 //test1();
 //test2();
-//ctx.strokeStyle = orange;
 //test3();
 //test4();
 //test5();
@@ -28,10 +39,27 @@ clear();
 //test11();
 //test12();
 //test13();
-test14();
-//ctx.globalAlpha = 1.0; //0.2;
-//ctx.fillStyle = orange;
-//ctx.strokeStyle = '#00f';
+//test14();
+//test15();
+//test16();
+//test17();
+//test18();
+//test19();
+//test20();
+//test21();
+//test22();
+//test23();
+//test24();
+//test25();
+//test26();
+//test27();
+//test28();
+//test29();
+//test30();
+//test31();
+//TODO: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations
+test32();
+
 //grid('#ddd');
 
 
@@ -69,6 +97,56 @@ function grid(color)
     }
 }
 
+//from http://stackoverflow.com/questions/667045/getpixel-from-html-canvas
+function getPixel(x, y)
+{
+    data = ctx.getImageData(x, y, 1, 1).data;
+ //   color = new Color([data[0], data[1], data[2]]);
+    var color = [[data[0], data[1], data[2], data[3]]; // returns array [R,G,B,A]
+    return color;
+}
+
+//https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
+function blankImage()
+{
+    var myImageData = ctx.createImageData(width, height); //all pixels xparent black
+//var myImageData = ctx.createImageData(anotherImageData);
+    return myImageData;
+}
+
+//from http://stackoverflow.com/questions/667045/getpixel-from-html-canvas
+function invert()
+{
+    var imgd = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var pix = imgd.data;
+
+// Loop over each pixel and invert the color.
+    for (var i = 0, n = pix.length; i < n; i += 4)
+    {
+        pix[i  ] = 255 - pix[i  ]; // red
+        pix[i+1] = 255 - pix[i+1]; // green
+        pix[i+2] = 255 - pix[i+2]; // blue
+        // i+3 is alpha (the fourth element)
+    }
+// Draw the ImageData at the given (x,y) coordinates.
+    ctx.putImageData(imgd, x, y);
+}
+
+//from http://ejohn.org/blog/ocr-and-neural-nets-in-javascript/
+function convert_grey(image_data)
+{
+    for (var x = 0; x < image_data.width; x++)
+        for (var y = 0; y < image_data.height; y++)
+        {
+            var i = x*4+y*4*image_data.width;
+            var luma = Math.floor(image_data.data[i] * 299/1000 + image_data.data[i+1] * 587/1000 + image_data.data[i+2] * 114/1000);
+            image_data.data[i] = luma;
+            image_data.data[i+1] = luma;
+            image_data.data[i+2] = luma;
+            image_data.data[i+3] = 255;
+        }
+}
+    
 function test1() //rect
 {
     ctx.fillStyle = "rgb(200,0,0)";
@@ -340,6 +418,288 @@ function test14() //line width
     ctx.stroke();
   }
 }    
+
+function test15() //linecap
+{
+    var lineCap = ['butt','round','square'];
+// Draw guides
+  ctx.strokeStyle = '#09f';
+  ctx.beginPath();
+  ctx.moveTo(10,10);
+  ctx.lineTo(140,10);
+  ctx.moveTo(10,140);
+  ctx.lineTo(140,140);
+  ctx.stroke();
+
+  // Draw lines
+  ctx.strokeStyle = 'black';
+  for (var i=0;i<lineCap.length;i++)
+  {
+    ctx.lineWidth = 15;
+    ctx.lineCap = lineCap[i];
+    ctx.beginPath();
+    ctx.moveTo(25+i*50,10);
+    ctx.lineTo(25+i*50,140);
+    ctx.stroke();
+  }
+}
+
+function test16() //line join
+{
+  var lineJoin = ['round','bevel','miter'];
+  ctx.lineWidth = 10;
+  for (var i=0;i<lineJoin.length;i++)
+  {
+    ctx.lineJoin = lineJoin[i];
+    ctx.beginPath();
+    ctx.moveTo(-5,5+i*40);
+    ctx.lineTo(35,45+i*40);
+    ctx.lineTo(75,5+i*40);
+    ctx.lineTo(115,45+i*40);
+    ctx.lineTo(155,5+i*40);
+    ctx.stroke();
+  }
+}
+
+function test17() //miter limit
+{
+  // Clear canvas
+  ctx.clearRect(0,0,150,150);
+ 
+  // Draw guides
+  ctx.strokeStyle = '#09f';
+  ctx.lineWidth   = 2;
+  ctx.strokeRect(-5,50,160,50);
+ 
+  // Set line styles
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 10;
+ 
+  // check input
+  if (true) ctx.miterLimit = 10;
+  else if (document.getElementById('miterLimit').value.match(/\d+(\.\d+)?/))
+    ctx.miterLimit = parseFloat(document.getElementById('miterLimit').value);
+  else
+    alert('Value must be a positive number');
+ 
+  // Draw lines
+  ctx.beginPath();
+  ctx.moveTo(0,100);
+  for (i=0;i<24;i++)
+  {
+    var dy = i%2==0 ? 25 : -25 ;
+    ctx.lineTo(Math.pow(i,1.5)*2,75+dy);
+  }
+  ctx.stroke();
+  return false;
+}
+
+function test18() //line dash
+{
+    var offset = 0;
+
+    function draw()
+    {
+      ctx.clearRect(0,0, canvas.width, canvas.height);
+      ctx.setLineDash([4, 2]);
+      ctx.lineDashOffset = -(offset % 16);
+      ctx.strokeRect(10,10, 100, 100);
+    }
+
+    function march()
+    {
+      offset++;
+//      if (offset > 16) offset = 0;
+      draw();
+      if (offset < 5000/20) setTimeout(march, 20);
+    }
+
+    march();
+}
+
+function test19() //linear gradient
+{
+  // Create gradients
+  var lingrad = ctx.createLinearGradient(0,0,0,150);
+  lingrad.addColorStop(0, '#00ABEB');
+  lingrad.addColorStop(0.5, '#fff');
+  lingrad.addColorStop(0.5, '#26C000');
+  lingrad.addColorStop(1, '#fff');
+
+  var lingrad2 = ctx.createLinearGradient(0,50,0,95);
+  lingrad2.addColorStop(0.5, '#000');
+  lingrad2.addColorStop(1, 'rgba(0,0,0,0)');
+
+  // assign gradients to fill and stroke styles
+  ctx.fillStyle = lingrad;
+  ctx.strokeStyle = lingrad2;
+  
+  // draw shapes
+  ctx.fillRect(10,10,130,130);
+  ctx.strokeRect(50,50,50,50);
+}
+
+function test20() //radial gradient
+{
+ // Create gradients
+  var radgrad = ctx.createRadialGradient(45,45,10,52,50,30);
+  radgrad.addColorStop(0, '#A7D30C');
+  radgrad.addColorStop(0.9, '#019F62');
+  radgrad.addColorStop(1, 'rgba(1,159,98,0)');
+  
+  var radgrad2 = ctx.createRadialGradient(105,105,20,112,120,50);
+  radgrad2.addColorStop(0, '#FF5F98');
+  radgrad2.addColorStop(0.75, '#FF0188');
+  radgrad2.addColorStop(1, 'rgba(255,1,136,0)');
+
+  var radgrad3 = ctx.createRadialGradient(95,15,15,102,20,40);
+  radgrad3.addColorStop(0, '#00C9FF');
+  radgrad3.addColorStop(0.8, '#00B5E2');
+  radgrad3.addColorStop(1, 'rgba(0,201,255,0)');
+
+  var radgrad4 = ctx.createRadialGradient(0,150,50,0,140,90);
+  radgrad4.addColorStop(0, '#F4F201');
+  radgrad4.addColorStop(0.8, '#E4C700');
+  radgrad4.addColorStop(1, 'rgba(228,199,0,0)');
+  
+  // draw shapes
+  ctx.fillStyle = radgrad4;
+  ctx.fillRect(0,0,150,150);
+  ctx.fillStyle = radgrad3;
+  ctx.fillRect(0,0,150,150);
+  ctx.fillStyle = radgrad2;
+  ctx.fillRect(0,0,150,150);
+  ctx.fillStyle = radgrad;
+  ctx.fillRect(0,0,150,150);
+}
+
+function test21() //createPattern
+{
+// create new image object to use as pattern
+  var img = new Image();
+  img.src = 'https://mdn.mozillademos.org/files/222/Canvas_createpattern.png';
+  img.onload = function()
+  {
+    // create pattern
+    var ptrn = ctx.createPattern(img,'repeat');
+    ctx.fillStyle = ptrn;
+    ctx.fillRect(0,0,150,150);
+
+  }
+}
+
+function test22() //shadowed text
+{
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+  ctx.shadowBlur = 2;
+  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+ 
+  ctx.font = "20px Times New Roman";
+  ctx.fillStyle = "Black";
+  ctx.fillText("Sample String", 5, 30);
+}
+
+function test23() //canvas fill rule
+{
+  ctx.beginPath(); 
+  ctx.arc(50, 50, 30, 0, Math.PI*2, true);
+  ctx.arc(50, 50, 15, 0, Math.PI*2, true);
+  ctx.fill("evenodd");
+}
+
+function test24() //fill text
+{
+  ctx.font = "48px serif";
+  ctx.fillText("Hello world", 10, 50);
+}
+
+function test25() //stroke text
+{
+  ctx.font = "48px serif";
+  ctx.strokeText("Hello world", 10, 50);
+}
+
+function test26() //text baseline (animate)
+{
+    if (!test26.offset) test26.offset = 30;
+
+    clear('#fff');    
+    ctx.font = "48px serif";
+    ctx.textBaseline = "hanging";
+    ctx.strokeText("Hello world", 0, test26.offset );
+    test26.offset += 2;
+    if (test26.offset < 140) setTimeout(test26, 100);
+}
+
+function test27() //inline image (base64)
+{
+    var img = new Image();   // Create new img element
+    img.src = 'data:image/gif;base64,R0lGODlhCwALAIAAAAAA3pn/ZiH5BAEAAAEALAAAAAALAAsAAAIUhA+hkcuO4lmNVindo7qyrIXiGBYAOw==';
+    img.onload = function()
+    {
+        ctx.drawImage(img,0,0, 50, 50);
+    };
+}
+
+function test28() //line graph with bkg image
+{
+  var img = new Image();
+  img.onload = function()
+  {
+      console.log("image is %d x %d", img.width, img.height);
+    ctx.drawImage(img,0,0); //, 300, 300);
+    ctx.beginPath();
+    ctx.moveTo(30,96);
+    ctx.lineTo(70,66);
+    ctx.lineTo(103,76);
+    ctx.lineTo(170,15);
+    ctx.stroke();
+  };
+  img.src = 'https://mdn.mozillademos.org/files/5395/backdrop.png';
+}
+
+function test29() //tiling
+{
+  var img = new Image();
+  img.onload = function()
+  {
+    for (var i=0;i<4;i++)
+      for (var j=0;j<3;j++)
+        ctx.drawImage(img,j*50,i*38,50,38);
+  };
+  img.src = 'https://mdn.mozillademos.org/files/5397/rhino.jpg';
+}
+
+function test30() //image slice
+{
+    $('<div style="display:none;"> \
+     <img id="source" src="https://mdn.mozillademos.org/files/5397/rhino.jpg" width="300" height="227"> \
+     <img id="frame" src="https://mdn.mozillademos.org/files/242/Canvas_picture_frame.png" width="132" height="150"> \
+   </div>').appendTo('#javascript-editor');
+   setTimeout(function() //or use onload
+   {
+      // Draw slice
+      ctx.drawImage(document.getElementById('source'), 33, 71, 104, 124, 21, 20, 87, 104);
+      // Draw frame
+      ctx.drawImage(document.getElementById('frame'),0,0);
+   }, 100);
+}
+
+function test31() //smoothing
+{
+  var img = new Image();
+  img.onload = function()
+  {
+    ctx.drawImage(img,0, 0, 50, 50, 10, 10, 400, 400);
+  };
+//  img.src = 'https://mdn.mozillademos.org/files/5397/rhino.jpg';
+    img.src = 'data:image/gif;base64,R0lGODlhCwALAIAAAAAA3pn/ZiH5BAEAAAEALAAAAAALAAsAAAIUhA+hkcuO4lmNVindo7qyrIXiGBYAOw==';
+
+//    ctx.mozImageSmoothingEnabled = false;
+//    ctx.webkitImageSmoothingEnabled = false;
+//    ctx.msImageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = false;
 }
 
 console.log("done!");
