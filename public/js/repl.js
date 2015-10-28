@@ -7,12 +7,76 @@
 //ctx.fillStyle = "rgb(255,255,255)";
 
 //var $ = require('jquery');
-var canvas = document.getElementById("fx-canvas");
-var ctx = canvas.getContext("2d");
+//var canvas = document.getElementById("fx-canvas");
+//var ctx = canvas.getContext("2d");
 
+function Model(opts)
+{
+    if (!(this instanceof Model)) return new Model(opts)
+    if (!opts) opts = {};
+//canvas params:
+    this.w = opts.w || 16;
+    this.h = opts.h || 16;
+//render params:
+    this.scale = opts.scale || 10;
+    this.x = ($(document).width - this.scale * this.w);
+
+    this.resize(w, h)
+    {
+        this.w = w;
+        this.h = h;
+        if (!this.canvas) this.canvas = document.createElement('canvas'); //in-memory canvas
+        this.canvas.width = w + 'px';
+        this.canvas.height = h + 'px';
+        if (!this.context) this.context = this.canvas.getContext('2d');
+    }
+
+    this.render(target)
+    {
+        
+    }
+}
+
+var canvas = model.canvas;
+var ctx = model.cx;
+
+if (0) console.clear();
 console.log("w = %d, h = %d", canvas.width, canvas.height);
+
 var orange = "#ffa500";
-clear('#fff');
+if (0) model.clear();
+if (0) model.clear(orange);
+if (0) model.resize(50, 50);
+if (0) model.moveto(300, 0);
+if (0) model.grid(10, 10, '#0f0');
+//model.cx.translate(0, 100);
+if (0) model.line(48.3, 42, 48.3, 48, '#0ff', 1);
+if (0) { model.w = 48; model.h = 16; model.clear(orange); }
+if (0) { model.scale = 12; model.x = 200; model.y = 10; }
+if (0) model.grid(48, 16, '#0f0');
+if (0) model.line(0, 0, 4, 2, '#f00');
+//canvas.width = 480; canvas.height = 160;
+if (0) { ctx.fillStyle = orange; ctx.fillRect(0, 0, 1, 1); ctx.fillStyle = 0; }
+if (1)
+{
+    console.log("line", ctx.lineWidth, model.m_scale);
+    ctx.beginPath();
+    ctx.strokeStyle = '#f0f'; ctx.fillStyle = 0;
+    ctx.moveTo(2,1);
+    ctx.lineTo(12, 2);
+    //ctx.fillRect(1,10,3,3);
+    ctx.stroke();
+    //ctx.stroke();
+}
+//model.line(0, 0, 4, 4, '#f00')
+//model.w = 480; model.x = 10; model.h = 160;
+//model.x = 500;
+//model.line(0, 0, 10, 10, '#f0f')
+//model.grid(48, 48, '#0f0')
+//model.clear()
+//model.x = 560;
+
+//clear('#fff');
 //clear();
 //ctx.lineWidth = 1;
 //ctx.miterLimit = 10;
@@ -58,7 +122,7 @@ clear('#fff');
 //test30();
 //test31();
 //TODO: https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Transformations
-test32();
+//test32();
 
 //grid('#ddd');
 
@@ -102,7 +166,7 @@ function getPixel(x, y)
 {
     data = ctx.getImageData(x, y, 1, 1).data;
  //   color = new Color([data[0], data[1], data[2]]);
-    var color = [[data[0], data[1], data[2], data[3]]; // returns array [R,G,B,A]
+    var color = [data[0], data[1], data[2], data[3]]; // returns array [R,G,B,A]
     return color;
 }
 

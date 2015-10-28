@@ -116,11 +116,11 @@ a
     z-index: 99;
     margin: 0;
     position: absolute;
-    top: 0;
+    top: 10px;
     xbottom: 20px;
     xleft: 0;
-    width: 480px;
-    height: 480px;
-    right: 0;
+    width: 320px;
+    height: 320px;
+    right: 20px; /*allow room for vscroll bar*/
 }
 /*eof*/
