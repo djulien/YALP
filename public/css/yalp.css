@@ -111,16 +111,37 @@ a
     border-left: 1px solid;
     border: 2px dashed #0f0; /*debug only*/
 }
-#fx-canvas
+.fx-canvas
 {
     z-index: 99;
     margin: 0;
     position: absolute;
-    top: 10px;
+    xtop: 10px;
     xbottom: 20px;
     xleft: 0;
-    width: 320px;
-    height: 320px;
-    right: 20px; /*allow room for vscroll bar*/
+    xwidth: 320px;
+    xheight: 320px;
+    xright: 20px; /*allow room for vscroll bar*/
+}
+
+/*from http://stackoverflow.com/questions/5127937/how-to-center-canvas-in-html5*/
+#compatibility-canvas
+{
+    xborder: 2px dashed #f00;
+    display: block;
+    padding: 10px;
+    xwidth: 50%;
+    xheight: 50%;
+    width: 300px;
+    height: 200px;
+    font-size: 16pt;
+    color: #f00;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+    z-index: 99;
 }
 /*eof*/

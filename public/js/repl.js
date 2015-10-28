@@ -10,40 +10,168 @@
 //var canvas = document.getElementById("fx-canvas");
 //var ctx = canvas.getContext("2d");
 
+//NOTE: better perf with int coords; use: rounded = (0.5 + somenum) | 0;
 function Model(opts)
 {
-    if (!(this instanceof Model)) return new Model(opts)
+    if (!(this instanceof Model)) return new Model(opts);
     if (!opts) opts = {};
+    if (!Model.seqnum) Model.seqnum = 0;
 //canvas params:
-    this.w = opts.w || 16;
-    this.h = opts.h || 16;
-//render params:
-    this.scale = opts.scale || 10;
-    this.x = ($(document).width - this.scale * this.w);
-
-    this.resize(w, h)
+    var m_image; resized(); // = {canvas: null, context: null};
+    var m_w = opts.w || 16, m_h = opts.h || 16;
+    Object.defineProperties(this,
     {
-        this.w = w;
-        this.h = h;
-        if (!this.canvas) this.canvas = document.createElement('canvas'); //in-memory canvas
-        this.canvas.width = w + 'px';
-        this.canvas.height = h + 'px';
-        if (!this.context) this.context = this.canvas.getContext('2d');
+        w:
+        {
+            get() { return m_w; },
+            set(neww) { resized(); m_w = w; },
+        },
+        h:
+        {
+            get() { return m_h; },
+            set(newh) { resized(); m_h = h; },
+        },
+        canvas:
+        {
+            get()
+            {
+                if (!m_image.canvas) m_image = make_canvas();
+                return m_image.canvas;
+            },
+        },
+        context:
+        {
+            get()
+            {
+                if (!m_image.context) m_image = make_canvas();
+                return m_image.context;
+            }
+        }
+    });
+    function resized()
+    {
+        m_image = {canvas: null, context: null};
+    }
+//view params:
+    this.scale = opts.scale || 10;
+    this.x = opts.x || Math.max($(document).width() - this.scale * this.w, 0);
+//    console.log("x = ", opts.x, this.x, $(document).width(), this.scale, this.w);
+    this.y = opts.y || 10;
+    var m_view = null;
+    this.draw = function(first)
+    {
+//        var first = false;
+        if (first || !m_view) m_view = make_canvas(true);
+//            first = true;
+        m_view.canvas.style.top = this.y + 'px';
+        m_view.canvas.style.left = this.x + 'px';
+        m_view.canvas.style.width = (m_view.canvas.width = this.scale * this.w + 1) + 'px'; //NOTE: +1 for last grid line
+        m_view.canvas.style.height = (m_view.canvas.height = this.scale * this.h + 1) + 'px';
+        console.log("view x %s, y %s, w %s, h %s", m_view.canvas.style.left, m_view.canvas.style.top, m_view.canvas.style.width, m_view.canvas.style.height);
+        if (first) //draw grid
+        {
+            m_view.context.save();
+            m_view.context.beginPath();
+            m_view.context.strokeStyle = '#080';
+            for (var x = 0.5; x < m_view.canvas.width; x += this.scale) //NOTE: + 0.5 for integral pixel boundaries
+            {
+                m_view.context.moveTo(x, 0);
+                m_view.context.lineTo(x, m_view.canvas.height);
+            }
+            for (var y = 0.5; y < m_view.canvas.height; y += this.scale)
+            {
+                m_view.context.moveTo(0, y);
+                m_view.context.lineTo(m_view.canvas.width, y);
+            }
+            m_view.context.stroke();
+            m_view.context.restore();
+        }
+        m_view.context.save();
+        m_view.context.scale(this.scale, this.scale);
+        if (0) m_view.context.drawImage(m_image.canvas, 0, 0);
+        m_view.context.restore();
+//        var imageData = ctx.getImageData(0,0,canvas.width, canvas.height);
+//        ctx.putImageData(imageData, 0, 0)
+    }
+    this.draw(true);
+
+    function make_canvas(add_dom)
+    {
+        var canvas = document.createElement('canvas');
+        var context = canvas.getContext("2d");
+//            $('<canvas id="model-' + ++Model.seqnum + '" width="160" height="160">').appendTo('body');
+//            m_view = document.getElementById('#model-' + Model.seqnum);
+//http://stackoverflow.com/questions/10652513/html5-dynamically-create-canvas
+        if (add_dom)
+        {
+            canvas.id = "model-" + Model.seqnum++;
+//            m_view.width  = 160;
+//            m_view.height = 160;
+//            m_view.style.zIndex   = 8;
+//            m_view.style.position = "absolute";
+//            m_view.style.border   = "1px solid";
+            canvas.className = 'fx-canvas';
+//            console.log("created canvas view# %s %s", canvas.id, Model.seqnum);
+            document.body.appendChild(canvas);
+        }
+        return {canvas: canvas, context: context};
     }
 
-    this.render(target)
+    if (!window.allModels) window.allModels = []; //retain instances over code refresh
+    window.allModels.push(this);
+    this.clearAll = function(color)
     {
-        
+        if (!window.allModels) return;
+        window.allModels.forEach(function(model, inx)
+        {
+            model.clear(color);
+        });
+    }
+
+    this.clear = function(color)
+    {
+        var TEMP = true; //false;
+        var ctx = TEMP? m_view.context: this.context;
+        ctx.save();
+        if (TEMP) ctx.scale(this.scale, this.scale);
+        if (!arguments.length) ctx.clearRect(0, 0, this.w, this.h); //xparent
+        else
+        {
+            if (color) ctx.fillStyle = color; //"#000000"; //stylewhen filling shapes
+//    ctx.strokeStyle = "#000000"; //style for shapes' outlines
+            ctx.fillRect(0, 0, this.w, this.h);
+        }
+        ctx.restore();
+        if (!TEMP) this.draw();
     }
 }
 
-var canvas = model.canvas;
-var ctx = model.cx;
+var orange = "#ffa500";
+var m = new Model({w: 48, h: 16, x: 200, y: 20});
+console.log("there are %d inst", window.allModels.length);
+if (1) m.clearAll(orange);
+//window.allModels[0].clear(orange);
+if (0) m.context.fillStyle = '#ffa500';
+if (0) m.context.fillRect(0, 0, 8, 4);
+if (0) m.draw();
+//m.x = 10;
+//window.m.x = 10;
+
+//        context.strokeStyle = '#f00';
+//        context.beginPath();
+//        context.moveTo(10, 10);
+//        context.lineTo(80, 80);
+//        context.stroke();
+//canvas.top = '10px';
+//canvas.left = '10px';
+
+//var canvas = model.canvas;
+//var ctx = model.cx;
+//var m = new Model();
 
 if (0) console.clear();
-console.log("w = %d, h = %d", canvas.width, canvas.height);
+//console.log("w = %d, h = %d", canvas.width, canvas.height);
 
-var orange = "#ffa500";
 if (0) model.clear();
 if (0) model.clear(orange);
 if (0) model.resize(50, 50);
@@ -57,7 +185,7 @@ if (0) model.grid(48, 16, '#0f0');
 if (0) model.line(0, 0, 4, 2, '#f00');
 //canvas.width = 480; canvas.height = 160;
 if (0) { ctx.fillStyle = orange; ctx.fillRect(0, 0, 1, 1); ctx.fillStyle = 0; }
-if (1)
+if (0)
 {
     console.log("line", ctx.lineWidth, model.m_scale);
     ctx.beginPath();
@@ -768,3 +896,4 @@ function test31() //smoothing
 
 console.log("done!");
 //eof
+
