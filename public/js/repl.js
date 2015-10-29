@@ -28,7 +28,7 @@ function Model(opts)
             get() { return m_image.w || 0; },
             set(neww)
             {
-                console.log("set w to %d", neww);
+                debug("set w to %d", neww);
                 if (neww == m_image.w) return;
                 resized.call(this);
                 m_image.w = neww;
@@ -40,7 +40,7 @@ function Model(opts)
             get() { return m_image.h || 0; },
             set(newh)
             {
-                console.log("set h to %d", newh);
+                debug("set h to %d", newh);
                 if (newh == m_image.h) return;
                 resized.call(this);
                 m_image.h = newh;
@@ -82,7 +82,7 @@ function Model(opts)
     });
     function resized()
     {
-        console.log("resized: canvas? %s, w %s, h %s, model? %s", !!m_image.canvas, this.w, this.h, this.isModel);
+        debug("resized: canvas? %s, w %s, h %s, model? %s", !!m_image.canvas, this.w, this.h, this.isModel);
         m_image.canvas = null;
         m_image.context = null;
 //        m_image['1x1'] = null;
@@ -100,7 +100,7 @@ function Model(opts)
             get() { return m_view.x || 0; },
             set(newx)
             {
-                console.log("set x to %d", newx);
+                debug("set x to %d", newx);
                 if (newx == m_view.x) return;
                 moved.call(this);
                 m_view.x = newx;
@@ -112,7 +112,7 @@ function Model(opts)
             get() { return m_view.y || 0; },
             set(newy)
             {
-                console.log("set y to %d", newy);
+                debug("set y to %d", newy);
                 if (newy == m_view.y) return;
                 moved.call(this);
                 m_view.y = newy;
@@ -124,7 +124,7 @@ function Model(opts)
             get() { return m_view.scale || 1.0; },
             set(newscale)
             {
-                console.log("set scale to %d", newscale);
+                debug("set scale to %d", newscale);
                 if (newscale == m_view.scale) return;
                 moved.call(this);
                 m_view.scale = newscale;
@@ -138,7 +138,7 @@ function Model(opts)
             get() { return m_view.dirty || false; },
             set(newdirty)
             {
-                console.log("dirty: was %s, is now %s", !!m_view.dirty, newdirty);
+                debug("dirty: was %s, is now %s", !!m_view.dirty, newdirty);
                 if (newdirty && !m_view.dirty) m_view.dirty = setTimeout(draw.bind(this), 10); //pending redraw
                 else if (!newdirty && m_view.dirty) { clearTimeout(m_view.dirty); m_view.dirty = null; } //cancel pending redraw
             },
@@ -154,7 +154,7 @@ function Model(opts)
 //        this.dirty(); //mark for redraw
 //        m_previous = {x: undefined, y: undefined, scale: undefined};
 //        redraw(); //erase from screen before moving
-        console.log("moved + cleared: drawn before? %s, w %s, h %s, scale %s, model? %s", m_view.context && m_view.drawn, this.w, this.h, this.scale, this.isModel);
+        debug("moved + cleared: drawn before? %s, w %s, h %s, scale %s, model? %s", m_view.context && m_view.drawn, this.w, this.h, this.scale, this.isModel);
         if (!m_view.context || !m_view.drawn) return; //not on screen yet
         m_view.context.clearRect(0, 0, this.w * this.scale + 1, this.h * this.scale + 1); //xparent
         m_view.drawn = false;
@@ -170,7 +170,7 @@ function Model(opts)
 //        if (TEMP) ctx.scale(this.scale, this.scale);
         if (!arguments.length) //|| (alpha(color) <= 0))
         {
-            ctx.clearRect(0, 0, this.w, this.h); //xparent
+            ctx.clearRect(0, 0, this.w, this.h); //xparent; TODO: no worky if something already drawn
 //no            this.m_view.drawn = false;
         }
         else
@@ -206,16 +206,40 @@ function Model(opts)
         }
     }
 
+    this.load = function(objstream)
+    {
+//        var timestamp = stream.readUInt32BE();
+//        var rdlen = stream.readUInt32BE();
+        objstream.once('data', function(frame)
+        {
+//            console.dir(data);
+            var timestamp = frame.timestamp;
+            this.context.putImageData(frame.pixels, 0, 0, this.w, this.h);
+        });
+    }
+
+    this.save = function(objstream, timestamp)
+    {
+        var ctx = this.context_ro;
+        if (!ctx) return;
+//        if (typeof timestamp === 'undefined') timestamp = 
+//        stream.writeUInt32BE(timestamp || 0);
+//        stream.writeUInt32BE(this.w * this.h);
+//        stream.write(ctx.getImageData(0, 0, this.w, this.h).data);
+        objstream.write({timestamp: timestamp || 0, pixels: ctx.getImageData(0, 0, this.w, this.h)});
+    }
+
 //helpers:
     function draw() //first)
     {
 //        var first = false;
 //        if (first || !m_view.canvas)
-        console.log("draw, canvas? %s, drawn? %s, model? %s", !!m_view.canvas, m_view.drawn, this.isModel);
+        debug("draw, canvas? %s, drawn? %s, model? %s", !!m_view.canvas, m_view.drawn, this.isModel);
         if (!m_view.canvas)
         {
             m_view.canvas = make_canvas.call(this, true);
             m_view.context = m_view.canvas.getContext("2d");
+            m_view.context.imageSmoothingEnabled = false; //default is on; turn it off to show pixels; http://stackoverflow.com/questions/7615009/disable-interpolation-when-scaling-a-canvas
             m_view.drawn = false; //first = true;
         }
         m_view.context.save();
@@ -237,16 +261,22 @@ function Model(opts)
 //            m_view.context.restore();
         }
 //        m_view.context.save();
-        console.log("scale to %d and copy image", this.scale);
-        m_view.context.scale(this.scale, this.scale); //only scale when copying image
-        if (false) m_view.context.drawImage(m_image.canvas, 0, 0); //TODO: no worky
-        var ctx = this.context_ro;
-        if (ctx)
+        if (m_image.canvas)
         {
-            var imageData = ctx.getImageData(0, 0, this.w, this.h); //kludge: this is the slow way, but the faster way gives an error
-            console.log("img data to draw? %s: len %d ", !!imageData, imageData.length, imageData);
-            m_view.context.putImageData(imageData, 0, 0); //, this.w * this.scale, this.h * this.scale);
+            debug("scale to %s and copy image? %s", this.scale, !!m_image.canvas);
+            m_view.context.scale(this.scale, this.scale); //only scale when copying image
+            if (true) m_view.context.drawImage(m_image.canvas, 0, 0); //TODO: no worky
         }
+//        if (false) //this doesn't handle scaling
+//        {
+//            var ctx = this.context_ro;
+//            if (ctx)
+//            {
+//                var imageData = ctx.getImageData(0, 0, this.w, this.h); //kludge: this is the slow way, but the faster way gives an error
+//                console.log("img data to draw? %s: len %d ", !!imageData, imageData.length, imageData);
+//                m_view.context.putImageData(imageData, 0, 0); //, this.w * this.scale, this.h * this.scale);
+//            }
+//        }
         m_view.context.restore();
         m_view.drawn = true; //remember something is on screen
         this.dirty = false;
@@ -281,10 +311,15 @@ function Model(opts)
         return canvas;
     }
 
-    function alpha(color)
+    function debug(vargs)
     {
-        return 1.0; //TODO
+        console.log.apply(null, Array.protocol.slice(arguments));
     }
+
+//    function alpha(color)
+//    {
+//        return 1.0; //TODO
+//    }
 
 //object initialization:
     this.w = opts.w || 16;
@@ -293,13 +328,13 @@ function Model(opts)
     this.x = opts.x || Math.max($(document).width() - this.scale * this.w, 0);
 //    console.log("x = ", opts.x, this.x, $(document).width(), this.scale, this.w);
     this.y = opts.y || 10;
-//    this.clear('#f00');
+    this.clear();
     draw.call(this); //true);
 
     if (!Model.allInst) Model.allInst = [];
     Model.allInst.push(this);
     Model.count = Model.allInst.length; //kludge; getter on Model not working, so just set a static value
-    console.log("model ctor: now there are %d", Model.count);
+    debug("model ctor: now there are %d", Model.count);
 }
 Model.count = 0;
 //Object.defineProperties(Model,
@@ -324,12 +359,12 @@ function show(model, inx)
 }
 
 
-var m = Model({w: 3, h: 2, y: 250, x:550});
+//var m = Model({w: 3, h: 2, y: 250, x:550});
 //var m2 = Model({x:400, y:200});
 //var m3 = Model({w: 8, h: 4, x: 500, y: 20});
 //show();
 //m.x = 450; m.y += 40;
-m.clear('#ff0');
+//m.clear('#ff0');
 
 if (false)
 setTimeout(function()
@@ -349,7 +384,8 @@ setTimeout(function()
 
 var orange = "#ffa500";
 //var m = new Model({w: 48, h: 16, x: 200, y: 20});
-console.log("there are %d inst", Model.count);
+//console.log("there are %d inst", Model.count);
+show();
 if (0) m.clearAll(orange);
 //window.allModels[0].clear(orange);
 if (0) m.context.fillStyle = '#ffa500';
@@ -358,6 +394,19 @@ if (0) m.draw();
 //m.x = 10;
 //window.m.x = 10;
 
+var gdoor = new Model({w:48, h:16, scale: 10, y:50});
+var ctx = gdoor.context;
+ctx.strokeStyle = '#ff0';
+ctx.moveTo(1, 7.5);
+ctx.lineTo(9, 7.5);
+ctx.moveTo(12, 7.5);
+ctx.lineTo(20, 7.5);
+ctx.stroke();
+
+function eyes()
+{
+    
+}
 //        context.strokeStyle = '#f00';
 //        context.beginPath();
 //        context.moveTo(10, 10);
