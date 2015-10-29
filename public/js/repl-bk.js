@@ -15,212 +15,94 @@ function Model(opts)
 {
     if (!(this instanceof Model)) return new Model(opts);
     if (!opts) opts = {};
-    var m_image = {}; //= make_canvas();
-    var m_view = {}; //= make_canvas(true);
-    this.isModel = true;
-
-//canvas properties:
+//canvas params:
 //canvas is cleared when these are changed
+    var m_w, m_h, m_image;
     Object.defineProperties(this,
     {
         w:
         {
-            get() { return m_image.w || 0; },
-            set(neww)
-            {
-                console.log("set w to %d", neww);
-                if (neww == m_image.w) return;
-                resized.call(this);
-                m_image.w = neww;
-                if (m_view.canvas) m_view.canvas.style.width = (m_view.canvas.width = this.scale * neww + 1) + 'px'; //NOTE: +1 for last grid line
-            },
+            get() { return m_w; },
+            set(neww) { if (neww != m_w) resized(); m_w = neww; },
         },
         h:
         {
-            get() { return m_image.h || 0; },
-            set(newh)
-            {
-                console.log("set h to %d", newh);
-                if (newh == m_image.h) return;
-                resized.call(this);
-                m_image.h = newh;
-                if (m_view.canvas) m_view.canvas.style.height = (m_view.canvas.height = this.scale * newh + 1) + 'px';
-            },
+            get() { return m_h; },
+            set(newh) { if (newh != m_h) resized(); m_h = newh; },
         },
         canvas:
         {
             get()
             {
-                if (!m_image.canvas)
-                {
-                    m_image.canvas = make_canvas.call(this);
-                    m_image.canvas.width = m_image.w;
-                    m_image.canvas.height = m_image.h;
-                    m_image.context = null;
-                }
+                if (!m_image.canvas) m_image = make_canvas();
                 return m_image.canvas;
             },
-        },
-        context_ro:
-        {
-            get() { return m_image.context; },
         },
         context:
         {
             get()
             {
-                if (!m_image.context)
-                {
-                    m_image.context = this.canvas.getContext("2d");
-//                    m_image['1x1'] = m_image.context.createImageData(1, 1); ////http://stackoverflow.com/questions/4899799/whats-the-best-way-to-set-a-single-pixel-in-an-html5-canvas
-//                    m_image.pixel  = m_image['1x1'].data;
-                }
-                this.dirty = true; //mark for redraw (assume caller wants context in order to draw on it)
+                if (!m_image.context) m_image = make_canvas();
                 return m_image.context;
             }
         }
     });
     function resized()
     {
-        console.log("resized: canvas? %s, w %s, h %s, model? %s", !!m_image.canvas, this.w, this.h, this.isModel);
-        m_image.canvas = null;
-        m_image.context = null;
-//        m_image['1x1'] = null;
-//        m_image.pixel = null;
-        moved.call(this);
+        m_image = {canvas: null, context: null};
     }
-
-//view properties:
+    this.w = opts.w || 16;
+    this.h = opts.h || 16;
+//view params:
 //canvas is preserved but needs redraw when these are changed
-//    var m_pos = {};
+    var m_pos = {};
     Object.defineProperties(this,
     {
         x:
         {
-            get() { return m_view.x || 0; },
-            set(newx)
-            {
-                console.log("set x to %d", newx);
-                if (newx == m_view.x) return;
-                moved.call(this);
-                m_view.x = newx;
-                if (m_view.canvas) m_view.canvas.style.left = newx + 'px';
-            },
+            get() { return m_pos.x; },
+            set(newx) { if (newx != m_pos.x) redraw(); m_pos.x = newx; },
         },
         y:
         {
-            get() { return m_view.y || 0; },
-            set(newy)
-            {
-                console.log("set y to %d", newy);
-                if (newy == m_view.y) return;
-                moved.call(this);
-                m_view.y = newy;
-                if (m_view.canvas) m_view.canvas.style.top = newy + 'px';
-            },
+            get() { return m_pos.y; },
+            set(newy) { if (newy != m_pos.y) redraw(); m_pos.y = newy; },
         },
         scale:
         {
-            get() { return m_view.scale || 1.0; },
-            set(newscale)
-            {
-                console.log("set scale to %d", newscale);
-                if (newscale == m_view.scale) return;
-                moved.call(this);
-                m_view.scale = newscale;
-                if (!m_view.canvas) return;
-                m_view.canvas.style.width = (m_view.canvas.width = newscale * this.w + 1) + 'px'; //NOTE: +1 for last grid line
-                m_view.canvas.style.height = (m_view.canvas.height = newscale * this.h + 1) + 'px';
-            },
-        },
-        dirty:
-        {
-            get() { return m_view.dirty || false; },
-            set(newdirty)
-            {
-                console.log("dirty: was %s, is now %s", !!m_view.dirty, newdirty);
-                if (newdirty && !m_view.dirty) m_view.dirty = setTimeout(draw.bind(this), 10); //pending redraw
-                else if (!newdirty && m_view.dirty) { clearTimeout(m_view.dirty); m_view.dirty = null; } //cancel pending redraw
-            },
+            get() { return m_pos.scale; },
+            set(newscale) { if (newscale != m_pos.scale) redraw(); m_pos.scale = newscale; },
         },
     });
-//    var m_drawn; //m_prior, m_pending;
-    function moved()
+    var m_drawn; //m_prior, m_pending;
+    function redraw()
     {
-//        if (!m_drawn) return;
-//        if (!m_view.drawn) return;
-//        this.clear(); //erase old position first
-//        m_view.drawn = false;
-//        this.dirty(); //mark for redraw
+        if (!m_drawn) return;
+        this.clear();
+//        m_prior = null;
+        m_drawn = false; //m_pending = true;
+        process.nextTick(this.draw.bind(this)); //wait until changes are done before redraw
 //        m_previous = {x: undefined, y: undefined, scale: undefined};
-//        redraw(); //erase from screen before moving
-        console.log("moved + cleared: drawn before? %s, w %s, h %s, scale %s, model? %s", m_view.context && m_view.drawn, this.w, this.h, this.scale, this.isModel);
-        if (!m_view.context || !m_view.drawn) return; //not on screen yet
-        m_view.context.clearRect(0, 0, this.w * this.scale + 1, this.h * this.scale + 1); //xparent
-        m_view.drawn = false;
-        this.dirty = true; //needs redraw in new position
     }
-
+    this.scale = opts.scale || 10;
+    this.x = opts.x || Math.max($(document).width() - this.scale * this.w, 0);
+//    console.log("x = ", opts.x, this.x, $(document).width(), this.scale, this.w);
+    this.y = opts.y || 10;
 //methods:
-    this.clear = function(color)
-    {
-//        var TEMP = true; //false;
-        var ctx = /*TEMP? m_view.context:*/ this.context; //NOTE: marks view dirty
-        ctx.save();
-//        if (TEMP) ctx.scale(this.scale, this.scale);
-        if (!arguments.length) //|| (alpha(color) <= 0))
-        {
-            ctx.clearRect(0, 0, this.w, this.h); //xparent
-//no            this.m_view.drawn = false;
-        }
-        else
-        {
-            if (color) ctx.fillStyle = color; //"#000000"; //stylewhen filling shapes
-//    ctx.strokeStyle = "#000000"; //style for shapes' outlines
-            ctx.fillRect(0, 0, this.w, this.h);
-        }
-        ctx.restore();
-//        if (!TEMP) this.draw();
-//        this.dirty(); //mark for redraw
-    }
-
-    this.pixel = function(x, y, color) //, bypass)//TODO
-    {
-        if (arguments.length > 2) //set; //http://stackoverflow.com/questions/4899799/whats-the-best-way-to-set-a-single-pixel-in-an-html5-canvas
-        {
-            var ctx = this.context;
-            ctx.save();
-            ctx.fillStyle = color; //"rgba("+r+","+g+","+b+","+(a/255)+")";
-            ctx.fillRect(x, y, 1, 1);
-            ctx.restore();
-        }
-        else //get; http://stackoverflow.com/questions/667045/getpixel-from-html-canvas
-        {
-            var ctx = this.context_ro;
-            if (!ctx) return 0;
-            var data = ctx.getImageData(x, y, 1, 1).data;
-//            color = new Color([data[0], data[1], data[2]]);            
-//            return data[0]
-            var uint32array = new Uint32Array(data, 0, 1);
-            return uint32array[0];
-        }
-    }
-
-//helpers:
-    function draw() //first)
+    var m_view = null;
+    this.draw = function(first)
     {
 //        var first = false;
-//        if (first || !m_view.canvas)
-        console.log("draw, canvas? %s, drawn? %s, model? %s", !!m_view.canvas, m_view.drawn, this.isModel);
-        if (!m_view.canvas)
+        if (first || !m_view) m_view = make_canvas(true);
+//            first = true;
+        m_view.canvas.style.top = this.y + 'px';
+        m_view.canvas.style.left = this.x + 'px';
+        m_view.canvas.style.width = (m_view.canvas.width = this.scale * this.w + 1) + 'px'; //NOTE: +1 for last grid line
+        m_view.canvas.style.height = (m_view.canvas.height = this.scale * this.h + 1) + 'px';
+        console.log("view x %s, y %s, w %s, h %s", m_view.canvas.style.left, m_view.canvas.style.top, m_view.canvas.style.width, m_view.canvas.style.height);
+        if (first) //draw grid
         {
-            m_view.canvas = make_canvas.call(this, true);
-            m_view.context = m_view.canvas.getContext("2d");
-            m_view.drawn = false; //first = true;
-        }
-        m_view.context.save();
-        if (!m_view.drawn) //first) //draw grid
-        {
+            m_view.context.save();
             m_view.context.beginPath();
             m_view.context.strokeStyle = '#080';
             for (var x = 0.5; x < m_view.canvas.width; x += this.scale) //NOTE: + 0.5 for integral pixel boundaries
@@ -234,31 +116,26 @@ function Model(opts)
                 m_view.context.lineTo(m_view.canvas.width, y);
             }
             m_view.context.stroke();
-//            m_view.context.restore();
+            m_view.context.restore();
         }
-//        m_view.context.save();
-        console.log("scale to %d and copy image", this.scale);
-        m_view.context.scale(this.scale, this.scale); //only scale when copying image
-        if (false) m_view.context.drawImage(m_image.canvas, 0, 0); //TODO: no worky
-        var ctx = this.context_ro;
-        if (ctx)
-        {
-            var imageData = ctx.getImageData(0, 0, this.w, this.h); //kludge: this is the slow way, but the faster way gives an error
-            console.log("img data to draw? %s: len %d ", !!imageData, imageData.length, imageData);
-            m_view.context.putImageData(imageData, 0, 0); //, this.w * this.scale, this.h * this.scale);
-        }
+        m_view.context.save();
+        m_view.context.scale(this.scale, this.scale);
+        if (0) m_view.context.drawImage(m_image.canvas, 0, 0);
         m_view.context.restore();
-        m_view.drawn = true; //remember something is on screen
-        this.dirty = false;
+//        var imageData = ctx.getImageData(0,0,canvas.width, canvas.height);
+//        ctx.putImageData(imageData, 0, 0)
+        m_drawn = true;
     }
+    this.draw(true);
 
     function make_canvas(add_dom)
     {
         var canvas = document.createElement('canvas');
+        var context = canvas.getContext("2d");
 //            $('<canvas id="model-' + ++Model.seqnum + '" width="160" height="160">').appendTo('body');
 //            m_view = document.getElementById('#model-' + Model.seqnum);
 //http://stackoverflow.com/questions/10652513/html5-dynamically-create-canvas
-        if (add_dom) //make it displayable
+        if (add_dom)
         {
             if (!Model.seqnum) Model.seqnum = 0;
             canvas.id = "model-" + Model.seqnum++;
@@ -268,38 +145,32 @@ function Model(opts)
 //            m_view.style.position = "absolute";
 //            m_view.style.border   = "1px solid";
             canvas.className = 'fx-canvas';
-//            first = true;
-            canvas.style.top = this.y + 'px';
-            canvas.style.left = this.x + 'px';
-            canvas.style.width = (canvas.width = this.scale * this.w + 1) + 'px'; //NOTE: +1 for last grid line
-            canvas.style.height = (canvas.height = this.scale * this.h + 1) + 'px';
-            console.log("cre canvas: x %d %s, y %d %s, w %d %s, h %d %s", this.x, canvas.style.left, this.y, canvas.style.top, this.w, canvas.style.width, this.h, canvas.style.height);
 //            console.log("created canvas view# %s %s", canvas.id, Model.seqnum);
             document.body.appendChild(canvas);
         }
-        else console.log("cre off-screen canvas");
-        return canvas;
+        return {canvas: canvas, context: context};
     }
 
-    function alpha(color)
-    {
-        return 1.0; //TODO
-    }
-
-//object initialization:
-    this.w = opts.w || 16;
-    this.h = opts.h || 16;
-    this.scale = opts.scale || 10;
-    this.x = opts.x || Math.max($(document).width() - this.scale * this.w, 0);
-//    console.log("x = ", opts.x, this.x, $(document).width(), this.scale, this.w);
-    this.y = opts.y || 10;
-//    this.clear('#f00');
-    draw.call(this); //true);
-
-    if (!Model.allInst) Model.allInst = [];
+    if (!Model.allInst) Model.allInst = []; //retain instances over code refresh
     Model.allInst.push(this);
     Model.count = Model.allInst.length; //kludge; getter on Model not working, so just set a static value
-    console.log("model ctor: now there are %d", Model.count);
+
+    this.clear = function(color)
+    {
+        var TEMP = true; //false;
+        var ctx = TEMP? m_view.context: this.context;
+        ctx.save();
+        if (TEMP) ctx.scale(this.scale, this.scale);
+        if (!arguments.length) ctx.clearRect(0, 0, this.w, this.h); //xparent
+        else
+        {
+            if (color) ctx.fillStyle = color; //"#000000"; //stylewhen filling shapes
+//    ctx.strokeStyle = "#000000"; //style for shapes' outlines
+            ctx.fillRect(0, 0, this.w, this.h);
+        }
+        ctx.restore();
+        if (!TEMP) this.draw();
+    }
 }
 Model.count = 0;
 //Object.defineProperties(Model,
@@ -313,39 +184,6 @@ Model.all = function(cb)
         cb(model, inx);
     });
 }
-
-function show(model, inx)
-{
-    console.log("%d models:", Model.count);
-    Model.all(function(model, inx)
-    {
-        console.log("model%d/%d]: x %d, y %d, w %d, h %d", inx, Model.count, model.x, model.y, model.w, model.h);
-    });
-}
-
-
-var m = Model({w: 3, h: 2, y: 250, x:550});
-//var m2 = Model({x:400, y:200});
-//var m3 = Model({w: 8, h: 4, x: 500, y: 20});
-//show();
-//m.x = 450; m.y += 40;
-m.clear('#ff0');
-
-if (false)
-setTimeout(function()
-{
-    console.clear();
-    var ctx = m.context_ro;
-    console.log("img data 1: ", ctx.getImageData(0, 0, m.w, m.h), m.pixel(0, 0), m.pixel(1, 1), m.pixel(2, 0));
-    m.pixel(0, 0, '#f00');
-    console.log("img data 2: ", ctx.getImageData(0, 0, m.w, m.h), m.pixel(0, 0), m.pixel(1, 1), m.pixel(2, 0));
-    m.pixel(1, 1, '#0F0');
-    console.log("img data 3: ", ctx.getImageData(0, 0, m.w, m.h), m.pixel(0, 0), m.pixel(1, 1), m.pixel(2, 0));
-    m.pixel(2, 0, '#00f');
-    console.log("img data 4: ", ctx.getImageData(0, 0, m.w, m.h), m.pixel(0, 0), m.pixel(1, 1), m.pixel(2, 0));
-//    m.clear('#f00');
-    show();
-}, 3000);
 
 var orange = "#ffa500";
 //var m = new Model({w: 48, h: 16, x: 200, y: 20});

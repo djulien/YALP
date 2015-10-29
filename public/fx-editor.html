@@ -52,6 +52,7 @@ ctx.stroke();
 <script>
 var timer = setTimeout(function() { alert("UI main logic failed to load"); }, 1000);
 
+var repl = {}; //repl context
 
 //from https://github.com/thlorenz/brace/blob/master/example/javascript-editor.js
 //for brace example see https://github.com/thlorenz/brace
@@ -84,7 +85,7 @@ editor.commands.addCommand(
     bindKey: {win: 'Ctrl-X',  mac: 'Command-X'},
     exec: function(editor)
     {
-        eval(editor.getValue()); // or session.getValue
+        eval.call(repl, editor.getValue()); // or session.getValue
 //        save(); //alert("save");
     },
     readOnly: false //true // false if this command should not apply in readOnly mode
