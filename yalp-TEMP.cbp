@@ -86,6 +86,7 @@
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
+		<Unit filename="my-plugins/streamers/uint32bebuf.js" />
 		<Unit filename="my-plugins/utils/caller.js" />
 		<Unit filename="my-plugins/utils/clock.js" />
 		<Unit filename="my-plugins/utils/config.js" />
