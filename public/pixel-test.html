@@ -1,0 +1,60 @@
+<html>
+    <body>
+        <canvas id="canvas" height="256" width="256"></canvas>
+        <script>
+
+//from https://hacks.mozilla.org/2011/12/faster-canvas-pixel-manipulation-with-typed-arrays/
+var canvas = document.getElementById('canvas');
+var canvasWidth  = canvas.width;
+var canvasHeight = canvas.height;
+var ctx = canvas.getContext('2d');
+var imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+
+//bybyte();
+by32();
+
+function bybyte()
+{
+    var data = imageData.data;
+    for (var y = 0; y < canvasHeight; ++y)
+        for (var x = 0; x < canvasWidth; ++x)
+        {
+            var index = (y * canvasWidth + x) * 4;
+            var value = x * y & 0xff;
+            data[index]   = value;    // red
+            data[++index] = value;    // green
+            data[++index] = value;    // blue
+            data[++index] = 255;      // alpha
+        }
+    ctx.putImageData(imageData, 0, 0);
+}
+
+function by32()
+{
+    var buf = new ArrayBuffer(imageData.data.length);
+    var buf8 = new Uint8ClampedArray(buf);
+    var data = new Uint32Array(buf);
+    // Determine whether Uint32 is little- or big-endian.
+    data[1] = 0x0a0b0c0d;
+    var isBigEndian = (buf[4] === 0x0a && buf[5] === 0x0b && buf[6] === 0x0c && buf[7] === 0x0d);
+    if (isBigEndian)
+        for (var y = 0; y < canvasHeight; ++y)
+            for (var x = 0; x < canvasWidth; ++x)
+            {
+                var value = x * y & 0xff;
+                data[y * canvasWidth + x] = (value << 24) | (value << 16) | (value <<  8) | 255; // red, green, blue, alpha
+            }
+    else
+        for (var y = 0; y < canvasHeight; ++y)
+            for (var x = 0; x < canvasWidth; ++x)
+            {
+                var value = x * y & 0xff;
+                data[y * canvasWidth + x] = (255   << 24) | (value << 16) | (value <<  8) | value; // alpha, blue, green, red
+            }
+    imageData.data.set(buf8);
+    ctx.putImageData(imageData, 0, 0);
+}
+
+        </script>
+    </body>
+</html>

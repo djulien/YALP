@@ -82,6 +82,7 @@
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/routes/use/99-error.js" />
+		<Unit filename="my-plugins/streamers/YalpStream.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
@@ -146,6 +147,7 @@
 		<Unit filename="public/fx-editor.html" />
 		<Unit filename="public/index.html" />
 		<Unit filename="public/js/socket.io.js" />
+		<Unit filename="public/pixel-test.html" />
 		<Unit filename="public/socket.html" />
 		<Unit filename="scripts/imhere.js" />
 		<Unit filename="scripts/install-bk.sh" />
@@ -178,6 +180,7 @@
 		<Unit filename="tests/streams-main.js" />
 		<Unit filename="tests/test-canvas.js" />
 		<Unit filename="tests/vix2test.js" />
+		<Unit filename="tests/yalpstream.js" />
 		<Unit filename="yalp.js" />
 		<Extensions>
 			<envvars />

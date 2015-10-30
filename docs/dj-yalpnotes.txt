@@ -377,6 +377,8 @@ perf:
  https://github.com/bnoordhuis/node-heapdump
 debug:
  node-debug for node inspector; debugger stmt to break in debug more only
+custom inspect:
+ https://gist.github.com/creationix/5015615
 
 TODO:
 - add unit testing with Chai and Mocha (!make)
