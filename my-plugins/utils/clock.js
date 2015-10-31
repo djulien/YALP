@@ -10,7 +10,7 @@ module.exports.Now = function()
 
 module.exports.elapsed = function(when)
 {
-    return when || module.exports.Now() - started;
+    return (when || module.exports.Now()) - started;
 }
 
 module.exports.Now.asString = function(when)
@@ -20,9 +20,9 @@ module.exports.Now.asString = function(when)
     return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
 }
 
-module.exports.elapsed.asString = function()
+module.exports.elapsed.asString = function(msec)
 {
-    module.exports.Now.asString(module.exports.elapsed());
+    module.exports.Now.asString(msec || module.exports.elapsed());
 }
 
 //add method to an object:
