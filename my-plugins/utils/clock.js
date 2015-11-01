@@ -17,11 +17,22 @@ module.exports.Now.asString = function(when)
 {
     var local2utc = when? new Date(when): new Date(); //optional param
     local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000);
+//    console.log("local utc ", local2utc.toISOString());
     return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
+}
+
+module.exports.asString = function(msec)
+{
+//    console.log("utc as str ", msec);
+    var local2utc = (typeof msec !== 'undefined')? new Date(msec): new Date(); //default to now; optional param
+//    local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000); //make it display as-is
+//    console.log("local utc ", msec, local2utc.toISOString());
+    return module.exports.asString.latest = local2utc.toISOString().substr(11, 12).replace(/^(00:)+/, '');
 }
 
 module.exports.elapsed.asString = function(msec)
 {
+//    console.log("elapsed ", msec, module.exports.Now.asString(msec), module.exports.elapsed(), module.exports.Now.asString(module.exports.elapsed()));
     module.exports.Now.asString(msec || module.exports.elapsed());
 }
 

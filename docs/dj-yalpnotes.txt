@@ -315,7 +315,7 @@ graphics: just javascript + bare html5 canvas is sufficient, or use a graphics f
  http://davidwalsh.name/canvas-demos
  https://github.com/wdamien/node-easel
   http://www.createjs.com/easeljs
-   
+
  http://davidwalsh.name/resize-animated-gif
  https://github.com/ded/morpheus
  http://mrcoles.com/favicon-creator/
@@ -379,6 +379,13 @@ debug:
  node-debug for node inspector; debugger stmt to break in debug more only
 custom inspect:
  https://gist.github.com/creationix/5015615
+
+Why JavaScript / JavaScript not the right tool for the job?
+ http://www.html5rocks.com/en/tutorials/webgl/million_letters/
+ http://www.voodootikigod.com/nodebots-the-rise-of-js-robotics/
+ http://johnny-five.io/
+  https://github.com/rwaldron/johnny-five/
+ h/w is basically blocking; well-suited for event call-back system; streams also helpful
 
 TODO:
 - add unit testing with Chai and Mocha (!make)

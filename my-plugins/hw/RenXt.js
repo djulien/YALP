@@ -10,6 +10,44 @@ function Const_RENXt(name, value)
 }
 
 
+//special protocol bytes:
+//these are carried over from the original Renard protocol from P. Short
+Const_RENXt('RENARD_SYNC', 0x7E); //"~" start of packet
+//trick from xLights: sender use 8N2 but receiver use 8N1; extra pad bit gives 10% padding but no instruction overhead to check for Pad char
+Const_RENXt('RENARD_PAD', 0x7D); //"}" padding in case sender (usually the host PC) clock is too fast
+Const_RENXt('RENARD_ESCAPE', 0x7F); //take next byte as-is, no special handling
+//#define RENARD_SUBST  0x7C //substitute another byte in place of this char
+
+//put Renard special chars in ascending order (for more efficient compares):
+if (typeof RENXt.RENARD_PAD !== 'undefined') //sender should periodically send a Pad char to compensate for different rx clock
+{
+    console.log("[INFO] Using explicit Renard Pad byte (allows sender-controlled pad rate)"); //more processing overhead but more tunable
+    Const_RENXt('RENARD_SPECIAL_MIN', Math.min(Math.min(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE), RENXt.RENARD_PAD));
+    Const_RENXt('RENARD_SPECIAL_MID', (RENXt.RENARD_SYNC ^ RENXt.RENARD_ESCAPE ^ RENXt.RENARD_PAD ^ RENXt.MIN_RENARD_SPECIAL ^ RENXt.MAX_RENARD_SPECIAL));
+    Const_RENXt('RENARD_SPECIAL_MAX', Math.max(Math.max(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE), RENXt.RENARD_PAD));
+
+    if (RENXt.RENARD_SPECIAL_MAX - RENXt.RENARD_SPECIAL_MIN == 2) //values are sequential; use simple range check
+        RENXt.IsRenardSpecial = function(ch) { return (((ch) >= RENXt.RENARD_SPECIAL_MIN) && ((ch) <= RENXt.RENARD_SPECIAL_MAX)); }
+    else //disjoint; check each value
+        RENXt.IsRenardSpecial = function(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_PAD) || ((ch) == RENXt.RENARD_ESCAPE)); }
+}
+else //sender must use 8N1.5 or 8N2 to compensate for differences between tx and rx clocks
+{
+    console.log("[INFO] Using implicit Renard byte padding (pad ratio hard-coded at 5% or 10%)"); //fewer protocol char collisions
+    Const_RENXt('RENARD_SPECIAL_MIN', Math.min(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE));
+    Const_RENXt('RENARD_SPECIAL_MAX', Math.max(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE));
+
+    RENXt.IsRenardSpecial = function(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_ESCAPE)); }
+}
+
+
+//pseudo-controller addresses:
+Const_RENXt('ADRS_NONE', 0); //all controllers should ignore this packet; might be intended for host
+Const_RENXt('ADRS_ALL', 0xFF); //this packet is for all controllers to process
+//#define ADRS_UNKNOWN  0xFF //this controller has not been assigned an address; respond to all non-0 addresses
+//#define ADRS_UNASSIGNED  0xFF //NOTE: this value matches ADRS_ALL so unassigned controllers will respond if pkt is for all
+
+
 //manifest data:
 //this can be used to get more info about controllers
 Const_RENXt('MANIF_END', 0x800); //ends at end of first page
@@ -182,5 +220,6 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
     RENXt.NodeBank = function(nodenum) { return ((nodenum) / RENXt.NODELIST_BANKSIZE); }
     RENXt.NodeOffset = function(nodenum) { return ((nodenum) % RENXt.NODELIST_BANKSIZE); }
     RENXt.MakeNode = function(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
+
 
 //eof
