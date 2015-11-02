@@ -205,7 +205,7 @@ list ports:
  http://ubuntuforums.org/showthread.php?t=2265405&page=2
  ls -lh /dev/ttyUSB0
  sudo usermod -a -G groupName userName   + re-login
- groups <username>
+ groups <username>    or  id
 
 modeller/ide:
 **http://paperjs.org/examples/hit-testing/
@@ -286,6 +286,7 @@ http://stackoverflow.com/questions/21155922/error-installing-node-gyp-on-ubuntu
  https://www.npmjs.com/package/binary-reader
  http://zguide.zeromq.org/page:all??
  http://www.rediscookbook.org/implement_a_fifo_queue.html
+ http://www.sitepoint.com/basics-node-js-streams/
 
 SERIAL PORT:
 https://www.npmjs.com/search?q=serial%20port

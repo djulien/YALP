@@ -24,7 +24,7 @@ pkgfile mkfs.vfat
  sudo mkfs.vfat  /dev/sdb1p1
 16 GB NO WORKY, 8 GB OKAY
 https://www.raspberrypi.org/documentation/installation/noobs.md
- sha1sum /home/norman/Downloads/RaspberryPi/distros/NOOBS_v1_3_11.zip 
+ sha1sum /home/norman/Downloads/RaspberryPi/distros/NOOBS_v1_3_11.zip
 unpack to uSD card, eject
 http://downloads.raspeberrypi.org/NOOBS_latest
   NOOBS_v1_4_1.zip
@@ -38,7 +38,7 @@ set machine name, password, etc
 (no network)
 reboot, startx
 raspb-config:
- enable ssh (putty), spy, ipc 
+ enable ssh (putty), spy, ipc
 reboot, plug in inet cable
   ping www okay! (JUST LEAVE AS DHCP, DON'T MESS WITH /etc/network/interfaces)
 reboot, plug in wlan adapter
@@ -128,7 +128,7 @@ uname:
 http://linuxconfig.org/how-to-check-a-current-runlevel-of-your-linux-system
 runlevel    0 = halt, 1 = single, 6 = reboot
 who -r
-chkconfig   to see which services are on 
+chkconfig   to see which services are on
 ie: chkconfig apache2 2
 http://superuser.com/questions/852610/how-to-tell-which-services-run-at-startup-on-raspberry-pi-raspbian
 sudo service --status-all
@@ -200,7 +200,7 @@ https://solarianprogrammer.com/2015/01/13/raspberry-pi-raspbian-install-gcc-comp
   tar -xvzf tarfile.tar.gz
  FROM SOURCE:
   wget https://nodejs.org/dist/v4.1.1/node-v4.1.1.tar.gz
-  tar -xvzf tarfile.tar.gz   (takes 
+  tar -xvzf tarfile.tar.gz   (takes
   node deps from node README.md (all OK):
     `gcc` and `g++` 4.8 or newer, OR `clang` and `clang++` 3.4 or newer
     Python 2.6 or 2.7
@@ -216,7 +216,7 @@ https://solarianprogrammer.com/2015/01/13/raspberry-pi-raspbian-install-gcc-comp
   node -e "console.log('Hello from node.js ' + process.version)"
 (made backup)
 sudo npm install tty.s -g
-/etc/rc.local += 
+/etc/rc.local +=
   echo ras | sudo -u pi -s node /usr/local/lib/node_modules/tty.js/bin/tty.js < /dev/null > /var/log/nodetty.log &
  runs on port 8080
  sudo ufw allow 8080
@@ -329,6 +329,16 @@ serial ports:
  list ports:
   dmesg | grep tty
   npm install serialport --save
+*** putty requires sudo on ubuntu
+ http://ubuntuforums.org/showthread.php?t=2265405&page=2
+  ls -lh /dev/ttyUSB0
+  sudo usermod -a -G groupName userName   + re-login
+  groups <username>    or  id
+http://elinux.org/RPi_Serial_Connection
+The Broadcom UART appears as /dev/ttyAMA0 under Linux.
+??? When the serial port is opened the voltage on TXD pulses negative for approximately 32 us (regardless of the baud rate).
+
+http://elinux.org/RPi_GPIO_Interface_Circuits#Level_Shifters
 
 https://projects.drogon.net/understanding-spi-on-the-raspberry-pi/
 https://www.npmjs.com/package/spi
@@ -375,13 +385,13 @@ FAILED NODE.JS:
 -make it run on boot:
  http://weworkweplay.com/play/raspberry-pi-nodejs/
   install:
-    wget http://node-arm.herokuapp.com/node_latest_armhf.deb 
+    wget http://node-arm.herokuapp.com/node_latest_armhf.deb
     sudo dpkg -i node_latest_armhf.deb
   config:
   /etc/rc.local
-   wget http://node-arm.herokuapp.com/node_latest_armhf.deb 
-   sudo dpkg -i node_latest_armhf.deb 
-   touch /home/pi/app.js 
+   wget http://node-arm.herokuapp.com/node_latest_armhf.deb
+   sudo dpkg -i node_latest_armhf.deb
+   touch /home/pi/app.js
    su pi -c 'node /home/pi/app.js < /dev/null &'
 -programming (events, streams):
   https://learn.adafruit.com/node-embedded-development/installing-node-dot-js
@@ -572,6 +582,6 @@ https://jeffskinnerbox.wordpress.com/2012/11/05/wifi-support-on-raspberry-pi/
   sudo iwlist wlan0 scan | grep ESSID
 WEP: http://www.gc-linux.org/wiki/WL:Wifi_Configuration
 https://www.maketecheasier.com/setup-wifi-on-raspberry-pi/
-/etc/modprobe.d/8192cu.conf 
+/etc/modprobe.d/8192cu.conf
  options 8192cu rtw_power_mgnt=0
 
