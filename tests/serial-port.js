@@ -89,6 +89,62 @@ RenXtBuffer.prototype.flush = function(cb)
     }.bind(this));
 }
 
+RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
+{
+    this
+        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(adrs)
+//firmware requires SentNodes state bit to be off in order to change node type (otherwise flagged as protocol error)
+//since we know what all the state bits should be, just overwrite them all rather than using a complicated read-modify-write process to try to preserve some of them
+//state bits are at 0x73 in PIC shared RAM; 0x01 = Echo (should be on), 0x02 = Esc pending (should be off), 0x04 = Protocol inactive (should be off), 0x08 = Sent nodes (should be on)
+//        BeginOpcode(__LINE__, adrs, 5);
+        .emit_opc(RenXt.WRITE_REG)
+        .emit_uint16(RenXt.INRAM(0x73)) //2 byte adrs of firmware Status bits; TODO: use const from RenXt.h
+        .emit_byte(RenXt.WRITE_REG ^ 0 ^ 0x73) //mini-checksum
+        .emit_byte(0x01); //firmware State bits: Echo = on, Esc = off, Protocol = active, Sent = off; TODO: use const from RenXt.h
+    this
+        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(adrs)
+        .emit_opc(RenXt.SETTYPE(node_type)) //changes value if nodes not already sent
+//1.14 does NOT do a SetAll after setting node type
+        .emit_opc(RenXt.NODEBYTES) //sets node count to next byte (prep for clear-all or set-all); short so group it with SetType
+        .emit_byte(node_bytes); //ABS(prop->desc.numnodes) / 2);
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.SetPal = function(adrs, colors)
+{
+    if (arguments.length > 1) this
+        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(adrs)
+        .emit_opc(RenXt.SETPAL(arguments.length - 1))
+    Array.prototype.slice.call(arguments, 1).forEach(function(color, inx)
+    {
+        this.emit_rgb(color);
+    }.bind(this));
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.NodeFlush = function(adrs)
+{
+    this
+        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(adrs)
+        .emit_opc(RenXt.NODEFLUSH)
+        .pad(10); //TODO
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.SetAll = function(adrs, palinx)
+{
+    this
+        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(adrs)
+        .emit_opc(RenXt.SETALL(palinx))
+        .pad(10); //TODO
+    return this; //fluent
+}
+
 RenXtBuffer.prototype.emit_buf = function(buf, len)
 {
 //TODO: use buffer.indexOf to scan for special chars, then buffer.copy?
@@ -341,12 +397,6 @@ sport.write_drain = function(outbuf, outlen, cb)
 }; //.bind(sport);
 */
 
-setTimeout(function() { var el = new Elapsed(); sport.close(function(err)
-{
-    if (err) console.log("close err: ".red + err);
-    else console.log("closed after %s".green, el.scaled());
-}); }, 15000);
-
 //eof
 
 
@@ -376,16 +426,6 @@ setTimeout(function()
 */
 
 
-function test1(sp)
-{
-  sp.outSync("ls\n");
-  sp.outSync("echo hello there;\n");
-  var buf = new Buffer(2000);
-  buf.fill(0x5a);
-  sp.outSync(buf);
-}
-
-
 setTimeout(function()
 {
     var elap = new Elapsed();
@@ -396,6 +436,57 @@ setTimeout(function()
         if (!err) test2(sport);
     });
 }, 1000);
+
+function test0(port) {}
+
+function test1(sp)
+{
+  sp.outSync("ls\n");
+  sp.outSync("echo hello there;\n");
+  var buf = new Buffer(2000);
+  buf.fill(0x5a);
+  sp.outSync(buf);
+}
+
+
+function test4(port)
+{
+    var adrs = 0x05;
+    [0xFF0000, 0, 0x00FF00, 0, 0x0000FF, 0, 0xC0C000, 0, 0xC000C0, 0, 0x00C0C0, 0, 0x808080, 0x040004].forEach(function(color, inx)
+    {
+        var color_fixup = (color & 0xFF) | ((color & 0xFF0000) >> 8) | ((color & 0xFF00) << 8);
+        setTimeout(function()
+        {
+            port.RenXt
+                .rewind()
+                .SetPal(adrs, color_fixup)
+                .NodeFlush(adrs)
+                .emit_raw(RenXt.RENARD_SYNC) //send out a final sync to mark end of last packet
+                .flush(function(err)
+                {
+                    if (err) { console.log("error: " + err); return; }
+                    console.log("write+drain+delay done: %d bytes available", port.RenXt.rdlen);
+                });
+        }, inx * 500);
+    });
+}
+
+function test3(port)
+{
+    var adrs = 0x05;
+    port.RenXt
+        .rewind()
+        .SetConfig(adrs, RenXt.WS2811(RenXt.SERIES), Math.ceil(1/4/2)) //node_bytes)
+        .SetPal(adrs, 0x100010)
+        .SetAll(adrs, 0)
+        .NodeFlush(adrs)
+        .emit_raw(RenXt.RENARD_SYNC) //send out a final sync to mark end of last packet
+        .flush(function(err)
+        {
+            if (err) { console.log("error: " + err); return; }
+            console.log("write+drain+delay done: %d bytes available", port.RenXt.rdlen);
+        });
+}
 
 function test2(port)
 {
@@ -537,5 +628,12 @@ function test2(port)
         return true;
     }
 }
+
+setTimeout(function() { var el = new Elapsed(); sport.close(function(err)
+{
+    if (err) console.log("close err: ".red + err);
+    else console.log("closed after %s".green, el.scaled());
+}); }, 10 * 1000);
+
 
 //eof

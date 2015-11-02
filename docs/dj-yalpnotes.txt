@@ -1,3 +1,23 @@
+YALP unique features:
+- micro-kernel architecture; *everything* is a plug-in, no fixed/rigid framework
+- JavaScript + node.js, HTML5/JavaScript/CSS
+- streams, "smart" files with embedded playback logic, loosely based on .xseq, .fseq === used as fx cache
+- playlists, seq files are JS objects containing (custom) logic
+- dynamic, on-demand f generation
+- no fixed fps
+- easy to add custom fx or models, *all* fx and models are custom
+- only a text editor is needed to customize/extend
+- plug in to vast node.js eco-system, can incorporate other h/w as desired (vision, etc)
+- smart cues
+- 3D visualization
+- ipc, streams
+- node.js: single-cpu, event loop-driven, cooperative multi-tasking, blocking I/O + callbacks
+- simple install: node.js + npm install
+- dslop, msec timing accuracy
+- playback single-core, rendering/monitoring/extras multi-core
+- no fixed FPS
+- cloud-capable
+
 http://www.w3.org/html/wg/drafts/html/master/semantics.html#mediaevents
 1. media player: mp3 playback + vbl timer cb;  npm player or play-audio; node-lame + node-speaker
 https://github.com/azer/play-audio
