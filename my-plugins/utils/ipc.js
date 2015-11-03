@@ -50,6 +50,7 @@ send('evt', subscription-req); receive replies repeatedly
 //otoh^2, net api is simple enough - just call it directly
 
 var path = require('path');
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var fs = require('fs-ext'); //https://github.com/baudehlo/node-fs-ext; NOTE: this one seems to need npm install from git
 var CircularJSON = require('circular-json');
 var objectStream = require('objectstream').createStream; //https://www.npmjs.com/package/objectstream
@@ -78,6 +79,12 @@ const registry = path.join(__dirname, "ipc-cache.json");
 //fs.writeFileSync(registry, JSON.stringify({}), {flags: 'wx', }); //write file if not there, so flock has something to work on; http://stackoverflow.com/questions/12899061/creating-a-file-only-if-it-doesnt-exist-in-node-js
 try { fs.closeSync(fs.openSync(registry, 'wx')); } //write file if not there, so flock has something to work on; http://stackoverflow.com/questions/12899061/creating-a-file-only-if-it-doesnt-exist-in-node-js
 catch (exc) {};
+
+module.exports.purge = function()
+{
+    return fs.unlinkSync(registry);
+}
+
 
 function name2port(name) //, cb)
 {
@@ -138,17 +145,59 @@ module.exports.Listener = function(name)
 }
 */
 
+//CAUTION: these event handlers are set once, not per socket (else mem leak)
+/*
+var on_exit = [];
+function OnExit(desc, close)
+{
+    var retval = on_exit.length;
+    on_exit.push({desc: desc, func: function() { close(); }});
+    return retval;
+}
+process.once('exit', function(code) //sometimes socket doesn't close, so try to force it here
+{
+    console.log("destroy %d connections on exit", on_exit.length); // %s on proc exit(%d)", channel, code);
+//    if (client) client.destroy();
+//    var counts = {};
+    on_exit.forEach(function(close, inx)
+    {
+        if (!close) return; //already closed
+        console.log("destroy[%d/%d]: ", inx, on_exit.length, close.desc); // %s on proc exit(%d)", channel, code);
+//        counts[close.desc] = (counts[close.desc] || 0) + 1;
+        if (close.func === 'function') close.func();
+        on_exit[inx] = null;
+    });
+});
+process.once('SIGINT', function()
+{
+    console.log('Got SIGINT');
+//process.stdin.resume();//so the program will not close instantly
+    process.exit(2);
+//    console.log("close subscribed socket");
+//    receiver.server = null; //socket.destroy();
+});
+process.once('beforeExit', function() //kludge: make sure socket is closed on exit
+{
+    console.log("before exit");
+//    receiver.server = null; //socket.destroy();
+});
+*/
+
+
 //var loop  = 0;
 //for net examples see http://www.hacksparrow.com/tcp-socket-programming-in-node-js.html
-module.exports = function(name)
+module.exports.open = function(name)
 {
 //    var loop  = 0;
     var senders = {}, receivers = {}; //, seqnum = 0;
+    var num_retries = 0; //only used for debug
 //var state = 0;
     var retval = //don't know whether caller wants to send or receive or both, so just return a client + server promise wrapper
     {
         send: function(channel, data, cb) //socket client; can be called multiple times per channel
         {
+            var retry_args = arguments;
+//            console.log("entry: args", arguments);
             switch (arguments.length)
             {
                 case 0: channel = '*'; break; //force socket closed
@@ -159,30 +208,34 @@ module.exports = function(name)
                     break;
                 default: if (!channel) channel = '*'; break;
             }
-            var sender = senders[name + ':' + channel];
-            if (!sender) sender = senders[name + ':' + channel] = {}; //{cbs: [], };
+            channel = name + ':' + channel;
+            var sender = senders[channel];
+            if (!sender) sender = senders[channel] = {}; //{cbs: [], };
             if (!sender.promise) sender.promise = Q.promise(function(resolve, reject) //defer send until socket is open
             {
 //state = 1;
 //                var client = new net.Socket();
-                console.log("try connect ...");
-                var client = net.connect(name2port(name + ':' + channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
+                console.log("try connect %s ...", channel);
+                var client = net.connect(name2port(channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
+//                if (client) OnExit("socket " + channel, function() { client.destroy(); });
+//                client.objclient = objectStream(client); //TODO: does this need to be repeated after reconnect also?
+//                client.oxinx = OnExit("client " + channel, function() { client.objclient.end(); client.destroy(); });
 //state = 2;
 //                sender.objclient = objectStream(sender.client);
 //                var status = 0;
 //                console.log("try connect ...");
 debugger;
 //                client.myconnect = true;
-//NO                client.connect({port: name2port(name + ':' + channel), host: "localhost", }); //this creates 2 connection requests
+//NO                client.connect({port: name2port(channel), host: "localhost", }); //this creates 2 connection requests
 //                client.myconnect = false;
 //state = 3;
 //                var objclient = objectStream(client);
 //state = 4;
-                console.log("ons ...");
+                console.log("ons %s ...", channel);
                 client.on('connect', function() //NOTE: don't chain this from above?
                 {
 debugger;
-                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(name + ':' + channel) + " from " + client.port); //CircularJSON.stringify(client));
+                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(channel) + " from " + client.port); //CircularJSON.stringify(client));
 //                    client.itsmebob = true;
 //                    client.write("hello bob");
 //                    objectMode(client);
@@ -194,79 +247,99 @@ debugger;
 //                        if (loop++ < 10) console.log('RCV DATA: ', data);
 //no                    sender.destroy();
 //                    cb = sender.cbs.pop();
-                        if (!sender.cb) throw "Unexpected response on " + name;
-                        else if (!sender.cb(data)) sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+                        if (!sender.cb) throw "Unexpected response on " + channel;
+                        else if (!sender.cb(data))
+                        {
+                            sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+                            client.destroy();
+                        }
 //                    else console.log("ASK FOR MORE");
+                    });
+                    client.objclient.on('error', function(err)
+                    {
+                        console.log('Connection stream error ' + channel, err);
+                        sender.promise = client = null; //client.objclient = null; //reopen next time
+                        if (sender.cb) if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
                     });
                     client.objclient.on('close', function()
                     {
-                        console.log('Connection closed');
-                        sender.promise = client = objclient = null; //reopen next time
+                        console.log('Connection stream closed ' + channel);
+                        sender.promise = client = null; //client.objclient = null; //reopen next time
                         if (sender.cb) if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
                     });
                 });
                 client.on('error', function(err) //NOTE: this must be on client rather than objclient in case error occurs < connect
                 {
 debugger;
-                    console.log("error", err.code || err);
+                    console.log("error on ", err.code || err);
                     console.log("syscall ", err.syscall); //, ", state ", state); //, " myconnect? ", client.myconnect, " state ", state);
+                    if (client.objclient) client.objclient.end();
 //                    console.log("client", client);
 //                    if (!client.myconnect) return; //ignore this one
 //                    console.log("stack", err.stack);
 //                        if (err.syscall == "connect") setTimeout(function() //retry again later
 //                        {
-//                            console.log("retry connect to %s", name + ':' + channel);
+//                            console.log("retry connect to %s", channel);
 //                        sender.promise = null;
 //                        retval.send(channel, data, cb); //try it all again
-//                        client = net.connect(name2port(name + ':' + channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
-//                        client.connect(name2port(name + ':' + channel), "localhost");
+//                        client = net.connect(name2port(channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
+//                        client.connect(name2port(channel), "localhost");
 //                            sender.client.reconnect();
 //                        }, 1000);
 //                        if (!sender.promise.resolved)
-/*
-                    setTimeout(function() //retry in a little while
-                    {
-                        console.log("retry connect to %s", name + ':' + channel, ", resolved? ", client? !!client.objclient: '-'); //sender.promise.resolved);
-//                            client.reconnect();
-                        sender.promise = client = null; //reopen next time
-                        retval.send(channel, data, cb); //retry the whole call
-                    }, 1000);
-*/
 //                        else sender.promise = client = objclient = null; //reopen next time
-                    retry();
+                    retry(1000);
                 });
-                client.on('close', function()
+                client.on('end', function()
                 {
-                    console.log('Connection closed');
+                    console.log("connection end", channel);
+                });
+                client.on('disconnect', function()
+                {
+                    console.log("connection disconnect", channel);
+                });
+                client.on('timeout', function()
+                {
+                    console.log("connection timeout", channel);
+                });
+                client.on('close', function(had_error)
+                {
+                    console.log('Connection closed ' + channel, had_error);
+                    if (client && client.objclient) client.objclient.end();
+//                    on_exit[client.oxinx] = null; //don't need to close it later
 //                    sender.promise = client = null; //client.objclient = null; //reopen next time
                     if (!sender.cb) return;
                     if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
-////////////                    retry();
-                    if (!client.objclient) return;
-                    sender.promise = client = null; //reopen next time
-                    retval.send(channel, data, cb); //retry the whole call
+                    if (client && client.objclient) retry(0);
                 });
+//                process.once('SIGINT', function()
+//                {
+//                    console.log('Got SIGINT.');
+//                //process.stdin.resume();//so the program will not close instantly
+//                    process.exit(2);
+//                });
 //                process.once('exit', function(code) //sometimes socket doesn't close, so try to force it here
 //                {
-//                    console.log("destrory client on proc exit(%d)", code);
+//                    console.log("destrory client %s on proc exit(%d)", channel, code);
 //                    if (client) client.destroy();
 //                });
-                function retry()
+                function retry(delay)
                 {
-                    setTimeout(function() //retry in a little while
+                    (delay? setTimeout: process.nextTick)(function() //retry in a little while
                     {
-                        console.log("retry connect to %s", name + ':' + channel, ", resolved? ", client? !!client.objclient: '-'); //sender.promise.resolved);
+                        console.log("retry# %d connect to %s, delay %d, resolved? %s", num_retries++, channel, delay, client? !!client.objclient: '-'); //sender.promise.resolved);
 //                            client.reconnect();
                         sender.promise = client = null; //reopen next time
-                        retval.send(channel, data, cb); //retry the whole call
-                    }, 1000);
+//                        console.log("retry: args", retry_args);
+                        retval.send.apply(null, retry_args); //(channel, data, cb); //retry the whole call
+                    }, delay);
                 }
             });
             sender.promise.then(function(objclient) //defer send until socket client is ready
             {
 //                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
                 if (cb) //response wanted
-                    if (sender.cb) throw name + " already has a pending response";
+                    if (sender.cb) throw channel + " already has a pending response";
                     else sender.cb = cb;
                 console.log("SEND ", data);
 //                if (!client.itsmebob) throw "write to wrong obj";
@@ -280,8 +353,9 @@ debugger;
         {
             if (arguments.length == 1) { cb = channel; channel = '*'; }
             if (typeof cb !== 'function') throw "Call-back must be a function (" + typeof cb + " supplied)";
-            var receiver = receivers[name + ':' + channel];
-            if (!receiver) receiver = receivers[name + ':' + channel] = {cbs: [], };
+            channel = name + ':' + channel;
+            var receiver = receivers[channel];
+            if (!receiver) receiver = receivers[channel] = {cbs: [], };
             receiver.cbs.push(cb); //allow multiple callbacks per channel, although not recommended (msgs will come in to multiple callbacks)
             if (receiver.server) return;
             var states = {}; //keep track of client connection states so we know when to break subscription streams
@@ -305,18 +379,21 @@ debugger;
                     {
                         cb(data, function(reply_data)
                         {
+                            if ((arguments.length > 1) && (typeof reply_data === 'string')) reply_data = sprintf.apply(null, arguments);
 //                            if (!receiver.server) { console.log("closed, don't write %d", ++loop); return -1; } //tell caller to stop calling
                             if (states[objsocket.id] <= 0)
                                 console.log("%s, don't write %s", (states[objsocket.id] < 0)? "error": "closed", objsocket.id);
+//                            else if (!socket.writable) states[objsocket.id] = 0;
                             else
                             {
 //                                if (loop++ < 5) console.log("REPLY: ", reply_data);
 //                            objsocket.write(JSON.stringify(reply_data)); //TODO: if error due to closed socket, ignore?
 //                            wrobj(socket, reply_data);
                                 states[objsocket.id] = objsocket.write(reply_data)? 1: 2; //false => queued, true => flushed
+//                                console.log("reply-write to %s was okay? %d, writable? %d %d", objsocket.id, states[objsocket.id], objsocket.writable, socket.writable);
                             }
                             return states[objsocket.id]; //tell caller whether to stop sending
-                        }, states);
+                        }); //, states);
                     });
                 });
                 objsocket.on('close', function(data)
@@ -332,7 +409,42 @@ debugger;
 //                    if ((err.errno == 'EPIPE') && (err.syscall == 'write'))
 //                        receiver.server = null; //reopen next time
                 });
-            }).listen(name2port(name + ':' + channel), "localhost");
+                socket.on('close', function()
+                {
+                    states[objsocket.id] = 0;
+                    console.log("server socket closed", channel);
+                });
+//                socket.on('disconnect', function()
+//                {
+//                    console.log("server socket disconnected", channel);
+//                });
+//                socket.on('end', function()
+//                {
+//                    console.log("server socket ended", channel);
+//                });
+                socket.on('error', function(err)
+                {
+                    states[objsocket.id] = -1;
+                    console.log("server socket error", channel, err);
+                });
+            }).listen(name2port(channel), "localhost");
+//            OnExit("server " + channel, function() { receiver.server.close(); });
+//            receiver.server.on('connection', function(socket)
+//            {
+//                console.log("server connection ", channel, socket);
+//            });
+            receiver.server.on('close', function()
+            {
+                console.log("server close ", channel);
+            });
+            receiver.server.on('disconnect', function(data)
+            {
+                console.log("server disconnect ", channel);
+            });
+            receiver.server.on('error', function(err)
+            {
+                console.log("server error ", channel, err);
+            });
 //            process.on('SIGINT', function()
 //            {
 //                console.log('Got SIGINT.');

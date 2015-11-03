@@ -15,8 +15,10 @@
 					<Add option="-g" />
 				</Compiler>
 				<ExtraCommands>
-					<Add after="npm run build-ui" />
-					<Add after="npm run build-results" />
+					<Add after="#npm run build-ui" />
+					<Add after="#npm run build-results" />
+					<Add after="chmod +x bin/*.js" />
+					<Mode after="always" />
 				</ExtraCommands>
 			</Target>
 			<Target title="Release-Linux">
@@ -43,6 +45,8 @@
 		<Unit filename="TODO.txt" />
 		<Unit filename="bin/player.js" />
 		<Unit filename="bin/playlist.js" />
+		<Unit filename="bin/seq1.js" />
+		<Unit filename="bin/seq2.js" />
 		<Unit filename="bin/start.js" />
 		<Unit filename="bin/ui.js" />
 		<Unit filename="docs/dj-pinotes.txt" />
@@ -60,7 +64,7 @@
 		<Unit filename="my-plugins/hw/canvas.js" />
 		<Unit filename="my-plugins/hw/console.js" />
 		<Unit filename="my-plugins/hw/dslop.js" />
-		<Unit filename="my-plugins/hw/pic32.cpp" />
+		<Unit filename="my-plugins/hw/pic32.cpp-ex" />
 		<Unit filename="my-plugins/hw/serial.js" />
 		<Unit filename="my-plugins/media/my-player.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
