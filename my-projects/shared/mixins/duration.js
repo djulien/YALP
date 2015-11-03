@@ -20,8 +20,8 @@ function addDuration(that, listprop) //, chkprop)
         set: function(newval)
         {
             if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
-            if (newval) throw "Duration is read-only";
-            m_duration = newval; //only allow it to be cleared
+            if (newval) throw "Duration is read-only"; //only allow it to be cleared
+            m_duration = newval;
         }.bind(that),
     });
 }

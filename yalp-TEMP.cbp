@@ -41,6 +41,10 @@
 		</Compiler>
 		<Unit filename="README.md" />
 		<Unit filename="TODO.txt" />
+		<Unit filename="bin/player.js" />
+		<Unit filename="bin/playlist.js" />
+		<Unit filename="bin/start.js" />
+		<Unit filename="bin/ui.js" />
 		<Unit filename="docs/dj-pinotes.txt" />
 		<Unit filename="docs/dj-yalpnotes.txt" />
 		<Unit filename="graphics/yalp-icon8.PNG" />

@@ -153,8 +153,11 @@ module.exports = function(name)
             {
                 case 0: channel = '*'; break; //force socket closed
                 case 1: data = channel; channel = '*'; break;
-                case 2: if (typeof data !== 'function') break; cb = data; data = channel; channel = '*'; break;
-                case 3: if (!channel) channel = '*'; break;
+                case 2:
+                    if (typeof data === 'function') { cb = data; data = null; }
+                    if (typeof channel !== 'string') { data = channel; channel = '*'; }
+                    break;
+                default: if (!channel) channel = '*'; break;
             }
             var sender = senders[name + ':' + channel];
             if (!sender) sender = senders[name + ':' + channel] = {}; //{cbs: [], };

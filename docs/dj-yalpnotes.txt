@@ -11,7 +11,7 @@ YALP unique features:
 - smart cues
 - 3D visualization
 - ipc, streams
-- node.js: single-cpu, event loop-driven, cooperative multi-tasking, blocking I/O + callbacks
+- node.js: single-cpu, event loop-driven, cooperative multi-tasking, blocking I/O + callbacks; http://book.mixu.net/node/ch9.html
 - simple install: node.js + npm install
 - dslop, msec timing accuracy
 - playback single-core, rendering/monitoring/extras multi-core
@@ -380,6 +380,9 @@ IPC:
 streaming server?
  https://github.com/sebpiq/node-web-audio-api
  http://icecast.org/
+
+reconnect pipes:
+ dupx, reredirect (*nix only)
 
 async code patterns/mechanisms:
  https://strongloop.com/strongblog/node-js-callback-hell-promises-generators/
