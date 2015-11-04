@@ -231,7 +231,7 @@ debugger;
 //state = 3;
 //                var objclient = objectStream(client);
 //state = 4;
-                console.log("ons %s ...", channel);
+//                console.log("ons %s ...", channel);
                 client.on('connect', function() //NOTE: don't chain this from above?
                 {
 debugger;
@@ -271,8 +271,8 @@ debugger;
                 client.on('error', function(err) //NOTE: this must be on client rather than objclient in case error occurs < connect
                 {
 debugger;
-                    console.log("error on ", err.code || err);
-                    console.log("syscall ", err.syscall); //, ", state ", state); //, " myconnect? ", client.myconnect, " state ", state);
+                    console.log("error on ", channel, err.code || err, err.syscall || '??');
+//                    console.log("syscall ", err.syscall); //, ", state ", state); //, " myconnect? ", client.myconnect, " state ", state);
                     if (client.objclient) client.objclient.end();
 //                    console.log("client", client);
 //                    if (!client.myconnect) return; //ignore this one

@@ -1,4 +1,4 @@
-//#!/usr/bin/env node  --expose-gc
+#!/usr/bin/env node
 //#!/usr/local/bin/node --expose-gc
 
 'use strict'; //catch errors more easily
@@ -14,15 +14,19 @@ function ipc_eventemitter(opts)
     if (!(this instanceof ipc_eventemitter)) return new ipc_eventemitter.apply(this, arguments);
     baseclass.apply(this, arguments);
     var m_que = ipc('player#0'); //TODO: allow multiple instances?
+    var m_reply = null;
     this.on = function(name, cb)
     {
         m_que.rcv(name, function(data, reply_cb)
         {
-            m_reply_cb = reply_cb;
+            m_reply = reply_cb;
             cb(data);
         }
+    }
     this.emit = function(name, args)
     {
+        if (!m_reply) throw "ipc-eventemitter: no active req to emit-reply to";
+        m_reply(
     }
 }
 inherits(ipc_eventemitter, baseclass);

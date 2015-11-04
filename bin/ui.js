@@ -13,7 +13,7 @@ if (process.argv.length > 2) //node <me> extras
     var data = Array.prototype.slice.call(process.argv, 2);
     console.log("send cmd ", data);
     if (data[0] == 'purge') { ipc.purge(); process.exit(0); } //don't do anything else
-//    if (data[0] == 'listen')
+    if ((data[0] == 'quit') || (data[0] == 'pause')) setTimeout(function() { process.exit(0); }, 2000); //no point in waiting for more data after these commands
     que.send('cmd', data, function(data, reply)
     {
         console.log("reply: ", data);

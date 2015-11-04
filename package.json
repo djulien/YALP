@@ -6,6 +6,7 @@
   "yalp": {
     "comment": "set YALP default command line options here",
     "comment2": "any reason to change this to 'config'? so npm will set env vars?",
+    "playlist": "my-projects/playlists/xmas2015",
     "port": "2015",
     "ui": "false",
     "xui": "/usr/bin/google-chrome-stable",
