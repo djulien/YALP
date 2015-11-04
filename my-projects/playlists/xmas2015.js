@@ -6,7 +6,7 @@
 
 
 //TODO var Playlist = require('my-projects/shared/playlist'); //base class
-Playlist = function(opts)
+var Playlist = function(opts)
 {
     if (!(this instanceof Playlist)) return new Playlist.apply(this, arguments);
     this.debug = function() { debugger; }
@@ -39,7 +39,7 @@ xmas.schedule =
         name: 'testing',
         day_from: 1101, //mmdd
         day_to: 1127, //mmdd
-        time_from: 0 +PM, //hhmm
+        time_from: 751, //0 +PM, //hhmm
         time_to: 2400 +PM, //hhmm
     },
     {

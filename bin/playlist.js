@@ -8,6 +8,7 @@ var Elapsed = require('my-plugins/utils/elapsed');
 
 var songs = []; //{name, path, duration}
 var selected = 0, frnum = 0;
+var pending_stop;
 que.rcv('cmd', function(data, reply)
 {
 //try{
@@ -26,12 +27,14 @@ que.rcv('cmd', function(data, reply)
         case 'play!':
             if (!songs.length) { reply("no songs"); break; }
             reply("now playing, was? %s", !!playing);
+            pending_stop = false; //cancelled
             if (playing) break;
             send_frame();
             break;
         case 'pause!':
             reply("now paused, was? %s", !playing);
             if (playing) clearTimeout(playing);
+            pending_stop = false; //satisfied
             playing = null;
             break;
         case 'status!':
@@ -97,6 +100,7 @@ function send_frame()
         frnum = 0;
         if (++selected >= songs.length) selected = 0;
 //        console.log("next up: song[%d/%d]: ", selected, songs.length, songs[selected]);
+        if (!selected && pending_stop) cmd('pause');
         sendall({media: songs[selected].filename}); //load new media in player
     }
 
@@ -120,38 +124,58 @@ function sendall(send_data)
 }
 
 var glob = require('glob');
-var cfg = require('package.json').yalp || {};
-var playlist = cfg.playlist? require(glob.sync(cfg.playlist)): {}; //'my-projects/playlists/xmas2015');
+var path = require('path');
+for (var cfgdir = __dirname; cfgdir; cfgdir = path.dirname(cfgdir))
+{
+//    console.log("check %s", path.join(cfgdir, 'package.json'));
+    try { var cfg = require(path.join(cfgdir, 'package.json')).yalp || {}; break; }
+    catch (exc) {} //console.log("package.json not found at %s", cfgdir); }
+}
+//console.log(cfg);
+cfg.playlist = path.relative(__dirname, path.join(cfgdir, cfg.playlist));
+console.log("playlist %s", cfg.playlist);
+//console.log(glob.sync(path.join(cfgdir, cfg.playlist)));
+var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists/xmas2015');
 (playlist.songs || []).forEach(function(song, inx) { cmd('add', glob.sync(song)); });
+(playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place in order of preference by duration
 if (playlist.opts.autoplay) scheduler(playlist);
 
+var was_active = false;
 function scheduler(playlist)
 {
+    var now = new Date();
     if (!playlist.schedule) return;
-    playlist.sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place in order of preference by duration
-    playlist.schedule.forEach(function(sched, inx)
+    var is_active = playlist.schedule.some(function(sched, inx)
     {
-        console.log(
-
-
-        name: 'testing',
-        day_from: 1101, //mmdd
-        day_to: 1127, //mmdd
-        time_from: 0 +PM, //hhmm
-        time_to: 2400 +PM, //hhmm
-});
+        console.log("sched %j active? %s", sched, active(sched, now));
+        return active(sched, now); //true => break, false => continue
+    });
+    console.log("scheduler: was %s, is %s, change state? %s", was_active, is_active, is_active != was_active);
+    if (is_active && !was_active) cmd('play');
+    else if (!is_active && was_active) pending_stop = true; //cmd('pause');
+    setTimeout(function() { scheduler(playlist); }, 60 * 1000);
+}
 
 //TODO: merge scheduler code
-Date.prototype.mmdd = function() { return 100 * (this.getMonth() + 1) + this.getDate(); }
-Date.prototype.hhmm = function() { return 100 * this.getHour() + this.getMinute(); }
-Date.prototype.weekday = function() { return this.getDay(); } //http://www.w3schools.com/jsref/jsref_obj_date.asp
+//Date.prototype.mmdd = function() { return 100 * (this.getMonth() + 1) + this.getDate(); }
+//Date.prototype.hhmm = function() { return 100 * this.getHour() + this.getMinute(); }
+//Date.prototype.weekday = function() { return this.getDay(); } //http://www.w3schools.com/jsref/jsref_obj_date.asp
+function mmdd(date) { return 100 * (date.getMonth() + 1) + date.getDate(); }
+function hhmm(date) { return 100 * date.getHour() + date.getMinute(); }
+function weekday(date) { return date.getDay(); } //http://www.w3schools.com/jsref/jsref_obj_date.asp
 
 function mmdd2days(mmdd) { return mmdd + (32 - 100) * Math.floor(mmdd / 100); } //kludge: use 32 days/month as an approximation
-function hhmm2min(hhmm) { return hhmm + (60 - 100) * Math.floor(mmdd / 100); }
+function hhmm2min(hhmm) { return hhmm + (60 - 100) * Math.floor(hhmm / 100); }
 //function hhmm2msec(hhmm) { return hhmm2min(hhmm) * 60 * 1000; } //msec
 
 function MIN(thing) { return thing.length? Math.min.apply(null, thing): thing; }
 function BTWN(val, from, to) { return (from < to)? (val >= to) && (val <= from): (val <= to) || (val >= from); }
+function SafeItem(choices, which)
+{
+    if (!choices.length) return choices;
+//    var wday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
+    return (which < 0)? choices[0]: (which >= choices.length)? choices[choices.length - 1]: choices[which];
+}
 
 function priority(THIS) //give preference to shorter schedules so they can override or interrupt longer schedules
 {
@@ -163,64 +187,56 @@ function priority(THIS) //give preference to shorter schedules so they can overr
     return THIS.cached_pri = date_range * 24 * 60 + time_range;
 }
 
-//eof
-
-
-/*
-
-
-function SafeItem(choices, which)
+function gettimes(THIS, weekday)
 {
-    if (!choices.length) return choices;
-//    var wday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
-    return (which < 0)? choices[0]: (which >= choices.length)? choices[choices.length - 1]: choices[which];
+    if (weekday == THIS.cached_wkday) return;
+    THIS.cached_starttime = SafeItem(THIS.time_from, weekday);
+    THIS.cached_stoptime = SafeItem(THIS.time_to, weekday);
+    THIS.cached_wkday = weekday;
 }
 
-//    shuttle: function()
-    starttime: function(weekday)
-    {
-        if (weekday != (THIS.starttime.cache || {}).weekday)
-            THIS.starttime.cache = {weekday: weekday, time_from: SafeItem(THIS.schedule.time_from, weekday())};
-        return THIS.starttime.cache.time_from;
-    },
-    stoptime: function(weekday)
-    {
-        if (weekday != (THIS.stoptime.cache || {}).weekday)
-            THIS.stoptime.cache = {weekday: weekday, time_to: SafeItem(THIS.schedule.time_to, weekday())};
-        return THIS.starttime.cache.time_to;
-    },
-    active: function(now)
-    {
-        if (!now) now = new Date();
+function starttime(THIS, weekday)
+{
+    gettimes(THIS, weekday);
+    return THIS.cached_starttime;
+}
+
+function stoptime(THIS, weekday)
+{
+    gettimes(THIS, weekday);
+    return THIS.cached_stoptime;
+}
+
+function active(THIS, now)
+{
+    if (!now) now = new Date();
 //        var weekday = now.getDay(); //http://www.w3schools.com/jsref/jsref_obj_date.asp
 //        var weekday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
 //        var month = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(',')[now.getMonth()];
 //        var mmdd = mmdd2days(100 * now.GetMonth() + now.getDate());
-        console.log("xmas playlist: mmdd now %d, btwn start %d + end %d? %d", now.mmdd(), THIS.schedule.day_from, THIS.schedule.day_to, BTWN(now.mmdd(), THIS.schedule.day_from, THIS.schedule.day_to));
-        if (!BTWN(now.mmdd(), THIS.schedule.day_from, THIS.schedule.day_to)) return false;
+    console.log("playlist: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
+    if (!BTWN(mmdd(now), THIS.day_from, THIS.day_to)) return false;
 //        var hhmm = now.getHour() * 100 + now.getMinute();
-        console.log("xmas playlist: weekday %d, hhmm now %d, btwn start %d + end %d? %d", now.weekday(), now.hhmm(), THIS.starttime(now.weekday()), THIS.stoptime(now.weekday()), BTWN(now.hhmm(), THIS.starttime(now.weekday()), THIS.stoptime(now.weekday())));
-        if (!BTWN(now.hhmm(), starttime(now.weekday()), stoptime(now.weekday()))) return false;
-        console.log("xmas playlist is active");
-        return true;
-    },
-    run: function(done_cb)
-    {
-        var now = new Date();
-        if (!THIS.active(now)) return false;
-        console.log("xmas playlist: starting at %d, opener? %d, within 1 hr of start? %d", now.hhmm(), !!THIS.opener, BTWN(now.hhmm(), THIS.starttime(now.weekday), THIS.starttime(now.weekday()) + 100));
-        if (THIS.opener && BTWN(now.hhmm(), THIS.starttime(now.weekday), THIS.starttime(now.weekday()) + 100)) playback(THIS.opener); //don't play opener if starting late
-        THIS.songs.every(function(song, inx)
-        {
-            playback(song);
-            return active();
-        });
-        if (THIS.closer) playback(THIS.closer);
-        return true;
-    },
-};
-
-function playback(song)
-{
-    console.log("playback " + song);
+    return true;
 }
+
+//    shuttle: function()
+/*
+//TODO: opener, closer
+run: function(done_cb)
+{
+    var now = new Date();
+    if (!THIS.active(now)) return false;
+    console.log("playlist: starting at %d, opener? %d, within 1 hr of start? %d", now.hhmm(), !!THIS.opener, BTWN(now.hhmm(), THIS.starttime(now.weekday), THIS.starttime(now.weekday()) + 100));
+    if (THIS.opener && BTWN(now.hhmm(), THIS.starttime(now.weekday), THIS.starttime(now.weekday()) + 100)) playback(THIS.opener); //don't play opener if starting late
+    THIS.songs.every(function(song, inx)
+    {
+        playback(song);
+        return active();
+    });
+    if (THIS.closer) playback(THIS.closer);
+    return true;
+}
+*/
+
+//eof
