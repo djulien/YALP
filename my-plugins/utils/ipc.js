@@ -368,7 +368,7 @@ debugger;
             {
 //                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
                 if (cb) //response wanted
-                    if (sender.cbs.length) return sender.cbs.push(retry_args); //enqueue //throw channel + " already has a pending response";
+                    if (sender.cbs.length) { console.log("enqueued %j", retry_args); return sender.cbs.push(retry_args); } //enqueue //throw channel + " already has a pending response";
                     else sender.cbs.push(cb);
                 console.log("SEND ", data);
 //                if (!client.itsmebob) throw "write to wrong obj";

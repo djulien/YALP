@@ -36,7 +36,7 @@ function emailer(title, body)
 {
     if (body.match(/%[ds]/))
     {
-        var sprintf = require('sprintf-js').sprintf;
+        /*var sprintf =*/ require('sprintf.js'); //.sprintf;
         body = sprintf.apply(null, Array.prototype.slice.call(arguments, 1)); //exclude title
     }
     var is_html = body.match(/[<>]/); //assume html if tags present

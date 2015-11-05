@@ -13,7 +13,7 @@ var Canvas = require('term-canvas'); //https://github.com/tj/term-canvas
 var Vixen2 = require('my-projects/songs/vixen2');
 var timescale = require('my-plugins/utils/time-scale');
 var elapsed = require('my-plugins/utils/elapsed');
-var sprintf = require('sprintf-js').sprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 
 var noplay = (process.argv[process.argv.length - 1] == "-noplay");
 console.log("args: %d %s", process.argv.length, noplay? "NOPLAY".cyan: '');

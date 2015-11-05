@@ -6,9 +6,10 @@
 
 
 //TODO var Playlist = require('my-projects/shared/playlist'); //base class
-var Playlist = function(opts)
+var Playlist = function(opts) //temp shim
 {
-    if (!(this instanceof Playlist)) return new Playlist.apply(this, arguments);
+//    if (!(this instanceof Playlist)) return new Playlist.apply(this, arguments);
+    if (!(this instanceof Playlist)) return new (Playlist.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     this.debug = function() { debugger; }
     this.opts = opts || {};
 }

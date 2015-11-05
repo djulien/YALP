@@ -2,9 +2,9 @@
 'use strict';
 
 //var Q = require('q'); //https://github.com/kriskowal/q
-var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf; //, vsprintf = require('sprintf-js').vprintf;
 //var caller = require('my-plugins/utils/caller');
-var logger = require('my-plugins/utils/logger').logger;
+var logger = require('my-plugins/utils/logger'); //.logger;
 
 module.exports = addPromiseKeeper;
 

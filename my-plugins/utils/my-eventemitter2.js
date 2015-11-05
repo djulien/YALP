@@ -7,7 +7,7 @@ require('colors'); //var colors = require('colors/safe');
 var events = module.exports = require('eventemitter2'); //https://github.com/asyncly/EventEmitter2
 //var shortname = require('my-plugins/utils/shortname');
 //var caller = require('my-plugins/utils/caller');
-var logger = require('my-plugins/utils/logger').logger;
+var logger = require('my-plugins/utils/logger'); //.logger;
 var inspect = require('util').inspect;
 
 logger("TODO: ipc events".red);

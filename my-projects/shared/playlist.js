@@ -11,7 +11,7 @@
 
 require('colors');
 var fs = require('fs');
-var logger = require('my-plugins/utils/logger').logger;
+var logger = require('my-plugins/utils/logger'); //.logger;
 var glob = require('glob'); //function(pattern, cb)
 //{
 ////    var colors = require('colors/safe');
@@ -19,7 +19,7 @@ var glob = require('glob'); //function(pattern, cb)
 //    return require('glob').apply(null, arguments);
 //}
 var path = require('path');
-var sprintf = require('sprintf-js').sprintf; //, vsprintf = require('sprintf-js').vprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf; //, vsprintf = require('sprintf-js').vprintf;
 var shortname = require('my-plugins/utils/shortname');
 //var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
 var stack = require('my-plugins/utils/caller').stack;

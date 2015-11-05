@@ -14,7 +14,7 @@ require('colors');
 var fs = require('fs');
 var util = require('util');
 //var sprintf = require('sprintf-js').sprintf;
-var vsprintf = require("sprintf-js").vsprintf;
+/*var vsprintf =*/ require("sprintf.js"); //.vsprintf;
 var sizeof = require('object-sizeof');
 var elapsed = require('my-plugins/utils/elapsed');
 //var timescale = require('my-plugins/utils/time-scale');
@@ -170,7 +170,7 @@ function MyStream(name, opts) //factory, not ctor
         warn: function(msg, args)
         {
 //            if (typeof chunk !== 'object') { chunk = null;
-            if (arguments.length > 1) msg = vsprintf(msg, Array.prototype.slice.call(arguments).slice(1));
+            if (arguments.length > 1) msg = sprintf.apply(Array.prototype.slice.call(arguments));
         //    outs.emit('warning', msg);
 //            if (this.eof) //return; //avoid infinite loop
 //                console.log("%s WARN: ".yellow, name, msg);

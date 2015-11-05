@@ -12,6 +12,7 @@ var pending_stop;
 que.rcv('cmd', function(data, reply)
 {
 //try{
+    console.log("cmd: length %d, data %j", data.length, data);
     switch (!data.length? data + '!': data[0] + ((data.length < 2)? '!': '*'))
     {
         case 'add*':
@@ -20,6 +21,7 @@ que.rcv('cmd', function(data, reply)
 //TODO?                if (!data[1].length) data[1] = [data[1]];
                 var song = require(data[1]);
                 song.filename = require.resolve(data[1]); //get path name
+                console.log("song filename", song.filename);
                 reply("add song[%d] '%s' ok? %s: %j", songs.length, data[1], !!song, song);
                 songs.push(song);
             }
@@ -59,7 +61,7 @@ function cmd(args) //, cb)
 //    var args = arguments.length? arguments: cmd.pending.shift(); //assumes caller will not dequeue if empty
 //    if (arguments.length && cmd.pending) return cmd.pending.push(arguments); //wait for previous cmd to finish before sending a new one (ipc is not reentrant)
 //    cmd.pending = [];
-    que.send('cmd', args, function(data, reply)
+    que.send('cmd', Array.prototype.slice.call(arguments), function(data, reply)
     {
         console.log("reply: ", data);
 //        if (/*cb ||*/ cmd.pending.length) process.nextTick(function() //return from current message before sending reply or next cmd
@@ -135,6 +137,8 @@ function sendall(send_data)
 
 var glob = require('glob');
 var path = require('path');
+
+//console.log(require.resolve(path.join(__dirname, 'package.json')));
 for (var cfgdir = __dirname; cfgdir; cfgdir = path.dirname(cfgdir))
 {
 //    console.log("check %s", path.join(cfgdir, 'package.json'));
@@ -142,11 +146,15 @@ for (var cfgdir = __dirname; cfgdir; cfgdir = path.dirname(cfgdir))
     catch (exc) {} //console.log("package.json not found at %s", cfgdir); }
 }
 //console.log(cfg);
-cfg.playlist = path.relative(__dirname, path.join(cfgdir, cfg.playlist));
-console.log("playlist %s", cfg.playlist);
+//console.log("cfg path ", path.join(cfgdir, cfg.playlist)); process.exit(0);
+//if (cfg.playlist) cfg.playlist = require.resolve(cfg.playlist); //path.join(cfgdir, cfg.playlist); //path.relative(__dirname, path.join(cfgdir, cfg.playlist));
+//console.log("playlist %s", require.resolve(cfg.playlist)); //path.resolve(__dirname, cfg.playlist)); process.exit(0);
 //console.log(glob.sync(path.join(cfgdir, cfg.playlist)));
 var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists/xmas2015');
-(playlist.songs || []).forEach(function(song, inx) { cmd('add', glob.sync(song)); });
+//console.log("songs %j", playlist.songs);
+//if (cfg.playlist) console.log("pl", require.resolve(cfg.playlist)); process.exit(0);
+(playlist.songs || []).forEach(function(song, inx) { require(require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
+(playlist.songs || []).forEach(function(song, inx) { cmd('add', require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
 (playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place schedule in order of preference by duration
 if ((playlist.opts || {}).autoplay) scheduler(playlist);
 
@@ -227,7 +235,7 @@ function active(THIS, now)
 //        var weekday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
 //        var month = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(',')[now.getMonth()];
 //        var mmdd = mmdd2days(100 * now.GetMonth() + now.getDate());
-//    console.log("playlist: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
+//    console.log("playlist scheduler: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
     if (!BTWN(mmdd(now), THIS.day_from, THIS.day_to)) return false;
 //        var hhmm = now.getHour() * 100 + now.getMinute();
     return true;

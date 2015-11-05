@@ -20,7 +20,7 @@ var byline = require('byline');
 var inherits = require('inherits');
 var Tokenizer = require('tokenizer');
 var memscale = require('my-plugins/utils/mem-scale');
-var sprintf = require('sprintf-js').sprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 //var callsite = require('callsite'); //https://www.npmjs.com/package/callsite
 var stack = require('my-plugins/utils/caller').stack;
 require('buffertools').extend(); //https://github.com/bnoordhuis/node-buffertools

@@ -4,7 +4,7 @@
 //require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
-var sprintf = require('sprintf-js').sprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var path = require('path');
 //NOTE: async var xml2js = require('xml2js'); //https://github.com/Leonidas-from-XIV/node-xml2js
 //var parser = new xml2js.Parser();

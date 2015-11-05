@@ -134,7 +134,7 @@ CueList.prototype.debug = function()
 {
     if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
     if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
-    var sprintf = require('sprintf-js').sprintf;
+    /*var sprintf =*/ require('sprint.js'); //.sprintf;
     var buf = ['cuelist info:'];
     this.cues.forEach(function(cue, inx)
     {

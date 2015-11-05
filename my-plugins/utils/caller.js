@@ -2,7 +2,7 @@
 'use strict';
 
 var callsite = require('callsite');
-var sprintf = require('sprintf-js').sprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var shortname = require('my-plugins/utils/shortname');
 
 module.exports.stack = function(depth)

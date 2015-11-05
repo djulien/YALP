@@ -4,7 +4,7 @@
 require('colors');
 var fs = require('fs');
 var path = require('path');
-var sprintf = require('sprintf-js').sprintf;
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var clock = require('my-plugins/utils/clock');
 var caller = require('my-plugins/utils/caller').caller;
 var elapsed = require('my-plugins/utils/elapsed');

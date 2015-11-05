@@ -79,7 +79,7 @@ SequenceStreamer.prototype._read = function()
 SequenceStreamer.prototype.debug = function()
 {
     if (!global.v8debug) return; //http://stackoverflow.com/questions/6889470/how-to-programmatically-detect-debug-mode-in-nodejs
-    var sprintf = require('sprintf-js').sprintf;
+    /*var sprintf =*/ require('sprintf.js'); //.sprintf;
     var buf = [];
     this.cues.forEach(function(cue, inx)
     {
