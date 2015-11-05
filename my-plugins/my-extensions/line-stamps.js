@@ -29,6 +29,8 @@ hook.hook(EXT, function(src, fullpath)
 //    try {
     var auto_strict = false;
 //console.log("falafel(%s)", filename);
+    src = src.replace(/^('use strict'; )?#/, "$1//#"); //kludge: falafel (acorn, actually) doesn't like she-bang
+//    console.log(src.substr(0, 200) + " ...");
     var src = falafel({source: src, ecmaVersion: 6, locations: true}, function(node) //https://github.com/substack/node-falafel/issues/37
     {
         auto_strict = auto_strict || isAutoStrict(node);

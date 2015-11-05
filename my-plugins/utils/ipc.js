@@ -196,7 +196,7 @@ module.exports.open = function(name)
     {
         send: function(channel, data, cb) //socket client; can be called multiple times per channel
         {
-            var retry_args = arguments;
+//            var retry_args = arguments;
 //            console.log("entry: args", arguments);
             switch (arguments.length)
             {
@@ -208,9 +208,32 @@ module.exports.open = function(name)
                     break;
                 default: if (!channel) channel = '*'; break;
             }
+            var retry_args = [channel, data, cb]; //no need to re-shuffle params each time
             channel = name + ':' + channel;
             var sender = senders[channel];
-            if (!sender) sender = senders[channel] = {}; //{cbs: [], };
+            if (!sender)
+            {
+                sender = senders[channel] = {cbs: []}; //{}
+//                sender.cbs.callback = function() { sender.cbs[0][sender.cbs[0].length - 1]; }
+//                sender.cbs.dequeue = function() { retval.send.apply(null, sender.cbs.shift()); } //(channel, data, cb); //retry the whole call
+                sender.cbexec = function(reply_data)
+                {
+                    if (!sender.cbs.length) return -1; //no call-back
+                    var cb = sender.cbs[0];
+//                    cb = cb[cb.length - 1];
+                    if (typeof cb === 'function') //process pending reply
+                    {
+                        if (cb(reply_data)) return 1; //retained call-back
+                        sender.cbs.shift(); //= null; //satisfy pending callback and then reset for another one
+                    }
+                    if (sender.cbs.length) //dequeue next
+                    {
+                        var nextcb = sender.cbs.shift();
+                        process.nextTick(function() { retval.send.apply(null, nextcb); }); //(channel, data, cb); //retry the whole call
+                    }
+                    return 0; //dropped call-back
+                }
+            }
             if (!sender.promise) sender.promise = Q.promise(function(resolve, reject) //defer send until socket is open
             {
 //state = 1;
@@ -247,25 +270,30 @@ debugger;
 //                        if (loop++ < 10) console.log('RCV DATA: ', data);
 //no                    sender.destroy();
 //                    cb = sender.cbs.pop();
-                        if (!sender.cb) throw "Unexpected response on " + channel;
-                        else if (!sender.cb(data))
+                        switch (sender.cbexec(data))
                         {
-                            sender.cb = null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
-                            client.destroy();
+                            case -1: throw "Unexpected response on " + channel;
+                            case 0: client.destroy(); break;
                         }
+//                        if (!sender.cbs.length) throw "Unexpected response on " + channel;
+//                        else if (!sender.cbs[0](data))
+//                        {
+//                            sender.cbs.shift(); //= null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+//                            client.destroy();
+//                        }
 //                    else console.log("ASK FOR MORE");
                     });
                     client.objclient.on('error', function(err)
                     {
                         console.log('Connection stream error ' + channel, err);
                         sender.promise = client = null; //client.objclient = null; //reopen next time
-                        if (sender.cb) if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
+                        sender.cbexec(-1); //if (sender.cbs.length) if (!sender.cbs[0](-1)) sender.cbs.shift(); //= null; //satisfy pending callback and then reset for another one
                     });
                     client.objclient.on('close', function()
                     {
                         console.log('Connection stream closed ' + channel);
                         sender.promise = client = null; //client.objclient = null; //reopen next time
-                        if (sender.cb) if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
+                        sender.cbexec(-1); //if (sender.cbs.length) if (!sender.cbs[0](-1)) sender.cbs.shift(); //= null; //satisfy pending callback and then reset for another one
                     });
                 });
                 client.on('error', function(err) //NOTE: this must be on client rather than objclient in case error occurs < connect
@@ -308,9 +336,10 @@ debugger;
                     if (client && client.objclient) client.objclient.end();
 //                    on_exit[client.oxinx] = null; //don't need to close it later
 //                    sender.promise = client = null; //client.objclient = null; //reopen next time
-                    if (!sender.cb) return;
-                    if (!sender.cb(-1)) sender.cb = null; //satisfy pending callback and then reset for another one
-                    if (client && client.objclient) retry(0);
+                    if ((sender.cbexec(-1) > 0) && client && client.objclient) retry(0);
+//                    if (!sender.cbs.length) return;
+//                    if (!sender.cbs[0](-1)) sender.cbs.shift(); //= null; //satisfy pending callback and then reset for another one
+//                    if (client && client.objclient) retry(0);
                 });
 //                process.once('SIGINT', function()
 //                {
@@ -339,8 +368,8 @@ debugger;
             {
 //                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
                 if (cb) //response wanted
-                    if (sender.cb) throw channel + " already has a pending response";
-                    else sender.cb = cb;
+                    if (sender.cbs.length) return sender.cbs.push(retry_args); //enqueue //throw channel + " already has a pending response";
+                    else sender.cbs.push(cb);
                 console.log("SEND ", data);
 //                if (!client.itsmebob) throw "write to wrong obj";
 //                client.write(JSON.stringify(data));

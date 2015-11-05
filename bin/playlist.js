@@ -17,6 +17,7 @@ que.rcv('cmd', function(data, reply)
         case 'add*':
             try
             {
+//TODO?                if (!data[1].length) data[1] = [data[1]];
                 var song = require(data[1]);
                 song.filename = require.resolve(data[1]); //get path name
                 reply("add song[%d] '%s' ok? %s: %j", songs.length, data[1], !!song, song);
@@ -52,11 +53,20 @@ que.rcv('cmd', function(data, reply)
 });
 
 //send command to myself:
-function cmd(args)
+
+function cmd(args) //, cb)
 {
-    que.send('cmd', arguments, function(data, reply)
+//    var args = arguments.length? arguments: cmd.pending.shift(); //assumes caller will not dequeue if empty
+//    if (arguments.length && cmd.pending) return cmd.pending.push(arguments); //wait for previous cmd to finish before sending a new one (ipc is not reentrant)
+//    cmd.pending = [];
+    que.send('cmd', args, function(data, reply)
     {
         console.log("reply: ", data);
+//        if (/*cb ||*/ cmd.pending.length) process.nextTick(function() //return from current message before sending reply or next cmd
+//        {
+//            if (cb) cb(data);
+//            if (cmd.pending.length) cmd(); //dequeue next request
+//        });
         return false; //i don't want more
     });
 }
@@ -137,22 +147,25 @@ console.log("playlist %s", cfg.playlist);
 //console.log(glob.sync(path.join(cfgdir, cfg.playlist)));
 var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists/xmas2015');
 (playlist.songs || []).forEach(function(song, inx) { cmd('add', glob.sync(song)); });
-(playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place in order of preference by duration
-if (playlist.opts.autoplay) scheduler(playlist);
+(playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place schedule in order of preference by duration
+if ((playlist.opts || {}).autoplay) scheduler(playlist);
 
-var was_active = false;
+var was_active = null;
 function scheduler(playlist)
 {
     var now = new Date();
     if (!playlist.schedule) return;
-    var is_active = playlist.schedule.some(function(sched, inx)
+    var is_active = null; playlist.schedule.some(function(sched, inx)
     {
-        console.log("sched %j active? %s", sched, active(sched, now));
-        return active(sched, now); //true => break, false => continue
+//        console.log("sched %j active? %s", sched, active(sched, now));
+        is_active = active(sched, now)? sched: null; //kludge: array.some only returns true/false, so save result in here
+        return is_active; //true => break, false => continue
     });
-    console.log("scheduler: was %s, is %s, change state? %s", was_active, is_active, is_active != was_active);
+    console.log("scheduler: was %j, is %j, change state? %s", was_active, is_active, !is_active != !was_active);
+//TODO: opener, closer
     if (is_active && !was_active) cmd('play');
     else if (!is_active && was_active) pending_stop = true; //cmd('pause');
+    was_active = is_active;
     setTimeout(function() { scheduler(playlist); }, 60 * 1000);
 }
 
@@ -169,7 +182,7 @@ function hhmm2min(hhmm) { return hhmm + (60 - 100) * Math.floor(hhmm / 100); }
 //function hhmm2msec(hhmm) { return hhmm2min(hhmm) * 60 * 1000; } //msec
 
 function MIN(thing) { return thing.length? Math.min.apply(null, thing): thing; }
-function BTWN(val, from, to) { return (from < to)? (val >= to) && (val <= from): (val <= to) || (val >= from); }
+function BTWN(val, from, to) { return (from <= to)? (val >= from) && (val <= to): (val <= to) || (val >= from); }
 function SafeItem(choices, which)
 {
     if (!choices.length) return choices;
@@ -214,7 +227,7 @@ function active(THIS, now)
 //        var weekday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
 //        var month = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(',')[now.getMonth()];
 //        var mmdd = mmdd2days(100 * now.GetMonth() + now.getDate());
-    console.log("playlist: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
+//    console.log("playlist: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
     if (!BTWN(mmdd(now), THIS.day_from, THIS.day_to)) return false;
 //        var hhmm = now.getHour() * 100 + now.getMinute();
     return true;
