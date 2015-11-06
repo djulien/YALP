@@ -83,10 +83,10 @@ function addPromiseKeeper(that, deadline) //, chkprop)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
 //http://stackoverflow.com/questions/15455009/js-call-apply-vs-bind
-        var args = Array.prototype.slice.call(arguments); //extract sprintf params
+        var args = Array.from/*prototype.slice.call*/(arguments); //extract sprintf params
 //    console.log(arguments.length + " pend args: ", arguments);
         if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+        if (args.length > 2) msg = sprintf.apply(args); //null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
 //    console.log(" => ", args.length, args);
         ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
@@ -98,9 +98,9 @@ function addPromiseKeeper(that, deadline) //, chkprop)
     that.unpend = function(count, msg)
     {
         if (chkprop && !this[chkprop]) throw "This is not a '" + chkprop.substr(2) + "'"; //paranoid/sanity context check
-        var args = Array.prototype.slice.call(arguments); //extract sprintf params
+        var args = Array.from/*prototype.slice.call*/(arguments); //extract sprintf params
         if (typeof count === 'string') { msg = count; count = null; args.splice(0, 0, null); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
-        if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+        if (args.length > 2) msg = sprintf.apply(args); //null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
         ++logger.depth_adjust; //show my caller, not me
         if (args.length > 1) this.warn(msg);
         else logger.depth_adjust = 0; //clear depth adjust in lieu of warn()->emit()->logger() call

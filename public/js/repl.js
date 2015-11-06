@@ -313,7 +313,7 @@ function Model(opts)
 
     function debug(vargs)
     {
-        console.log.apply(null, Array.protocol.slice(arguments));
+        console.log.apply(null, arguments); //Array.protocol.slice(arguments));
     }
 
 //    function alpha(color)

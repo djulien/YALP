@@ -1,13 +1,23 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
+var glob = require('glob');
+var path = require('path');
+var mp3len = require('my-plugins/utils/mp3len');
+
 //TODO var Sequence = require('my-projects/shared/sequence'); //base class
 var Sequence = function(opts) //temp shim
 {
     if (!(this instanceof Sequence)) return new (Sequence.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     this.debug = function() { debugger; }
     this.addCue = function() { return this; } //fluent
-    this.duration = 5; //TODO
+    glob(path.join(__dirname, '**', '!(*-bk).{mp3,mp4,wav,ogg,webm}'), function(err, files)
+    {
+        files.some(function(filename, inx)
+        {
+            return this.duration = mp3len(this.media = filename);
+        }.bind(this));
+    }.bind(this));
     this.opts = opts || {};
 }
 var seq = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });

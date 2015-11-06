@@ -245,7 +245,7 @@ function Fluent(opts)
 
     var enque = function(fx, duration)
     {
-        fx = fx.bind(this, Array.prototype.slice.call(arguments, 1)); //pass extra params to callback, make sure "this" is set
+        fx = fx.bind(this, Array.from/*prototype.slice.call*/(arguments).slice(1)); //pass extra params to callback, make sure "this" is set
         if (duration < 0) console.log("%s is overdue by %s", fx, clock.asString(-duration));
         if (m_opts.immediate /*this.isRunning*/) fx(); //execute immediately
         else { m_evts.push({fxfunc: fx, time: this.elapsed_queue + (duration || 0)}); this.elapsed_queue += duration || 0; } //exec later

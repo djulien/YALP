@@ -214,13 +214,34 @@ module.exports.open = function(name)
                     break;
                 default: if (!channel) channel = '*'; break;
             }
-            var retry_args = [channel, data, cb]; //save after shuffle to avoid re-shuffle params each time
+//            var retry_args = [channel, data, cb]; //no need to re-shuffle params each time
             channel = name + ':' + channel;
             var sender = cb? {}: senders[channel] = senders[channel] || {}; //use separate sockets if responses are needed (to avoid cross-talk)
+//            if (!sender)
+//            {
+//                sender = senders[channel] = {cbs: []}; //{}
+//                sender.cbs.callback = function() { sender.cbs[0][sender.cbs[0].length - 1]; }
+//                sender.cbs.dequeue = function() { retval.send.apply(null, sender.cbs.shift()); } //(channel, data, cb); //retry the whole call
             if (!sender.cbexec) sender.cbexec = function(reply_data)
             {
-                if (!sender.cb) return -1; //retdebug(-1, "cbexec: nothing pending"); //no call-back
-                if (cb(reply_data)) return 1; //retdebug(1, "cbexec: cb wants to retain current cb"); //retained call-back
+//                    var curreq = sender.cbs[0];
+//                    if (!curreq /*!sender.cbs.length*/) 
+                if (!sender.cb) return retdebug(-1, "cbexec: nothing pending"); //no call-back
+//                    console.log("typeof cur req ", typeof curreq);
+//                    var cb = curreq.slice(-1)[0]; //[curreq.length - 1];
+//                    if (typeof cb === 'function') //process pending reply
+                if (cb(reply_data)) return retdebug(1, "cbexec: cb wants to retain current cb"); //retained call-back
+//                    sender.cbs.shift(); //= null; //drop pending request
+//                    curreq.splice(-1, 1, null); //[curreq.length - 1] = null; //mark cur req satisfied
+//                    console.log("cbexec: satisfied oldest");
+//                    var nextreq = sender.cbs.shift(); //[0]; //.splice(1, 1); //sender.cbs[1]; //leave satisfied req on stack, dequeue next one
+//                    if (/*sender.cbs.length*/ nextreq) //dequeue next
+//                    {
+//                        console.log("cbexec: dequeue next, %d args, %d remaining", nextreq.length, sender.cbs.length);
+//                        var nextcb = sender.cbs.shift();
+//                        sender.cbs.splice(1, 1); //leave satisfied req on stack, dequeue next one
+//                        process.nextTick(function() { retval.send.apply(null, nextreq); }); //(channel, data, cb); //retry the whole call
+//                    }
                 sender.cb = null; //request is satisfied; don't want any more responses
                 return 0; //dropped call-back
             }
@@ -230,7 +251,20 @@ module.exports.open = function(name)
 //                var client = new net.Socket();
                 console.log("try connect %s ...", channel);
                 var client = net.connect(name2port(channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
+//                if (client) OnExit("socket " + channel, function() { client.destroy(); });
+//                client.objclient = objectStream(client); //TODO: does this need to be repeated after reconnect also?
+//                client.oxinx = OnExit("client " + channel, function() { client.objclient.end(); client.destroy(); });
+//state = 2;
+//                sender.objclient = objectStream(sender.client);
+//                var status = 0;
+//                console.log("try connect ...");
 debugger;
+//                client.myconnect = true;
+//NO                client.connect({port: name2port(channel), host: "localhost", }); //this creates 2 connection requests
+//                client.myconnect = false;
+//state = 3;
+//                var objclient = objectStream(client);
+//state = 4;
 //                console.log("ons %s ...", channel);
                 client.on('connect', function() //NOTE: don't chain this from above?
                 {
@@ -252,6 +286,13 @@ debugger;
                             case -1: throw "Unexpected response on " + channel;
                             case 0: client.destroy(); break;
                         }
+//                        if (!sender.cbs.length) throw "Unexpected response on " + channel;
+//                        else if (!sender.cbs[0](data))
+//                        {
+//                            sender.cbs.shift(); //= null; //satisfy pending callback; true => receive more (subscribe), false => reset for another one
+//                            client.destroy();
+//                        }
+//                    else console.log("ASK FOR MORE");
                     });
                     client.objclient.on('error', function(err)
                     {
@@ -272,6 +313,20 @@ debugger;
                     console.log("error on ", channel, err.code || err, err.syscall || '??');
 //                    console.log("syscall ", err.syscall); //, ", state ", state); //, " myconnect? ", client.myconnect, " state ", state);
                     if (client.objclient) client.objclient.end();
+//                    console.log("client", client);
+//                    if (!client.myconnect) return; //ignore this one
+//                    console.log("stack", err.stack);
+//                        if (err.syscall == "connect") setTimeout(function() //retry again later
+//                        {
+//                            console.log("retry connect to %s", channel);
+//                        sender.promise = null;
+//                        retval.send(channel, data, cb); //try it all again
+//                        client = net.connect(name2port(channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
+//                        client.connect(name2port(channel), "localhost");
+//                            sender.client.reconnect();
+//                        }, 1000);
+//                        if (!sender.promise.resolved)
+//                        else sender.promise = client = objclient = null; //reopen next time
                     retry(1000);
                 });
                 client.on('end', function()
@@ -297,6 +352,17 @@ debugger;
 //                    if (!sender.cbs[0](-1)) sender.cbs.shift(); //= null; //satisfy pending callback and then reset for another one
 //                    if (client && client.objclient) retry(0);
                 });
+//                process.once('SIGINT', function()
+//                {
+//                    console.log('Got SIGINT.');
+//                //process.stdin.resume();//so the program will not close instantly
+//                    process.exit(2);
+//                });
+//                process.once('exit', function(code) //sometimes socket doesn't close, so try to force it here
+//                {
+//                    console.log("destrory client %s on proc exit(%d)", channel, code);
+//                    if (client) client.destroy();
+//                });
                 function retry(delay)
                 {
                     (delay? setTimeout: process.nextTick)(function() //retry in a little while
@@ -313,7 +379,23 @@ debugger;
             {
                 if (sender.cb) throw "pending response already exists on this connection";
                 sender.cb = cb;
-//                console.log("SEND: cb? %s, data %j", !!cb, data);
+//                if (!data) { console.log("req DESTROY"); client.destroy(); return; } //eof
+//                if (cb) //response wanted; NOTE: previous req needs to terminate before response will be processed for new req
+//                {
+//                var was_busy = (typeof (sender.cbs[0] || [null]).slice(-1)[0] === 'function');
+//                if (cb || was_busy)
+//                {
+//                    console.log("busy? %s, #pending %d, enqueued info %d:%j", was_busy, sender.cbs.length, retry_args.length, retry_args);
+//                    sender.cbs[0]/*.push*/ = retry_args;
+//                }
+//                var curreq = sender.cbs.length? sender.cbs[0]: null;
+//                var was_busy = sender.cbs.length && sender.cbs[0][sender
+//                console.log("enqueued busy? %s, info %d:%j", was_busy, retry_args.length, retry_args);
+//                sender.cbs.push(retry_args);
+//                if (was_busy) return; //NOTE: previous req needs to finish/drop before new response can be processed (trying to serialize replies); //enqueue //throw channel + " already has a pending response";
+                console.log("SEND: cb? %s, data %j", !!cb, data);
+//                    else { console.log("just keep cb, no retry info"); sender.cbs.push(cb); }
+//                }
 //                if (cb) //response wanted; NOTE: previous req needs to terminate before response will be processed for new req
 //                if (!client.itsmebob) throw "write to wrong obj";
 //                client.write(JSON.stringify(data));

@@ -11,7 +11,8 @@ var baseclass = require('my-plugins/utils/my-eventemitter2').EventEmitter2; //ev
 var inherits = require('inherits');
 function ipc_eventemitter(opts)
 {
-    if (!(this instanceof ipc_eventemitter)) return new ipc_eventemitter.apply(this, arguments);
+//    if (!(this instanceof ipc_eventemitter)) return new ipc_eventemitter.apply(this, arguments);
+    if (!(this instanceof ipc_eventemitter)) return new (ipc_eventemitter.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     baseclass.apply(this, arguments);
     var m_que = ipc('player#0'); //TODO: allow multiple instances?
     var m_reply = null;
@@ -177,7 +178,8 @@ function play(opts)
         {
             case 'play':
                 if (resume.call(this, opts)) return;
-                play.apply(this, Array.prototype.slice.call(arguments, 1));
+//                play.apply(this, Array.prototype.slice.call(arguments, 1));
+                play.apply(this, Array.from(arguments).slice(1));
                 return;
             case 'pause': pause.call(this, opts); return;
 //            case 'resume': resume.call(this, opts); return;

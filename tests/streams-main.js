@@ -170,7 +170,7 @@ function MyStream(name, opts) //factory, not ctor
         warn: function(msg, args)
         {
 //            if (typeof chunk !== 'object') { chunk = null;
-            if (arguments.length > 1) msg = sprintf.apply(Array.prototype.slice.call(arguments));
+            if (arguments.length > 1) msg = sprintf.apply(null, arguments); //Array.from/*prototype.slice.call*/(arguments));
         //    outs.emit('warning', msg);
 //            if (this.eof) //return; //avoid infinite loop
 //                console.log("%s WARN: ".yellow, name, msg);

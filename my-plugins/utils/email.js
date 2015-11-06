@@ -1,6 +1,7 @@
 
 //var cfg = global.CFG;
 var cfg = require('my-plugins/cmdline').email; //process command line options and config settings
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 
 //http://javascript.tutorialhorizon.com/2015/07/02/send-email-node-js-express/
 //https://github.com/andris9/nodemailer-smtp-transport#usage
@@ -34,11 +35,8 @@ if (cfg)
 
 function emailer(title, body)
 {
-    if (body.match(/%[ds]/))
-    {
-        /*var sprintf =*/ require('sprintf.js'); //.sprintf;
-        body = sprintf.apply(null, Array.prototype.slice.call(arguments, 1)); //exclude title
-    }
+    if (arguments.length > 2) //body.match(/%[ds]/))
+        body = sprintf.apply(arguments); //null, Array.from/*prototype.slice.call*/(arguments).slice(1)); //exclude title
     var is_html = body.match(/[<>]/); //assume html if tags present
     var mailOptions =
     {

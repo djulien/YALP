@@ -36,11 +36,11 @@ module.exports = function(opts)
 //        if (logfile) logfile.end("(eof)\n");
 //        return;
 //    }
-    var args = Array.prototype.slice.call(arguments); //extract sprintf varargs
+    var args = Array.from/*prototype.slice.call*/(arguments); //extract sprintf varargs
 //    console.log(arguments.length + " log args: ", arguments);
     if (typeof level === 'string') { msg = level; level = 0; args.splice(0, 0, 1); } //Array.prototype.splice.call(arguments, 0, 0, 1); }
     if (level > /*module.exports.*/ logger.DetailLevel) return;
-    if (args.length > 2) msg = sprintf.apply(null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
+    if (args.length > 2) msg = sprintf.apply(args); //null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
 //    else if (!args.length) msg = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
     ++/*module.exports.*/ logger.depth_adjust; //show my caller, not me
     msg = msg /*.replace(/@logger:.*$/, ' @')*/ + ' ' + caller(-/*module.exports.*/ logger.depth_adjust); /*module.exports.*/ logger.depth_adjust = 0;

@@ -86,7 +86,7 @@ function CueList(opts)
         switch (cmd || '')
         {
 //enforce event emitter interface by using private functions:
-            case "play": play.apply(this, Array.prototype.slice.call(arguments, 1)); return;
+            case "play": play.apply(this, Array.from/*prototype.slice.call*/(arguments).slice(1)); return;
             case "pause": pause.call(this, opts); return;
             case "resume": resume.call(this, opts); return;
 //            case "next": next.apply(this, opts); return;

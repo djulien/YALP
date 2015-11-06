@@ -79,7 +79,7 @@ function NullController(opts)
 //console shim:
 function debug(level, args)
 {
-    args = Array.prototype.slice.call(arguments, 1);
+    args = Array.from(arguments).slice(1); //prototype.slice.call(arguments, 1);
     console.log.apply(console, args);
 }
 

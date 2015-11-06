@@ -118,7 +118,7 @@ RenXtBuffer.prototype.SetPal = function(adrs, colors)
         .emit_raw(RenXt.RENARD_SYNC)
         .emit_raw(adrs)
         .emit_opc(RenXt.SETPAL(arguments.length - 1))
-    Array.prototype.slice.call(arguments, 1).forEach(function(color, inx)
+    Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function(color, inx)
     {
         this.emit_rgb(color);
     }.bind(this));
@@ -336,7 +336,8 @@ RenXtBuffer.prototype.deque_readreq = function(ctlr_adrs, mem_adrs, len)
 var inherits = require('inherits');
 function RenXtSerialPort(opts) //path, options, openImmediately, callback)
 {
-    if (!(this instanceof RenXtSerialPort)) return new RenXtSerialPort.apply(this, arguments); //[].prototype.sliceopts);
+//    if (!(this instanceof RenXtSerialPort)) return new RenXtSerialPort.apply(this, arguments); //[].prototype.sliceopts);
+    if (!(this instanceof RenXtSerialPort)) return new (RenXtSerialPort.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     SerialPort.SerialPort.apply(this, arguments);
 
     this.RenXt = new RenXtBuffer({port: this, buflen: 4000}); //CAUTION: create a namespace to avoid overwriting base class members (flush, emit, etc.)

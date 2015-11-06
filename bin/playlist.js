@@ -4,10 +4,11 @@
 'use strict';
 
 var que = require('my-plugins/utils/ipc').open('playlist');
+var clock = require('my-plugins/utils/clock');
 var Elapsed = require('my-plugins/utils/elapsed');
 
 var songs = []; //{name, path, duration}
-var selected = 0, frnum = 0;
+var selected = 0, frtime = 0;
 var pending_stop;
 que.rcv('cmd', function(data, reply)
 {
@@ -41,7 +42,7 @@ que.rcv('cmd', function(data, reply)
             playing = null;
             break;
         case 'status!':
-            reply("song[%d/%d].frame[%d/%d], playing? %s, #subscribers %d", selected, songs.length, frnum, (selected < songs.length)? songs[selected].duration: -1, !!playing, subscribers.length);
+            reply("song[%d/%d].frame[%d/%d], playing? %s, #subscribers %d", selected, songs.length, frtime, (selected < songs.length)? songs[selected].duration: -1, !!playing, subscribers.length);
             break;
         case 'quit!':
             reply("will quit now");
@@ -61,7 +62,7 @@ function cmd(args) //, cb)
 //    var args = arguments.length? arguments: cmd.pending.shift(); //assumes caller will not dequeue if empty
 //    if (arguments.length && cmd.pending) return cmd.pending.push(arguments); //wait for previous cmd to finish before sending a new one (ipc is not reentrant)
 //    cmd.pending = [];
-    que.send('cmd', Array.prototype.slice.call(arguments), function(data, reply)
+    que.send('cmd', Array.from/*prototype.slice.call*/(arguments), function(data, reply)
     {
         console.log("reply: ", data);
 //        if (/*cb ||*/ cmd.pending.length) process.nextTick(function() //return from current message before sending reply or next cmd
@@ -91,7 +92,9 @@ function send_frame()
 {
 //NOTE: prep frame data even if no subscribers; this allows on-demand fx to be pre-rendered and cached for better playback performance
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
-    if (!frnum) elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
+    if (!frtime) elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
+    var frdata = songs[selected].render(frtime, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
+===
     var portbufs = [], portlens = [], used = 0;
     for (var i = 0; i < 4; ++i)
     {
@@ -101,23 +104,24 @@ function send_frame()
         used += buf.byteLength;
         portbufs.push(buf);
     }
-    ff ^= 1;
-    var frame = {song: selected, frnum: frnum, curtime: 500 * frnum, next: 500 * (frnum + 1), ports: portbufs, lens: portlens};
-    if (subscribers.length || !frnum) console.log("prep song[%d/%d].frame[%d/%d] for %d subscribers (%d good, %d bad)", selected, songs.length, frnum, songs[selected].duration, subscribers.length, good, bad);
+    var frame = {song: selected, frtime: frtime, frnext: frtime + .500, ports: portbufs, lens: portlens};
+===
+    frdata.song = selected; frdata.frtime = frtime;
+    if (subscribers.length || !frtime) console.log("prep[@%s] song[%d/%d].frame[%d/%d] for %d subscribers (%d good, %d bad)", clock.Now.asString(), selected, songs.length, frtime, songs.length? songs[selected].duration: -1, subscribers.length, good, bad);
 //no    if (subscribers.length)
-    sendall(frame);
+    sendall(frdata);
 
-    if (++frnum >= songs[selected].duration) //advance to next frame, wrap at end
+    if ((frtime = frdata.frnext) >= songs[selected].duration) //advance to next frame, wrap at end
     {
-        frnum = 0;
+        frtime = 0;
         if (++selected >= songs.length) selected = 0;
 //        console.log("next up: song[%d/%d]: ", selected, songs.length, songs[selected]);
         if (!selected && pending_stop) cmd('pause');
         sendall({media: songs[selected].filename}); //load new media in player
     }
 
-//    console.log("delay next %d", frame.next - elapsed.now);
-    playing = setTimeout(function() { send_frame(); }, frame.next - elapsed.now); //auto-correct cumulative timing; //frame.curtime); //NOTE: timing is approx
+//    console.log("delay next %d", frdata.next - elapsed.now);
+    playing = setTimeout(function() { send_frame(); }, 1000 * frtime - elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
 }
 
 function sendall(send_data)
@@ -158,7 +162,7 @@ var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists
 (playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place schedule in order of preference by duration
 if ((playlist.opts || {}).autoplay) scheduler(playlist);
 
-var was_active = null;
+//no; needs to be static/scoped for correct handling inside scheduler; var was_active = null;
 function scheduler(playlist)
 {
     var now = new Date();
@@ -166,15 +170,15 @@ function scheduler(playlist)
     var is_active = null; playlist.schedule.some(function(sched, inx)
     {
 //        console.log("sched %j active? %s", sched, active(sched, now));
-        is_active = active(sched, now)? sched: null; //kludge: array.some only returns true/false, so save result in here
-        return is_active; //true => break, false => continue
+        return is_active = active(sched, now)? sched: null; //kludge: array.some only returns true/false, so save result in here
+//        return is_active; //true => break, false => continue
     });
-    console.log("scheduler: was %j, is %j, change state? %s", was_active, is_active, !is_active != !was_active);
+    console.log("scheduler[@%s] was %j, is %j, change state? %s", clock.Now.asString(), scheduler.was_active, is_active, !is_active != !scheduler.was_active);
 //TODO: opener, closer
-    if (is_active && !was_active) cmd('play');
-    else if (!is_active && was_active) pending_stop = true; //cmd('pause');
-    was_active = is_active;
-    setTimeout(function() { scheduler(playlist); }, 60 * 1000);
+    if (is_active && !scheduler.was_active) cmd('play');
+    else if (!is_active && sheduler.was_active) pending_stop = true; //cmd('pause');
+    scheduler.was_active = is_active;
+    setTimeout(function() { scheduler(playlist); }, 60 * 1000); //timing not critical; just check for active schedule periodically
 }
 
 //TODO: merge scheduler code
@@ -189,7 +193,7 @@ function mmdd2days(mmdd) { return mmdd + (32 - 100) * Math.floor(mmdd / 100); } 
 function hhmm2min(hhmm) { return hhmm + (60 - 100) * Math.floor(hhmm / 100); }
 //function hhmm2msec(hhmm) { return hhmm2min(hhmm) * 60 * 1000; } //msec
 
-function MIN(thing) { return thing.length? Math.min.apply(null, thing): thing; }
+function MIN(values) { return values.length? Math.min.apply(null, values): values; }
 function BTWN(val, from, to) { return (from <= to)? (val >= from) && (val <= to): (val <= to) || (val >= from); }
 function SafeItem(choices, which)
 {
