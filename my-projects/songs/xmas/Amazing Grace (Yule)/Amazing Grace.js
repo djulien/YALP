@@ -1,39 +1,21 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-var glob = require('glob');
-var path = require('path');
-var mp3len = require('my-plugins/utils/mp3len');
-
-//TODO var Sequence = require('my-projects/shared/sequence'); //base class
-var Sequence = function(opts) //temp shim
-{
-    if (!(this instanceof Sequence)) return new (Sequence.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    this.debug = function() { debugger; }
-    this.addCue = function() { return this; } //fluent
-    glob(path.join(__dirname, '**', '!(*-bk).{mp3,mp4,wav,ogg,webm}'), function(err, files)
-    {
-        files.some(function(filename, inx)
-        {
-            return this.duration = mp3len(this.media = filename);
-        }.bind(this));
-    }.bind(this));
-    this.opts = opts || {};
-}
-var seq = module.exports = new Sequence({auto_collect: true, /*interval: 50,*/ dedupe: true, cache: false, });
+var Sequence = require('my-projects/shared/sequence'); //base class
+var seq = module.exports = new Sequence(); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 
 
-//seq.addMedia('my-projects/songs/xmas/Amaz*/**/*.mp3');
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
 seq
+    .addMedia() //__dirname + '**/*.mp3');
+    .addVixen2({audio: false, cues: true})
     .addCue({text: 'fx:init', })
     .addCue({from: .8, text: 'fx:one', })
     .addCue({from: 1.3, text: 'fx:two', })
     .addCue({from: 2.4, text: 'fx:three', })
     .addCue({from: 3.2, text: 'fx:four', });
-//    .sortCues();
 
 
 seq.models =
@@ -45,20 +27,50 @@ seq.models =
 ];
 
 
-//render frames on demand:
-seq.render = function(cue)
+/*TODO
+seq.fx = function(frtime, buf)
 {
-    if (!this.buf) this.buf = new Buffer(16); //alloc buffer one time only
+}
+*/
+
+var chmap =
+[
+    0
+];
+var port1numch = 10, port2numch = 20, port3numch = 30, port4numch = 40;
+var port1 = new Buffer(port1numch);
+var port2 = new Buffer(port2numch);
+var port3 = new Buffer(port3numch);
+var port4 = new Buffer(port4numch);
+
+//render frames on demand:
+seq.render = function(frtime, buf)
+{
+    var frdata = Sequence.prototype.render(frtime, buf);
+//    port1[0] = frdata.rawbuf[0];
+/*TODO
+//    if (!buf) buf = this.buf = new Buffer(16); //alloc buffer one time only
+    var cue = this.findcue(frtime);
     switch (cue.text || '??')
     {
-        case "fx:one": this.buf.fill(1); break;
-        case "fx:two": this.buf.fill(2); break;
-        case "fx:three": this.buf.fill(3); break;
-        case "fx:four": this.buf.fill(4); break;
-        case "fx:init": this.buf.fill(0); break; //initial state
+        case "fx:one": buf.fill(1); break;
+        case "fx:two": buf.fill(2); break;
+        case "fx:three": buf.fill(3); break;
+        case "fx:four": buf.fill(4); break;
+        case "fx:init": buf.fill(0); break; //initial state
         default: return null;
     }
-    return {id: cue.text, data: this.buf, at: cue.from, };
+//    return {id: cue.text, data: this.buf, at: cue.from, };
+    var frdata = {frnext: frtime + .500}, used = 0;
+    for (var i = 0; i < 4; ++i)
+    {
+        var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
+        var portbuf = buf.slice(used, len); used += len;
+//        portbuf.fill(0x11 * (i + 1)); //TODO: port ch remap
+        frdata['port' + i] = portbuf;
+    }
+*/
+    return frdata; //{frnext: frtime + .500, port#: buf};
 }
 
 

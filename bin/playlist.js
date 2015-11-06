@@ -94,18 +94,6 @@ function send_frame()
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
     if (!frtime) elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
     var frdata = songs[selected].render(frtime, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
-===
-    var portbufs = [], portlens = [], used = 0;
-    for (var i = 0; i < 4; ++i)
-    {
-        portlens.push(Math.floor((buffers[ff].byteLength - used) * Math.random()));
-        var buf = buffers[ff].slice(used, portlens[portlens.length - 1]);
-        buf.fill(0x11 * (i + 1));
-        used += buf.byteLength;
-        portbufs.push(buf);
-    }
-    var frame = {song: selected, frtime: frtime, frnext: frtime + .500, ports: portbufs, lens: portlens};
-===
     frdata.song = selected; frdata.frtime = frtime;
     if (subscribers.length || !frtime) console.log("prep[@%s] song[%d/%d].frame[%d/%d] for %d subscribers (%d good, %d bad)", clock.Now.asString(), selected, songs.length, frtime, songs.length? songs[selected].duration: -1, subscribers.length, good, bad);
 //no    if (subscribers.length)

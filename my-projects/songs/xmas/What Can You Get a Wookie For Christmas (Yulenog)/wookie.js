@@ -2,30 +2,12 @@
 
 'use strict';
 
-var glob = require('glob');
-var path = require('path');
-var mp3len = require('my-plugins/utils/mp3len');
-
-//TODO var Sequence = require('my-projects/shared/sequence'); //base class
-var Sequence = function(opts) //temp shim
-{
-    if (!(this instanceof Sequence)) return new (Sequence.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    this.debug = function() { debugger; }
-    this.addCue = function() { return this; } //fluent
-    glob(path.join(__dirname, '**', '!(*-bk).{mp3,mp4,wav,ogg,webm}'), function(err, files)
-    {
-        files.some(function(filename, inx)
-        {
-            return this.duration = mp3len(this.media = filename);
-        }.bind(this));
-    }.bind(this));
-    this.opts = opts || {};
-}
+var Sequence = require('my-projects/shared/sequence'); //base class
 //var Model = require('my-projects/models.js'); //base class
 //var Model =
 //var Fx =
 
-var wookie = module.exports = /*new*/ Sequence({auto_collect: true, interval: 50, }); //comonjs
+var wookie = module.exports = /*new*/ Sequence(); //{auto_collect: true, interval: 50, }); //comonjs
 wookie.name = 'Wookie';
 //Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
 //Wookie.tracks = './tracks.txt'; //Audacity label file
@@ -44,13 +26,19 @@ wookie.models =
     'Shepherd2',
 ];
 
+wookie
+    .addMedia() //__dirname + '**/*.mp3');
+    .addVixen2({audio: false, cues: true});
+
 //render frames on demand:
-wookie.render = function(cue)
+wookie.render = function(frtime, buf)
 {
-    if (!this.buf) this.buf = new Buffer(8); //alloc buffer one time only
-    if (cue.name != "frames") return null;
-    this.buf.fill(cue.text); //frame#
-    return {id: 'fr#' + cue.text, data: this.buf, at: cue.from, };
+//    if (!this.buf) this.buf = new Buffer(8); //alloc buffer one time only
+//    if (cue.name != "frames") return null;
+//    this.buf.fill(cue.text); //frame#
+//    return {id: 'fr#' + cue.text, data: this.buf, at: cue.from, };
+    var frdata = Sequence.prototype.render(frtime, buf);
+    return frdata; //{frnext: frtime + .500, port#: buf};
 }
 
 

@@ -41,12 +41,19 @@ module.exports = function Vixen2seq(filename)
     {
         if (typeof chinx === 'undefined') //return all ch vals for a frame
         {
-            for (var chinx = 0; chinx < numch; ++chinx)
-                frbuf[chinx] = chvals[chinx * this.numfr + frinx];
+//            for (var chinx = 0; chinx < numch; ++chinx)
+//                frbuf[chinx] = chvals[chinx * this.numfr + frinx];
+            this.getFrame(frinx, frbuf);
             return frbuf;
         }
         return ((chinx < numch) && (frinx < this.numfr))? chvals[chinx * this.numfr + frinx]: 0;
 //no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
+    }
+    this.getFrame = function(frinx, frbuf)
+    {
+        for (var chinx = 0, chofs = 0; chinx < numch; ++chinx, chofs += this.numfr)
+            frbuf[chinx] = chvals[/*chinx * this.numfr*/ chofs + frinx];
+        return numch;
     }
     debugger;
     this.channels = {length: numch, }; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
