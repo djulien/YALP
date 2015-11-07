@@ -28,7 +28,7 @@ wookie.models =
 
 wookie
     .addMedia() //__dirname + '**/*.mp3');
-    .addVixen2({audio: false, cues: true});
+//none    .addVixen2({audio: false, cues: true});
 
 //render frames on demand:
 wookie.render = function(frtime, buf)

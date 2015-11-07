@@ -6,6 +6,7 @@ var path = require('path');
 var mp3len = require('my-plugins/utils/mp3len');
 var Vixen2 = require('my-projects/shared/vixen2');
 var timescale = require('my-plugins/utils/time-scale');
+var caller = require('my-plugins/utils/caller').stack;
 
 var Sequence = module.exports = function(opts) //temp shim
 {
@@ -85,16 +86,18 @@ Sequence.prototype.addVixen2 = function(opts) //{path, audio, cues}
 {
     var where;
     opts = (typeof opts === 'string')? {path: opts}: opts || {};
-    glob(where = opts.path || path.join(__dirname, '**', '!(*-bk).vix'), function(err, files)
+//    console.log("here0", caller(2));
+    glob(where = opts.path || path.join(/*__dirname*/ path.dirname(caller(2)), '**', '!(*-bk).vix'), function(err, files)
     {
+        if (err) throw "Can't add Vixen2 " + where + ": " + err;
 //        if (files.length != 1) throw (files.length? "Too many": "No") + " Vixen2 files found at " + where;
         var found = files.some(function(filename, inx)
         {
-            var vix2 = Vixen2(filename);
+            var vix2 = Vixen2.vix2seq(filename);
             if (!vix2) return false;
 //            console.log("loaded '%s'".green, filename);
 //            console.log("audio '%s'".blue, seq.audio || '(none)');
-            console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".cyan, timescale(vix2.duration), timescale(vix2.interval), vix2.numfr, vix2.channels.length, vix2.audio);
+            console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".blue, timescale(vix2.duration), timescale(vix2.interval), vix2.numfr, vix2.channels.length, vix2.audio);
             if (vix2.audiolen != vix2.duration) console.log("seq len %d != audio len %d".red, vix2.duration, vix2.audiolen);
             this.setDuration(vix2.duration, "vix2");
             if (opts.audio !== false) this.addMedia(vix2.audio);
@@ -103,6 +106,7 @@ Sequence.prototype.addVixen2 = function(opts) //{path, audio, cues}
             return this.vix2 = vix2;
         }.bind(this));
         if (!found) throw "Vixen2 file not found at " + where;
+        else { console.log("cwd ", process.cwd()); console.log("found vix file at " + where); }
     }.bind(this));
     return this; //fluent
 }
@@ -110,18 +114,20 @@ Sequence.prototype.addVixen2 = function(opts) //{path, audio, cues}
 Sequence.prototype.addMedia = function(opts) //{path}
 {
     var where;
-    const AUDIO_EXTs = 'mp3,mp4,wav,ogg,webm';
+    const AUDIO_EXTs = 'mp3'; //,mp4,wav,ogg,webm';
     opts = (typeof opts === 'string')? {path: opts}: opts || {};
-    glob(where = opts.path || path.join(__dirname, '**', '!(*-bk).{' + AUDIO_EXTs + '}'), function(err, files)
+    glob(where = opts.path || path.join(/*__dirname*/ path.dirname(caller(2)), '**', '!(*-bk).' + AUDIO_EXTs + ''), function(err, files)
     {
+        if (err) throw "Can't add media " + where + ": " + err;
         var found = files.some(function(filename, inx)
         {
             if (!filename.match('/(' + AUDIO_EXTs.replace(/,/g, '|') + ')$/i')) return false;
             if (this.media) throw "Too many media files found at " + where;
-            this.setDuration(mp3len(filename), "media");
+            if (!this.duration || (this.opts.use_media_len !== false)) this.setDuration(mp3len(filename), "media");
             this.media = filename;
             return this.duration;
         }.bind(this));
+        console.log("cwd ", process.cwd());
         if (!found) throw "Media file not found at " + where;
     }.bind(this));
     return this; //fluent

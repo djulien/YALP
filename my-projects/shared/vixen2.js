@@ -1,7 +1,7 @@
 //Vixen 2.x sequence loader, plug-in to load xml files as js object
 'use strict';
 
-//require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
@@ -13,19 +13,19 @@ var glob = require('glob');
 var shortname = require('my-plugins/utils/shortname');
 
 
-module.exports = function Vixen2seq(filename)
+var Vixen2seq = module.exports.vix2seq = function(filename)
 {
     if (!(this instanceof Vixen2seq)) return new Vixen2seq(filename);
     this.filename = filename;
     var top = load(filename);
 
-    this.isVixen = true;
+    this.isVixenSeq = true;
     this.duration = 1 * top.byname.Time.value; //msec
     this.interval = 1 * top.byname.EventPeriodInMilliseconds.value;
     this.numfr = Math.ceil(this.duration / this.interval);
     var partial = (this.numfr * this.interval != this.duration);
     if (partial)
-        console.log("duration: %d msec, interval %d msec, #frames %d, last partial? %d, #channels %d", this.duration, this.interval, this.numfr, !!partial, (top.byname.Channels.children || []).length);
+        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %d, #channels %d", shortname(filename), this.duration, this.interval, this.numfr, !!partial, (top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
     var chvals = top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
@@ -57,9 +57,9 @@ module.exports = function Vixen2seq(filename)
     }
     debugger;
     this.channels = {length: numch, }; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
-    if (top.byname.Channels)
+    if ((top.byname.Channels || {}).children)
     {
-        if (top.byname.Channels.children.length != numch) console.log("#ch mismatch: %d vs. %d", top.byname.Channels.children.length, numch);
+        if (top.byname.Channels.children.length != numch) console.log("#ch mismatch: %d vs. %d".red, top.byname.Channels.children.length, numch);
         var wrstream = fs.createWriteStream(path.join(filename, '..', shortname(filename) + '-channels.txt'), {flags: 'w', });
         wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
         top.byname.Channels.children.forEach(function(child, inx)
@@ -90,6 +90,31 @@ module.exports = function Vixen2seq(filename)
         if (nonnull) console.log("frame [%d/%d]: " + buf.substr(2), chofs / numch, numfr);
     }
 */
+}
+
+
+var Vixen2pro = module.exports.vix2pro = function(filename)
+{
+    if (!(this instanceof Vixen2pro)) return new Vixen2pro(filename);
+    this.filename = filename;
+    var top = load(filename);
+
+    this.isVixenPro = true;
+    debugger;
+    this.channels = {length: numch, }; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    if (!((top.byname.ChannelObjects || {}).children || {}).length) throw "No channels";
+//    if (top.byname.Channels.children.length != numch) console.log("#ch mismatch: %d vs. %d", top.byname.Channels.children.length, numch);
+//    var wrstream = fs.createWriteStream(path.join(filename, '..', shortname(filename) + '-channels.txt'), {flags: 'w', });
+//    wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
+    var numch = top.byname.ChannelObjects.children.length;
+    this.channels = {length: numch, }; //tell caller #ch even if they have no data
+    top.byname.ChannelObjects.children.forEach(function(child, inx)
+    {
+        if (!(this instanceof Vixen2pro)) throw "Wrong this type";
+        /*var line =*/ this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
+//        wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
+    }.bind(this));
+//    wrstream.end('#eof\n');
 }
 
 

@@ -4,10 +4,18 @@
 var callsite = require('callsite');
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var shortname = require('my-plugins/utils/shortname');
+var stack = require('stack-trace');
+
+module.exports.stackx = function(depth)
+{
+    return callsite()[depth].getFileName();
+}
 
 module.exports.stack = function(depth)
 {
-    return callsite()[depth].getFileName();
+    var trace = stack.get();
+//    console.log("stack trace %j", trace);
+    return trace[depth].getFileName();
 }
 
 module.exports.caller = function(depth)

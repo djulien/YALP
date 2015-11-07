@@ -1,16 +1,17 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
+var Vixen2 = require('my-projects/shared/vixen2');
 var Sequence = require('my-projects/shared/sequence'); //base class
-var seq = module.exports = new Sequence(); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = module.exports = new Sequence({use_media_len: false}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 
 
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
 seq
-    .addMedia() //__dirname + '**/*.mp3');
     .addVixen2({audio: false, cues: true})
+    .addMedia() //__dirname + '**/*.mp3')
     .addCue({text: 'fx:init', })
     .addCue({from: .8, text: 'fx:one', })
     .addCue({from: 1.3, text: 'fx:two', })
@@ -32,6 +33,10 @@ seq.fx = function(frtime, buf)
 {
 }
 */
+
+
+//var vix2pro = Vixen2.vix2pro(path.join(__dirname, '**', '!(*-bk).pro'));
+//if (!vix2pro)
 
 var chmap =
 [

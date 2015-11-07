@@ -7,13 +7,14 @@ var que = require('my-plugins/utils/ipc').open('playlist');
 var clock = require('my-plugins/utils/clock');
 var Elapsed = require('my-plugins/utils/elapsed');
 
+var started;
 var songs = []; //{name, path, duration}
 var selected = 0, frtime = 0;
-var pending_stop;
+var pending_stop, auto_loop;
 que.rcv('cmd', function(data, reply)
 {
 //try{
-    console.log("cmd: length %d, data %j", data.length, data);
+//    console.log("cmd: length %d, data %j", data.length, data);
     switch (!data.length? data + '!': data[0] + ((data.length < 2)? '!': '*'))
     {
         case 'add*':
@@ -30,16 +31,21 @@ que.rcv('cmd', function(data, reply)
             break;
         case 'play!':
             if (!songs.length) { reply("no songs"); break; }
-            reply("now playing, was? %s", !!playing);
+            started = clock.Now();
+            reply("now playing[%s], was? %s", clock.Now.asString(started), !!playing);
             pending_stop = false; //cancelled
-            if (playing) break;
-            send_frame();
+            if (!playing) send_frame();
             break;
         case 'pause!':
             reply("now paused, was? %s", !playing);
             if (playing) clearTimeout(playing);
             pending_stop = false; //satisfied
             playing = null;
+            break;
+        case 'rewind!':
+            if (playing) { reply("busy playing"); break; }
+            reply("rewind, was playing? %s", !!playing);
+            selected = frtime = 0;
             break;
         case 'status!':
             reply("song[%d/%d].frame[%d/%d], playing? %s, #subscribers %d", selected, songs.length, frtime, (selected < songs.length)? songs[selected].duration: -1, !!playing, subscribers.length);
@@ -90,11 +96,15 @@ var buffers = [], ff = 0;
 for (var i = 0; i < 2; ++i) buffers.push(new Buffer(100)); //4096));
 function send_frame()
 {
+    playing = null; //timer satisfied
 //NOTE: prep frame data even if no subscribers; this allows on-demand fx to be pre-rendered and cached for better playback performance
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
     if (!frtime) elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
     var frdata = songs[selected].render(frtime, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
-    frdata.song = selected; frdata.frtime = frtime;
+    console.log("rendered frdata: %j", frdata);
+    frdata.song = selected;
+    frdata.frtime = frtime;
+    if (!frdata.frnext) frdata.frnext = songs[selected].duration;
     if (subscribers.length || !frtime) console.log("prep[@%s] song[%d/%d].frame[%d/%d] for %d subscribers (%d good, %d bad)", clock.Now.asString(), selected, songs.length, frtime, songs.length? songs[selected].duration: -1, subscribers.length, good, bad);
 //no    if (subscribers.length)
     sendall(frdata);
@@ -104,12 +114,12 @@ function send_frame()
         frtime = 0;
         if (++selected >= songs.length) selected = 0;
 //        console.log("next up: song[%d/%d]: ", selected, songs.length, songs[selected]);
-        if (!selected && pending_stop) cmd('pause');
+        if (!selected && (pending_stop || !auto_loop)) return; //cmd('pause');
         sendall({media: songs[selected].filename}); //load new media in player
     }
 
 //    console.log("delay next %d", frdata.next - elapsed.now);
-    playing = setTimeout(function() { send_frame(); }, 1000 * frtime - elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
+    playing = setTimeout(function() { send_frame(); }, 1000 * frdata.frnext - elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
 }
 
 function sendall(send_data)
@@ -148,7 +158,7 @@ var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists
 (playlist.songs || []).forEach(function(song, inx) { require(require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
 (playlist.songs || []).forEach(function(song, inx) { cmd('add', require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
 (playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place schedule in order of preference by duration
-if ((playlist.opts || {}).autoplay) scheduler(playlist);
+if ((playlist.opts || {}).autoplay) setTimeout(function() { scheduler(playlist); }, 1000); //kludge: give async files time to load
 
 //no; needs to be static/scoped for correct handling inside scheduler; var was_active = null;
 function scheduler(playlist)
@@ -165,7 +175,7 @@ function scheduler(playlist)
 //TODO: opener, closer
     if (is_active && !scheduler.was_active) cmd('play');
     else if (!is_active && sheduler.was_active) pending_stop = true; //cmd('pause');
-    scheduler.was_active = is_active;
+    auto_loop = scheduler.was_active = is_active;
     setTimeout(function() { scheduler(playlist); }, 60 * 1000); //timing not critical; just check for active schedule periodically
 }
 
