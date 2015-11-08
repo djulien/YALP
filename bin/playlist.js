@@ -105,7 +105,7 @@ function send_frame()
     frdata.song = selected;
     frdata.frtime = frtime;
     if (!frdata.frnext) frdata.frnext = songs[selected].duration;
-    if (subscribers.length || !frtime) console.log("prep[@%s] song[%d/%d].frame[%d/%d] for %d subscribers (%d good, %d bad)", clock.Now.asString(), selected, songs.length, frtime, songs.length? songs[selected].duration: -1, subscribers.length, good, bad);
+    if (subscribers.length || !frtime) console.log("prep[@%s] song[%d/%d].frtime[%d/%d] for %d subscribers (%d good, %d bad), delay next %d", clock.Now.asString(), selected, songs.length, frtime, songs.length? songs[selected].duration: -1, subscribers.length, good, bad, frdata.frnext - elapsed.now);
 //no    if (subscribers.length)
     sendall(frdata);
 
@@ -119,7 +119,7 @@ function send_frame()
     }
 
 //    console.log("delay next %d", frdata.next - elapsed.now);
-    playing = setTimeout(function() { send_frame(); }, 1000 * frdata.frnext - elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
+    playing = setTimeout(function() { send_frame(); }, frdata.frnext - elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
 }
 
 function sendall(send_data)
@@ -155,7 +155,7 @@ for (var cfgdir = __dirname; cfgdir; cfgdir = path.dirname(cfgdir))
 var playlist = cfg.playlist? require(cfg.playlist): {}; //'my-projects/playlists/xmas2015');
 //console.log("songs %j", playlist.songs);
 //if (cfg.playlist) console.log("pl", require.resolve(cfg.playlist)); process.exit(0);
-(playlist.songs || []).forEach(function(song, inx) { require(require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
+//(playlist.songs || []).forEach(function(song, inx) { require(require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
 (playlist.songs || []).forEach(function(song, inx) { cmd('add', require.resolve(glob.sync(song)[0])); }); //path.relative(__dirname, glob.sync(song)[0])); });
 (playlist.schedule || []).sort(function(lhs, rhs) { return priority(lhs) - priority(rhs); }); //place schedule in order of preference by duration
 if ((playlist.opts || {}).autoplay) setTimeout(function() { scheduler(playlist); }, 1000); //kludge: give async files time to load

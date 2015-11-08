@@ -1,16 +1,17 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-var Vixen2 = require('my-projects/shared/vixen2');
-var Sequence = require('my-projects/shared/sequence'); //base class
-var seq = module.exports = new Sequence({use_media_len: false}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+//var Sequence = require('my-projects/shared/sequence'); //base class
+//var vix2 = require('my-projects/shared/vixen2');
+var vix2map = require('../vix2map');
+var seq = module.exports = new vix2map.Sequence({use_media_len: false, audio: false, cues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 
 
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
 seq
-    .addVixen2({audio: false, cues: true})
+//    .addVixen2({audio: false, cues: true})
     .addMedia() //__dirname + '**/*.mp3')
     .addCue({text: 'fx:init', })
     .addCue({from: .8, text: 'fx:one', })
@@ -34,24 +35,10 @@ seq.fx = function(frtime, buf)
 }
 */
 
-
-//var vix2pro = Vixen2.vix2pro(path.join(__dirname, '**', '!(*-bk).pro'));
-//if (!vix2pro)
-
-var chmap =
-[
-    0
-];
-var port1numch = 10, port2numch = 20, port3numch = 30, port4numch = 40;
-var port1 = new Buffer(port1numch);
-var port2 = new Buffer(port2numch);
-var port3 = new Buffer(port3numch);
-var port4 = new Buffer(port4numch);
-
 //render frames on demand:
 seq.render = function(frtime, buf)
 {
-    var frdata = Sequence.prototype.render(frtime, buf);
+    var frdata = Sequence.prototype.render.call(seq, frtime, buf); //{frtime, frnext, dirty, rawbuf}
 //    port1[0] = frdata.rawbuf[0];
 /*TODO
 //    if (!buf) buf = this.buf = new Buffer(16); //alloc buffer one time only
