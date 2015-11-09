@@ -1,12 +1,17 @@
 'use strict';
 
-module.exports = add_method;
+module.exports.add_method = add_method;
+module.exports.classname = classname;
+
+function classname(thing) { return thing.constructor.name; }
 
 function add_method(thing, name, value)
 {
     if (thing[name]) return; //already there
     Object.defineProperty(thing, name, {value: value});
-    console.log("extended %s with %s".blue, thing.constructor.name, name);
+    console.log("extended %s with %s".blue, classname(thing), name);
+//    console.log("thing is %j", Object.prototype.toString.call(thing));
+//    console.log("isproto? %s", thing.isPrototypeOf(classname(thing)), thing.prototype? "has proto": "no proto");
 }
 
 add_method(Object.prototype, 'forEach', function(cb)

@@ -1,10 +1,10 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-//var Sequence = require('my-projects/shared/sequence'); //base class
+var Sequence = require('my-projects/shared/sequence'); //base class
 //var vix2 = require('my-projects/shared/vixen2');
-var vix2map = require('../vix2map');
-var seq = module.exports = new vix2map.Sequence({use_media_len: false, audio: false, cues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+//var vix2map = require('../vix2map');
+var seq = module.exports = new Sequence({use_media_len: false, audio: false, cues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 
 

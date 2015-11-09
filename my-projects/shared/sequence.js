@@ -90,7 +90,7 @@ Sequence.prototype.addVixen2 = function(opts) //{path, audio, cues}
     opts = (typeof opts === 'string')? {path: opts}: opts || {};
 //    console.log("here0", caller(2));
 //debugger;
-    glob(where = (opts.path || path.join(/*__dirname*/ path.dirname(caller(2)), '**', '!(*-bk).vix')), function(err, files)
+    glob(where = (opts.path || path.join(/-*__dirname*-/ path.dirname(caller(2)), '**', '!(*-bk).vix')), function(err, files)
     {
         if (err) throw "Can't add Vixen2 " + where + ": " + err;
 //        if (files.length != 1) throw (files.length? "Too many": "No") + " Vixen2 files found at " + where;

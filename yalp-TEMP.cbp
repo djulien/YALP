@@ -43,7 +43,8 @@
 		</Compiler>
 		<Unit filename="README.md" />
 		<Unit filename="TODO.txt" />
-		<Unit filename="bin/player.js" />
+		<Unit filename="bin/player-bk.js" />
+		<Unit filename="bin/playlist-bk.js" />
 		<Unit filename="bin/playlist.js" />
 		<Unit filename="bin/seq1-bk.js" />
 		<Unit filename="bin/seq2-bk.js" />
@@ -105,6 +106,7 @@
 		<Unit filename="my-plugins/utils/credentials.js" />
 		<Unit filename="my-plugins/utils/elapsed.js" />
 		<Unit filename="my-plugins/utils/email.js" />
+		<Unit filename="my-plugins/utils/find-pkg.js" />
 		<Unit filename="my-plugins/utils/ipc.js" />
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
 		<Unit filename="my-plugins/utils/logger.js" />
@@ -118,23 +120,23 @@
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool.js" />
-		<Unit filename="my-projects/models/vix2xmas2015.js" />
+		<Unit filename="my-projects/models/icicles.js" />
+		<Unit filename="my-projects/models/model.js" />
+		<Unit filename="my-projects/my-models.js" />
 		<Unit filename="my-projects/package.json" />
-		<Unit filename="my-projects/playlists/even-test.js" />
+		<Unit filename="my-projects/playlists/even-test-bk.js" />
 		<Unit filename="my-projects/playlists/hween2015a.js" />
-		<Unit filename="my-projects/playlists/playlist.js" />
 		<Unit filename="my-projects/playlists/xmas2015.js" />
 		<Unit filename="my-projects/shared/cuelist.js" />
-		<Unit filename="my-projects/shared/cues.js" />
 		<Unit filename="my-projects/shared/mixins/duration.js" />
 		<Unit filename="my-projects/shared/mixins/promise-keepers.js" />
 		<Unit filename="my-projects/shared/mixins/speed.js" />
 		<Unit filename="my-projects/shared/mixins/volume.js" />
+		<Unit filename="my-projects/shared/playlist-bk.js" />
 		<Unit filename="my-projects/shared/playlist.js" />
 		<Unit filename="my-projects/shared/sequence-bk.js" />
 		<Unit filename="my-projects/shared/sequence.js" />
 		<Unit filename="my-projects/shared/vixen2.js" />
-		<Unit filename="my-projects/songs/cuelist.js" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2011a-Emmanuel (Amy Grant).cue" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2012a-Emmanuel (Amy Grant).vix" />
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/Label Track.txt" />
@@ -142,8 +144,6 @@
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/This is Love-timing.txt" />
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/notes.txt" />
 		<Unit filename="my-projects/songs/readme.txt" />
-		<Unit filename="my-projects/songs/sequence.js" />
-		<Unit filename="my-projects/songs/vixen2.js" />
 		<Unit filename="my-projects/songs/xmas/Amazing Grace (Yule)/Amazing Grace.js" />
 		<Unit filename="my-projects/songs/xmas/Amazing Grace (Yule)/ESOL2012a-Amazing Grace (Yule).vix" />
 		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/Capital C.js" />
@@ -156,7 +156,6 @@
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/lyrics.txt" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.timing" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/wookie.js" />
-		<Unit filename="my-projects/songs/xmas/vix2map.js" />
 		<Unit filename="node-jig.js" />
 		<Unit filename="package.json" />
 		<Unit filename="public/css/yalp.css" />

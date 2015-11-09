@@ -1,23 +1,14 @@
-//xmas2015 YALP playlist
+//Xmas2015 YALP playlist + custom Vixen2 mapping
+
 'use strict';
 
 //require('colors');
 //require('longjohn'); //http://www.mattinsler.com/post/26396305882/announcing-longjohn-long-stack-traces-for-nodejs
 
-
-//TODO var Playlist = require('my-projects/shared/playlist'); //base class
-var Playlist = function(opts) //temp shim
-{
-//    if (!(this instanceof Playlist)) return new Playlist.apply(this, arguments);
-    if (!(this instanceof Playlist)) return new (Playlist.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    this.debug = function() { debugger; }
-    this.opts = opts || {};
-}
-
+var Playlist = require('my-projects/shared/playlist'); //base class
 var xmas = module.exports = new Playlist({autoplay: true});
 //xmas.name = "Xmas";
 //xmas.volume = 1.0;
-
 
 //xmas.addSong('my-projects/songs/xmas/Amaz*');
 //xmas.addSong('my-projects/songs/xmas/*Capital*');
@@ -25,15 +16,15 @@ var xmas = module.exports = new Playlist({autoplay: true});
 xmas.songs =
 [
     "my-projects/songs/xmas/Amaz*",
-    "my-projects/songs/xmas/*Capital*",
-    "my-projects/songs/xmas/*Wookie*",
+//    "my-projects/songs/xmas/*Capital*",
+//    "my-projects/songs/xmas/*Wookie*",
 //    "Hippo",
 ];
 xmas.opening = "thx"; //TODO
 xmas.closing = "goodnight"; //TODO
 
 
-var AM = 0, PM = 1200;
+const AM = 0, PM = 1200;
 xmas.schedule =
 [
     {
@@ -48,7 +39,7 @@ xmas.schedule =
         day_from: 1128, //mmdd
         day_to: 1224, //mmdd
         time_from: 530 +PM, //hhmm
-        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm
+        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm by weekday
     },
     {
         name: 'Xmas eve',
@@ -62,7 +53,7 @@ xmas.schedule =
         day_from: 1125, //mmdd
         day_to: 1231, //mmdd
         time_from: 530 +PM, //hhmm
-        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm
+        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm by weekday
     },
     {
         name: 'NY eve',
@@ -76,12 +67,13 @@ xmas.schedule =
         day_from: 101, //mmdd
         day_to: 104, //mmdd
         time_from: 530 +PM, //hhmm
-        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm
+        time_to: [ 1100 +PM, 930 +PM, 930 +PM, 930 +PM, 930 +PM, 1100 +PM, 1100 +PM, ], //hhmm by weekday
     },
 ];
 
 //playlist.ready(); //allow caller to use it now
 //module.exports.debug();
 xmas.debug();
+
 
 //eof

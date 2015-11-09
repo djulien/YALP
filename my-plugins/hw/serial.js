@@ -1,2 +1,12 @@
-//serial port'use strict';
+//serial port
 
+'use strict';
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+module.exports.AddMixin = function(port)
+{
+    console.log("TODO: add Serial protocol to port '%s'", port.name, port);
+}
+
+//eof

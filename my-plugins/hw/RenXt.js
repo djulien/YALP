@@ -222,4 +222,11 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
     RENXt.MakeNode = function(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
 
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+module.exports.AddMixin = function(port)
+{
+    console.log("TODO: add RenXt protocol to port '%s'", port.name, port);
+}
+
 //eof
