@@ -127,6 +127,7 @@
 		<Unit filename="my-projects/playlists/even-test-bk.js" />
 		<Unit filename="my-projects/playlists/hween2015a.js" />
 		<Unit filename="my-projects/playlists/xmas2015.js" />
+		<Unit filename="my-projects/shared/cuelist-bk.js" />
 		<Unit filename="my-projects/shared/cuelist.js" />
 		<Unit filename="my-projects/shared/mixins/duration.js" />
 		<Unit filename="my-projects/shared/mixins/promise-keepers.js" />
@@ -136,6 +137,7 @@
 		<Unit filename="my-projects/shared/playlist.js" />
 		<Unit filename="my-projects/shared/scheduler.js" />
 		<Unit filename="my-projects/shared/sequence-bk.js" />
+		<Unit filename="my-projects/shared/sequence-bk2.js" />
 		<Unit filename="my-projects/shared/sequence.js" />
 		<Unit filename="my-projects/shared/vixen2.js" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2011a-Emmanuel (Amy Grant).cue" />

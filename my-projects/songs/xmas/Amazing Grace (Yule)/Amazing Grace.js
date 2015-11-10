@@ -2,45 +2,41 @@
 'use strict';
 
 var Sequence = require('my-projects/shared/sequence'); //base class
-//var vix2 = require('my-projects/shared/vixen2');
-//var vix2map = require('../vix2map');
-var seq = module.exports = new Sequence({use_media_len: false, audio: false, cues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = module.exports = new Sequence({use_media_len: false, xaudio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
-
-
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
+
 seq
-//    .addVixen2({audio: false, cues: true})
+//no    .addVixen2({audio: false, cues: true})
     .addMedia() //__dirname + '**/*.mp3')
-    .addCue({text: 'fx:init', })
-    .addCue({from: .8, text: 'fx:one', })
-    .addCue({from: 1.3, text: 'fx:two', })
-    .addCue({from: 2.4, text: 'fx:three', })
-    .addCue({from: 3.2, text: 'fx:four', });
+//    .addCue({text: 'fx:init', })
+//    .addCue({from: .8, text: 'fx:one', })
+//    .addCue({from: 1.3, text: 'fx:two', })
+//    .addCue({from: 2.4, text: 'fx:three', })
+//    .addCue({from: 3.2, text: 'fx:four', });
 
 
-seq.models =
-[
-    'M-tree',
-    'Gdoor',
-    'Shepherd1',
-    'Shepherd2',
-];
+//seq.models =
+//[
+//    'M-tree',
+//    'Gdoor',
+//    'Shepherd1',
+//    'Shepherd2',
+//];
+//TODO
+//seq.fx = function(frtime, buf)
+//{
+//}
 
-
-/*TODO
-seq.fx = function(frtime, buf)
-{
-}
-*/
 
 //render frames on demand:
+/*
 seq.render = function(frtime, buf)
 {
     var frdata = Sequence.prototype.render.call(seq, frtime, buf); //{frtime, frnext, dirty, rawbuf}
 //    port1[0] = frdata.rawbuf[0];
-/*TODO
+//TODO
 //    if (!buf) buf = this.buf = new Buffer(16); //alloc buffer one time only
     var cue = this.findcue(frtime);
     switch (cue.text || '??')
@@ -61,9 +57,9 @@ seq.render = function(frtime, buf)
 //        portbuf.fill(0x11 * (i + 1)); //TODO: port ch remap
         frdata['port' + i] = portbuf;
     }
-*/
     return frdata; //{frnext: frtime + .500, port#: buf};
 }
+*/
 
 
 //module.exports.debug();

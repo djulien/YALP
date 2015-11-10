@@ -18,19 +18,20 @@ wookie.name = 'Wookie';
 //    .sortCues();
 
 
-wookie.models =
-[
-    'M-tree',
-    'Gdoor',
-    'Shepherd1',
-    'Shepherd2',
-];
+//wookie.models =
+//[
+//    'M-tree',
+//    'Gdoor',
+//    'Shepherd1',
+//    'Shepherd2',
+//];
 
 wookie
     .addMedia() //__dirname + '**/*.mp3');
 //none    .addVixen2({audio: false, cues: true});
 
 //render frames on demand:
+/*
 wookie.render = function(frtime, buf)
 {
 //    if (!this.buf) this.buf = new Buffer(8); //alloc buffer one time only
@@ -40,6 +41,7 @@ wookie.render = function(frtime, buf)
     var frdata = Sequence.prototype.render(frtime, buf);
     return frdata; //{frnext: frtime + .500, port#: buf};
 }
+*/
 
 
 //module.exports.debug();

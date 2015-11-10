@@ -32,10 +32,11 @@ var wport = /*xmas.ports.FTDI_w =*/ new ChannelPool({name: 'FTDI-W', device: '/d
 var serial = require("serialport"); //https://github.com/voodootikigod/node-serialport
 var RenXt = require('my-plugins/hw/RenXt');
 
+const FPS = 20;
 ChannelPool.all.forEach(function(chpool, inx)
 {
     if (!chpool.device) return;
-    chpool.port = new serial.SerialPort(chool.device, { baudrate: 242500, dataBits: 8, parity: 'none', stopBits: 1, buffersize: 2048*10 }, false), //false => don't open immediately (default = true)
+    chpool.port = new serial.SerialPort(chool.device, { baudrate: 242500, dataBits: 8, parity: 'none', stopBits: 1, buffersize: Math.floor(242500 / (1 + 8 + 2) / FPS) /*2048*10*/ }, false), //false => don't open immediately (default = true)
     RenXt.Mixin(chpool); //protocol handler
 });
 
@@ -306,6 +307,30 @@ models.Model.all.forEach(function(model, inx)
 //{
 //    vix2.AddMixin(seq); //render using mapped Vixen channel values
 //});
+
+/*TODO
+    if (opts.auto_collect !== false)
+    {
+        glob(path.join(path.dirname(this.path), "**", "{timing,cues}!(*-bk)"), function(err, files)
+        {
+            if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
+            this.warn("Cuelist auto-collect found %d candidate seq file%s", files.length, (files.length != 1)? 's': '');
+            (files || []).forEach(function(file, inx) { this.addCues(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
+        glob(path.join(path.dirname(this.path), "**", "!(*-bk).vix"), function(err, files)
+        {
+            if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
+            this.warn("Cuelist auto-collect found %d Vixen seq file%s", files.length, (files.length != 1)? 's': '');
+            (files || []).forEach(function(file, inx) { this.addVixen(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
+        glob(path.join(path.dirname(this.path), "**", "!(*-bk).{xseq,fseq}"), function(err, files)
+        {
+            if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
+            this.warn("Cuelist auto-collect found %d xLights seq file%s", files.length, (files.length != 1)? 's': '');
+            (files || []).forEach(function(file, inx) { this.addxLights(file); }.bind(this)); //CAUTION: need to preserve context within forEach loop
+        }.bind(this)); //CAUTION: need to preserve context within glob callback
+    }
+*/
 
 
 //eof

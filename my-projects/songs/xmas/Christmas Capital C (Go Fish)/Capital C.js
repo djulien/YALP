@@ -22,9 +22,10 @@ seq.cues =
 
 seq
     .addMedia() //__dirname + '**/*.mp3');
-    .addVixen2({audio: false, cues: true});
+//    .addVixen2({audio: false, cues: true});
 
 //render frames on demand:
+/*
 seq.render = function(frtime, buf)
 {
 //    if (!this.buf) this.buf = new Buffer(2); //alloc buffer one time only
@@ -34,14 +35,15 @@ seq.render = function(frtime, buf)
     var frdata = Sequence.prototype.render(frtime, buf);
     return frdata; //{frnext: frtime + .500, port#: buf};
 }
+*/
 
-seq.models =
-[
-    'M-tree',
-    'Gdoor',
-    'Shepherd1',
-    'Shepherd2',
-];
+//seq.models =
+//[
+//    'M-tree',
+//    'Gdoor',
+//    'Shepherd1',
+//    'Shepherd2',
+//];
 
 //module.exports.debug();
 

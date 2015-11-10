@@ -26,8 +26,9 @@ function SafeItem(choices, which)
 }
 
 
+//CAUTION: not cleared if multiple playlists used
 var m_all = [];
-var m_sorted = true;
+var m_sorted = false;
 var Schedule = module.exports.Schedule = function(opts)
 {
     if (!(this instanceof Schedule)) return setnew(Schedule, arguments);
@@ -72,20 +73,30 @@ Schedule.prototype.active = function(now)
 //        var weekday = "Su,M,Tu,W,Th,F,Sa".split(',')[now.getDay()];
 //        var month = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(',')[now.getMonth()];
 //        var mmdd = mmdd2days(100 * now.GetMonth() + now.getDate());
-//    console.log("playlist scheduler: mmdd now %d, btwn start %d + end %d? %s", mmdd(now), THIS.day_from, THIS.day_to, BTWN(mmdd(now), THIS.day_from, THIS.day_to));
+    console.log("playlist scheduler: mmdd now %s, btwn start %s + end %s? %s", mmdd(now), this.day_from, this.day_to, BTWN(mmdd(now), this.day_from, this.day_to));
     if (!BTWN(mmdd(now), this.day_from, this.day_to)) return false;
 //        var hhmm = now.getHour() * 100 + now.getMinute();
     return true;
 }
 
 
-//playlist mixin class:
-var Scheduler = module.exports.Scheduler = function(opts) {}
+//dummy class to donate methods to another class:
+var SchedulerMixin = module.exports.SchedulerMixin = function(opts)
+{
+    throw "Mixin class; don't instantiate";
+}
 
+
+//clear global collection when switching playlists
+SchedulerMixin.prototype.SchedDrop = function()
+{
+    m_all = [];
+    m_sorted = false;
+}
 
 //main scheduler loop:
 //wait until scheduled time, then run playlist
-Scheduler.prototype.scheduler = function(opts)
+SchedulerMixin.prototype.scheduler = function(opts)
 {
     var now = new Date();
 //    if (!m_all.length /*this.schedule*/) return;
@@ -98,13 +109,16 @@ Scheduler.prototype.scheduler = function(opts)
         return is_active = sched.active(now)? sched: null; //kludge: array.some only returns true/false, so save result in here
 //        return is_active; //true => break, false => continue
     });
-    console.log("scheduler[@%s] %d ents, was %j, is %j, change state? %s", clock.Now.asString(), m_all.length, this.was_active, is_active, !is_active != !this.was_active, is_active);
+    var changed = (!is_active != !this.was_active);
+    console.log("scheduler[@%s] %d ents, was %j, is %j, change state? %s", clock.Now.asString(), m_all.length, this.was_active, is_active, changed, is_active);
 //TODO: opener, closer
     if (is_active && !this.was_active) this.play(); //cmd('play');
     else if (!is_active && this.was_active) this.pause(); //pending_stop = true; //cmd('pause');
 //    console.log("TODO: scheduler");
 //    console.log("Scheduling '%s' scheduler ...".green, this.name);
-    this.auto_loop = this.was_active = is_active;
+//no    this.auto_loop = //caller might only want to run once with schedule
+    this.was_active = is_active;
+    if (changed && !this.opts.loop) return; //no need to continue checking schedule
     setTimeout(function() { this.scheduler(opts); }.bind(this), 60 * 1000); //timing not critical; just check for active schedule periodically
 }
 
