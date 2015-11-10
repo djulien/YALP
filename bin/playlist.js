@@ -6,10 +6,11 @@
 require('colors');
 var glob = require('glob');
 var path = require('path');
-//var findpkg = require('my-plugins/utils/find-pkg')(__dirname);
 
+//TODO
+//var findpkg = require('my-plugins/utils/find-pkg')(__dirname);
 //var cfg = require(findpkg('package.json'));
-var cfg = require('package.json');
+//var cfg = require('package.json');
 
 //load main package.json:
 //console.log(require.resolve(path.join(__dirname, 'package.json')));
@@ -35,6 +36,6 @@ var playlist = cfg.playlist? require(cfg.playlist): null; //'my-projects/playlis
 //if ((playlist.opts || {}).autoplay) setTimeout(function() { scheduler(playlist); }, 1000); //kludge: give async files time to load
 
 if (!playlist) { console.log("no playlist".red); process.exit(1); }
-playlist.run();
+if (!playlist.opts.auto_play) playlist.play(); //just run once if auto-play not enabled
 
 //eof

@@ -134,6 +134,7 @@
 		<Unit filename="my-projects/shared/mixins/volume.js" />
 		<Unit filename="my-projects/shared/playlist-bk.js" />
 		<Unit filename="my-projects/shared/playlist.js" />
+		<Unit filename="my-projects/shared/scheduler.js" />
 		<Unit filename="my-projects/shared/sequence-bk.js" />
 		<Unit filename="my-projects/shared/sequence.js" />
 		<Unit filename="my-projects/shared/vixen2.js" />
@@ -150,8 +151,6 @@
 		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/Capital C.txt" />
 		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/ESOL2012a-Christmas With A Capital C (Remix, Go Fish).cue" />
 		<Unit filename="my-projects/songs/xmas/Christmas Capital C (Go Fish)/ESOL2012a-Christmas With A Capital C (Remix, Go Fish).vix" />
-		<Unit filename="my-projects/songs/xmas/ESOL-Xmas2012RGB-bk.pro" />
-		<Unit filename="my-projects/songs/xmas/ESOL-Xmas2012a.pro" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/djnotes.txt" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/lyrics.txt" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.timing" />
