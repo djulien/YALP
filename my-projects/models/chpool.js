@@ -34,9 +34,12 @@ function ChannelPool(opts)
         if (!m_numch) debugger;
         if (!m_numch) throw "Chpool: no channels allocated";
         console.log("chpool: %s buf len %d", m_numch, m_buf? "return": "alloc");
+//TODO: alloc prevbuf for dedup
         if (!m_buf) m_buf = new Buffer(m_numch);
         return m_buf;
     }});
+    var m_models = [];
+    Object.defineProperty(this, 'models', { enumerable: true, get: function() { return m_models; }});
     this.alloc = function(model, opts)
     {
 //    debugger;
@@ -52,12 +55,23 @@ function ChannelPool(opts)
         opts.chpool = this; //NOTE: "this" needs to refer to parent ChannelPool here
         var args = Array.prototype.slice.call(arguments, 1); args[0] = opts; //Array.from(arguments); args.shift()
 //        console.log("alloc model args", args);
-        return model.apply(null, args);
+        var newmodel = model.apply(null, args);
+        m_models.push(newmodel); //keep track of models on this port
+        return newmodel;
     }
 
     if (!ChannelPool.all) ChannelPool.all = [];
     ChannelPool.all.push(this); //this.all = function(cb) { m_allinst.forEach(function(ctlr, inx) { cb(ctlr, inx); }); }
 }
 
+
+ChannelPool.prototype.render = function(force)
+{
+    if (!this.dirty && !force) return null;
+    var usedlen = this.numch; //TODO
+    this.dirty = false;
+//TODO: dedup
+    return this.buf.slice(0, usedlen);
+}
 
 //eof

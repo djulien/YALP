@@ -1,6 +1,20 @@
 
 'use strict';
 
+var fs = require('fs');
+var glob = require('glob');
+var path = require('path');
+var byline = require('byline');
+var makenew = require('my-plugins/utils/makenew');
+//var NodeCache = require( "node-cache" );
+//var Tokenizer = require('tokenizer');
+//require('buffertools').extend(); //https://github.com/bnoordhuis/node-buffertools
+//var elapsed = require('my-plugins/utils/elapsed');
+var relpath = require('my-plugins/utils/relpath');
+var shortname = require('my-plugins/utils/shortname');
+//var Now = require('my-plugins/utils/clock').Now;
+
+
 //CAUTION: not cleared if multiple sequences used
 //var m_all = [];
 //var m_sorted = false;
@@ -8,7 +22,7 @@ var m_limit;
 var m_back_trim;
 var Cue = module.exports.Cue = function(opts)
 {
-    if (!(this instanceof Cue)) return setnew(Cue, arguments);
+    if (!(this instanceof Cue)) return makenew(Cue, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 //    m_all.push(this); m_sorted = false;
 
@@ -63,115 +77,67 @@ CueListMixin.prototype.addFixedFrames = function(interval)
 }
 
 
-/*TODO
-CueListMixin.prototype.addCues = function(filename)
+CueListMixin.prototype.addCues = function(pattern)
 {
-//    if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check
-    if (typeof filename.length !== 'undefined')
+//        debugger;
+    var where;
+    glob.sync(where = pattern || path.join(this.folder, '**', '!(*-bk).{timing,cues}')).forEach(function(filename)
     {
-        filename.forEach(function(cue, inx) { this.addCue(cue); }.bind(this));
-        return this; //allow chaining
-    }
-    this.pend();
-    var section = "timing", src = shortname(filename), linenum = 0, back_trim = null, numwarn = [0, 0];
-//    var this_seq = this;
+        filename = require.resolve(filename);
+        console.log("adding timing cues from %s", filename);
+        this.pend();
+        var section = "timing", src = shortname(filename), linenum = 0, back_trim = null, numwarn = [0, 0];
 //TODO: use cached values if file !changed
-    var stream = byline(fs.createReadStream(filename))
-        .on('readable', function()
-        {
-            for (;;)
+        var stream = byline(fs.createReadStream(filename))
+            .on('readable', function()
             {
-//                if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                var linebuf = stream.read();
-                if (!linebuf) break;
-                linebuf = linebuf.toString('utf8'); ++linenum;
-//                    console.log(typeof linebuf, linebuf);
-                var matches;
-                if (matches = linebuf.match(/^#\s*(.+):?\s*$/)) //, 'heading');
+                for (;;)
                 {
+//                if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                    var linebuf = stream.read();
+                    if (!linebuf) break;
+                    linebuf = linebuf.toString('utf8'); ++linenum;
+//                    console.log(typeof linebuf, linebuf);
+                    var matches;
+                    if (matches = linebuf.match(/^#\s*(.+):?\s*$/)) //, 'heading');
+                    {
 //                        if (this.cues.length && (this.cues[this.cues.length - 1].to == 'next')
 //                        flush.apply(this);
-                    section = matches[1]; //token;
-                    back_trim = null;
+                        section = matches[1]; //token;
+                        back_trim = null;
 //                        if (this.cues[name]) console.log("dupl heading %s".yellow, name);
-                }
-                else if (matches = linebuf.match(/^\s*([\d.]+)(\s+([\d.]+))?(\s+(.+))?\s*$/)) //, 'from');
-                {
+                    }
+                    else if (matches = linebuf.match(/^\s*([\d.]+)(\s+([\d.]+))?(\s+(.+))?\s*$/)) //, 'from');
+                    {
 //                        flush.apply(this);
-                    var from = Math.round(1000 * matches[1]); //token;
-                    if (from > this.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
-                    if (back_trim) this.cues[this.cues.length - 1].to = from; back_trim = null; //fill in gap from previous entry
-                    var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this.duration /-*9999000*-/; //'next'; //will be filled in by next entry; use junk value past end to preserve to >= from validation
-                    if (matches[3] && (to < from)) { if (!numwarn[1]++) console.log("%s:%d ends %d before starts %d: %s", src, linenum, to / 1000, from / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
-                    var text = matches[5] || null;
+                        var from = Math.round(1000 * matches[1]); //token;
+                        if (from > this.duration) { if (!numwarn[0]++) console.log("%s:%d starts past end %d: %s", src, linenum, this.duration / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
+                        if (back_trim) this.cues[this.cues.length - 1].to = from; back_trim = null; //fill in gap from previous entry
+                        var to = matches[3]? Math.round(1000 * matches[3]): back_trim = this.duration /*9999000*/; //'next'; //will be filled in by next entry; use junk value past end to preserve to >= from validation
+                        if (matches[3] && (to < from)) { if (!numwarn[1]++) console.log("%s:%d ends %d before starts %d: %s", src, linenum, to / 1000, from / 1000, linebuf.replace(/\t+/g, ' ')); continue; }
+                        var text = matches[5] || null;
 //                        var cues = this.cues[name] = this.cues[name] || [];
 //                        console.log("hd %s, from %d, to %d, text %s", section, from, to, text);
-//                    this.cues.push({from: from || 0, to: to || 9999 /-*this.duration*-/, text: text || '', src: src || null, name: section || 'ext'});
-                    this.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum});
+//                    this.cues.push({from: from || 0, to: to || 9999 /*this.duration*/, text: text || '', src: src || null, name: section || 'ext'});
+                        this.cues.push({name: section, from: from, to: to, text: matches[5] || '', src: src + ':' + linenum});
 //                    this.addCue(section, from, to, text, src + ':' + linenum);
-                    this.cues_dirty = true;
+                        this.cues_dirty = true;
+                    }
+                    else console.log("junk cue line ignored in %s:%d: %s".yellow, src, linenum, linebuf);
                 }
-                else console.log("junk cue line ignored in %s:%d: %s".yellow, src, linenum, linebuf);
-            }
-        }.bind(this))
-/-*
-    var tkz = new Tokenizer(); //mycallback
-//regex https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp
-    tkz.addRule(/^(?:#\s*)\S+(?:\s*)$/, 'heading');
-    tkz.addRule(/^(?:\s*)[\d.]+/, 'from');
-    tkz.addRule(/^[\d.]+/, 'to');
-    tkz.addRule(/\S+(?:\s*)$/, 'text');
-    fs.createReadStream(filename)
-        .pipe(tkz)
-        .on('token', function(token, type)
-        {
-            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-            switch (type)
+            }.bind(this))
+            .on('end', function()
             {
-                case 'heading':
-                    flush.apply(this);
-                    name = token;
-                    if (this.cues[name]) console.log("dupl heading %s".yellow, name);
-                    break;
-                case 'from':
-                    flush.apply(this);
-                    from = 1 * token;
-                    break;
-                case 'to':
-                    to = 1 * token;
-                    break;
-                case 'text':
-                    flush.apply(this);
-                    console.log("ignoring junk: '%s'".red, token);
-                    break;
-                default:
-                    throw "Unhandled token '" + type + "'";
-            }
-        })
-*-/
-        .on('end', function()
-        {
 //                flush();
-            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
+                if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //            console.log("%d cues from %s, dirty? %d", this.cues.length, relpath(filename), this.cues_dirty);
-            if (Math.max(numwarn[0], numwarn[1]) > 1) console.log("(%d more warnings)", Math.max(numwarn[0] - 1, 0) + Math.max(numwarn[1] - 1, 0));
-            this.unpend(); //ing) this.ready(); //emit('ready');
-        }.bind(this))
-        .on('error', function(err) { /-*this.unpend()*-/; this.error /-*console.log*-/("cues: not a file: %s: %s" + relpath(filename) + " " + err); }.bind(this));
-
-//        function flush()
-//        {
-//            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-//            if (!from) return;
-//            var cues = this.cues[name] = this.cues[name] || [];
-//            console.log("hd %s, from %d, to %d", name, from, to || 'next');
-//            cues.push({from: from, to: to || 'next', src: src + ':' + line});
-//            from = to = null;
-//            ++numcues;
-//        }
-    return this; //allow chaining
+                if (Math.max(numwarn[0], numwarn[1]) > 1) console.log("(%d more warnings)", Math.max(numwarn[0] - 1, 0) + Math.max(numwarn[1] - 1, 0));
+                this.unpend(); //ing) this.ready(); //emit('ready');
+            }.bind(this))
+            .on('error', function(err) { /*this.unpend()*/; this.error /*console.log*/("cues: not a file: %s: %s" + relpath(filename) + " " + err); }.bind(this));
+    }.bind(this));
+    return this; //fluent
 }
-*/
 
 
 /*
@@ -180,7 +146,6 @@ Sequence.prototype.findCue = function(frtime)
 //TODO
     return this; //fluent
 }
-
 function sortCues()
 {
     if (!this.isCuelist) throw "wrong 'this'"; //paranoid/sanity context check

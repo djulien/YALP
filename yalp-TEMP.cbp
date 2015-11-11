@@ -56,6 +56,8 @@
 		<Unit filename="graphics/yalp-icon8.PNG" />
 		<Unit filename="graphics/yalp-icon8.bmp" />
 		<Unit filename="index.js" />
+		<Unit filename="my-plugins/adapters/vixen2.js" />
+		<Unit filename="my-plugins/adapters/xlights3.js" />
 		<Unit filename="my-plugins/canvas/html.js" />
 		<Unit filename="my-plugins/check-install.js" />
 		<Unit filename="my-plugins/cmdline.js" />
@@ -111,6 +113,7 @@
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
 		<Unit filename="my-plugins/utils/logger.js" />
 		<Unit filename="my-plugins/utils/make-global.js" />
+		<Unit filename="my-plugins/utils/makenew.js" />
 		<Unit filename="my-plugins/utils/mem-scale.js" />
 		<Unit filename="my-plugins/utils/mp3len.js" />
 		<Unit filename="my-plugins/utils/my-eventemitter2.js" />
@@ -122,8 +125,9 @@
 		<Unit filename="my-projects/models/chpool.js" />
 		<Unit filename="my-projects/models/icicles.js" />
 		<Unit filename="my-projects/models/model.js" />
-		<Unit filename="my-projects/my-models.js" />
 		<Unit filename="my-projects/package.json" />
+		<Unit filename="my-projects/playlists/ESOL-Xmas2012RGB.pro" />
+		<Unit filename="my-projects/playlists/ESOL-Xmas2012a.pro" />
 		<Unit filename="my-projects/playlists/even-test-bk.js" />
 		<Unit filename="my-projects/playlists/hween2015a.js" />
 		<Unit filename="my-projects/playlists/xmas2015.js" />
@@ -133,13 +137,13 @@
 		<Unit filename="my-projects/shared/mixins/promise-keepers.js" />
 		<Unit filename="my-projects/shared/mixins/speed.js" />
 		<Unit filename="my-projects/shared/mixins/volume.js" />
+		<Unit filename="my-projects/shared/my-custom.js" />
 		<Unit filename="my-projects/shared/playlist-bk.js" />
 		<Unit filename="my-projects/shared/playlist.js" />
 		<Unit filename="my-projects/shared/scheduler.js" />
 		<Unit filename="my-projects/shared/sequence-bk.js" />
 		<Unit filename="my-projects/shared/sequence-bk2.js" />
 		<Unit filename="my-projects/shared/sequence.js" />
-		<Unit filename="my-projects/shared/vixen2.js" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2011a-Emmanuel (Amy Grant).cue" />
 		<Unit filename="my-projects/songs/misc/Emmanuel (Amy Grant)/ESOL2012a-Emmanuel (Amy Grant).vix" />
 		<Unit filename="my-projects/songs/misc/This Is Love (Beachpoint Kids)/Label Track.txt" />

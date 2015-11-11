@@ -2,6 +2,9 @@
 'use strict';
 
 var clock = require('my-plugins/utils/clock');
+var makenew = require('my-plugins/utils/makenew');
+
+function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 
 //TODO: merge scheduler code?
@@ -31,7 +34,7 @@ var m_all = [];
 var m_sorted = false;
 var Schedule = module.exports.Schedule = function(opts)
 {
-    if (!(this instanceof Schedule)) return setnew(Schedule, arguments);
+    if (!(this instanceof Schedule)) return makenew(Schedule, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
     m_all.push(this); m_sorted = false;
 
@@ -141,16 +144,5 @@ run: function(done_cb)
     return true;
 }
 */
-
-function isdef(thing)
-{
-    return (typeof thing !== 'undefined');
-}
-
-function setnew(type, args)
-{
-//    if (this instanceof type) return;
-    return new (type.bind.apply(type, [null].concat(Array.from(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-}
 
 //eof

@@ -5,6 +5,7 @@
 var glob = require('glob');
 var path = require('path');
 var inherits = require('inherits');
+var makenew = require('my-plugins/utils/makenew');
 var caller = require('my-plugins/utils/caller').stack;
 var ipc = require('my-plugins/utils/ipc');
 var clock = require('my-plugins/utils/clock');
@@ -13,18 +14,20 @@ var shortname = require('my-plugins/utils/shortname');
 //var add_method = require('my-plugins/my-extensions/object-enum').add_method;
 var SchedulerMixin = require('my-projects/shared/scheduler').SchedulerMixin;
 var Schedule = require('my-projects/shared/scheduler').Schedule;
-//var PlaylistExtend = require('my-projects/my-models').PlaylistExtend;
+//var PlaylistExtend = require('my-projects/shared/my-custom').PlaylistExtend;
 
+function isdef(thing) { return (typeof thing !== 'undefined'); }
 //add_method(Array.prototype, 'push_ifdef', function(newval) { if (isdef(newval)) this.push(newval); });
 
 
 var Playlist = module.exports = function(opts)
 {
 //    console.log("playlist args", arguments);
-    if (!(this instanceof Playlist)) return setnew(Playlist, arguments);
+    if (!(this instanceof Playlist)) return makenew(Playlist, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
     this.debug = function() { debugger; }
 
+    add_prop('isPlaylist', true);
     add_prop('opts', (typeof opts !== 'object')? {name: opts}: opts || {}); //preserve unknown options for subclasses
     console.log("playlist opts %j", this.opts);
     add_prop('folder', this.opts.folder || path.dirname(caller(2))); //allow caller to override auto-collect folder in case playlist is elsewhere
@@ -47,9 +50,9 @@ var Playlist = module.exports = function(opts)
         {
             console.log("adding song[%s] %s", m_songs.length, require.resolve(filename));
             m_songs.push(require(require.resolve(filename)));
-            console.log("added song", m_songs[m_songs.length - 1]);
-            if (!m_songs.slice(-1)) throw "Song '" + filename + "' failed to load.";
-            if (!m_songs.slice(-1).duration) throw "Song '" + filename + "' has no length.";
+//            console.log("added song", m_songs[m_songs.length - 1]);
+            if (!m_songs.slice(-1)[0]) throw "Song '" + filename + "' failed to load.";
+            if (!m_songs.slice(-1)[0].duration) throw "Song '" + filename + "' has no length.";
         }); //.bind(this));
         if (this.songs.length > oldcount + 1) throw "Multiple files found at '" + where + "'";
         if (this.songs.length == oldcount) throw "Can't find sequence at '" + where + "'";
@@ -199,7 +202,7 @@ var Playlist = module.exports = function(opts)
         Object.defineProperty(this, name, {value: value, enumerable: true});
 //        console.log("extended %s with %s".blue, thing.constructor.name, name);
     }
-    if (this.opts.extend) this.opts.extend(this); //do this after prototype is completely defined
+//    if (this.opts.extend) this.opts.extend(this); //do this after prototype is completely defined
     if (this.opts.auto_collect !== false) console.log("TODO: auto-collect songs at %s", this.folder);
 }
 inherits(Playlist, SchedulerMixin); //mixin class
@@ -220,16 +223,5 @@ Playlist.prototype.pause = function(opts)
 //var PlaylistMixin = require('my-projects/my-models');
 //if (PlaylistMixin) PlaylistMixin(Playlist); //do this after prototype is completely defined
 
-
-function isdef(thing)
-{
-    return (typeof thing !== 'undefined');
-}
-
-function setnew(type, args)
-{
-//    if (this instanceof type) return;
-    return new (type.bind.apply(type, [null].concat(Array.from(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-}
 
 //eof

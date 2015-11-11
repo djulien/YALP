@@ -2,6 +2,9 @@
 'use strict';
 
 var inherits = require('inherits');
+var makenew = require('my-plugins/utils/makenew');
+
+function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 function MixinA() {}
 MixinA.prototype.newfunc = function()
@@ -28,7 +31,7 @@ MixinB.prototype.overridden = function()
 function base()
 {
 //    console.log("playlist args", arguments);
-    if (!(this instanceof base)) return setnew(base, arguments);
+    if (!(this instanceof base)) return makenew(base, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 }
 //inherits(base, MixinA); //adds new methods, does not override existing methods
@@ -59,16 +62,5 @@ if (test.overridden) test.overridden();
 if (test.newfunc) test.newfunc();
 if (test.nudderfunc) test.nudderfunc();
 
-
-function isdef(thing)
-{
-    return (typeof thing !== 'undefined');
-}
-
-function setnew(type, args)
-{
-//    if (this instanceof type) return;
-    return new (type.bind.apply(type, [null].concat(Array.from(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-}
 
 //epf

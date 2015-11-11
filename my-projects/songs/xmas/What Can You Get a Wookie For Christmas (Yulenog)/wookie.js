@@ -2,12 +2,8 @@
 
 'use strict';
 
-var Sequence = require('my-projects/shared/sequence'); //base class
-//var Model = require('my-projects/models.js'); //base class
-//var Model =
-//var Fx =
-
-var wookie = module.exports = /*new*/ Sequence(); //{auto_collect: true, interval: 50, }); //comonjs
+var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
+var wookie = module.exports = /*new*/ Sequence({use_media_len: false, audio: false, folder: __dirname}); //{auto_collect: true, interval: 50, }); //comonjs
 wookie.name = 'Wookie';
 //Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
 //Wookie.tracks = './tracks.txt'; //Audacity label file
@@ -16,6 +12,10 @@ wookie.name = 'Wookie';
 //wookie
 //    .addFixedFrames(50);
 //    .sortCues();
+
+//var Model = require('my-projects/models.js'); //base class
+//var Model =
+//var Fx =
 
 
 //wookie.models =

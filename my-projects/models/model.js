@@ -4,25 +4,22 @@
 'use strict';
 
 var inherits = require('inherits');
-
+var caller = require('my-plugins/utils/caller').caller;
+var makenew = require('my-plugins/utils/makenew');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
-function setnew(type, args)
-{
-//    if (this instanceof type) return;
-    return new (type.bind.apply(type, [null].concat(Array.from(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-}
 
 
 //var Model = require('my-projects/models/base_model');
 var Model = module.exports.Model = function(opts)
 {
 //    console.log("model args", arguments);
-    if (!(this instanceof Model)) return setnew(Model, arguments); //new (Model.bind.apply(Model, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+    if (!(this instanceof Model)) return makenew(Model, arguments); //new (Model.bind.apply(Model, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
     add_prop('opts', opts); //preserve unknown options for subclasses
     add_prop('pxsize', opts.rgb? 3: opts.rgbw? 4: 1);
+    add_prop('name', opts.name || caller(2));
 //    console.log("model opts %j", opts);
 //    var chpool = opts.chpool;
     add_prop('adrs', isdef(opts.adrs)? use_adrs(opts.adrs): opts.chpool.getadrs());
@@ -32,14 +29,15 @@ var Model = module.exports.Model = function(opts)
     var m_buf = null; //CAUTION: don't alloc until all ch assigned
     Object.defineProperty(this, 'buf', { enumerable: true, get: function()
     {
+        opts.chpool.dirty = true; //kludge: assume that caller will update buf
         if (!m_buf) m_buf = opts.chpool.buf.slice(this.startch, this.numch);
         return m_buf;
     }});
-    if (!Model.all) Model.all = [];
-    Model.all.push(this);
+//no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
+//    Model.all.push(this);
 
-    this.nodeofs = function(i) { return this.opts.pxsize * i; } //overridable with custom node order
-    switch (this.opts.pxsize)
+    this.nodeofs = function(i) { return this.pxsize * i; } //overridable with custom node order
+    switch (this.pxsize)
     {
         case 1:
             this.fill = function(color)
@@ -102,7 +100,7 @@ var Model = module.exports.Model = function(opts)
             }
             break;
         default:
-            throw "Unhandled node size: " + this.opts.pxsize;
+            throw "Unhandled node size: " + this.pxsize;
     }
 
     function use_adrs(adrs)
@@ -119,10 +117,42 @@ var Model = module.exports.Model = function(opts)
     }
 }
 
-//Model.prototype.render = function(force_dirty)
-//{
-//    if (!this.dirty && !force_dirty) return;
-//}
+
+Model.prototype.render = function(frtime, force_dirty)
+{
+    if (!this.dirty && !force_dirty) return;
+    this.buf.fill(frtime); //TODO
+    this.dirty = false;
+//TODO    if (!dedup) parent_chpool.dirty = true;
+    return frtime + 99999; //TODO: tell caller when to update me again
+}
+
+/*
+    model.render = function(frtime, buf)
+    {
+        if (!this.buffers)
+        {
+            this.ff = 0;
+            this.buffers = [];
+            for (var i = 0; i < 2; ++i) this.buffers.push(new Buffer(this.channels.length)); //425
+        }
+
+        var vix2buf = this.buffers[m_ff ^= 1]; //alternating buffers for diff
+        this.getFrame(Math.floor(frtime / this.FixedFrameInterval), vix2buf); //first get Vixen2 frame
+        var dirty = !frtime || bufdiff(m_buffers[0], m_buffers[1]); //this.prevbuf.compare(buf);
+        if (!dirty) //render mapped data
+        {
+            Model.all.forEach(function(model, inx, all)
+            {
+                model.vix2set(frtime, vix2buf); //set this.frtime, this.buf, this.dirty
+                model.render_renxt();
+            });
+            vix2.Sequence.prototype.render.call(this, frtime, buf);
+        }
+        return {frnext: Math.min(frtime + this.FixedFrameInterval, this.duration), dirty: dirty, buf: dirty? frbuf: undefined};
+    }.bind(model);
+*/
+
 
 /*use ChannelPool.alloc factory instead
 ChannelPool.prototype.Rect2D = function(args)
@@ -147,7 +177,7 @@ var Rect2D = module.exports.Rect2D = function(opts) //w, h, more_args)
 //    console.log("rect2d args", arguments);
 //    console.log("fiixup", [null].concat.apply(arguments));
 //    console.log("fix2", [null].concat(Array.from(arguments)));
-    if (!(this instanceof Rect2D)) return setnew(Rect2D, arguments); //new (Rect2D.bind.apply(Rect2D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+    if (!(this instanceof Rect2D)) return makenew(Rect2D, arguments); //new (Rect2D.bind.apply(Rect2D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts !== 'object')? {numpx: opts}: opts || {};
     if (!isdef(opts.h)) opts.h = 16; //16 x 16 is good for simple icons, so use that as default
     if (!isdef(opts.w)) opts.w = 16;
@@ -166,7 +196,7 @@ inherits(Rect2D, Model);
 
 var Strip1D = module.exports.Strip1D = function(opts)
 {
-    if (!(this instanceof Strip1D)) return setnew(Strip1D, arguments); //new (Strip1D.bind.apply(Strip1D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+    if (!(this instanceof Strip1D)) return makenew(Strip1D, arguments); //new (Strip1D.bind.apply(Strip1D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts !== 'object')? {numpx: opts}: opts || {};
     if (!isdef(opts.numpx)) opts.numpx = opts.w || 8; //16F688 typically drives 8 channels, so use that as default
     var args = Array.from(arguments); args[0] = opts;
@@ -177,7 +207,7 @@ inherits(Strip1D, Model);
 
 var Single0D = module.exports.Single0D = function(opts)
 {
-    if (!(this instanceof Single0D)) return setnew(Single0D, arguments); //new (Single0D.bind.apply(Single0D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+    if (!(this instanceof Single0D)) return makenew(Single0D, arguments); //new (Single0D.bind.apply(Single0D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts !== 'object')? {numpx: opts}: opts || {};
     if (!isdef(opts.numpx)) opts.numpx = 1; //default single channel, but let caller specify more
     var args = Array.from(arguments); args[0] = opts;

@@ -5,6 +5,10 @@
 require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
+var inherits = require('inherits');
+var makenew = require('my-plugins/utils/makenew');
+var bufdiff = require('my-plugins/utils/buf-diff');
+var timescale = require('my-plugins/utils/time-scale');
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
 var path = require('path');
 //NOTE: async var xml2js = require('xml2js'); //https://github.com/Leonidas-from-XIV/node-xml2js
@@ -12,35 +16,39 @@ var path = require('path');
 var xmldoc = require('xmldoc'); //https://github.com/nfarina/xmldoc
 var glob = require('glob');
 var shortname = require('my-plugins/utils/shortname');
-var inherits = require('inherits');
+//var models = require('my-projects/models/model'); //generic models
+var ChannelPool = require('my-projects/models/chpool'); //generic ports
+
+function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 
-console.log("TODO: move to mixin");
-//var Sequence = require('my-projects/shared/sequence'); //base class
+var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
 var Vixen2Sequence = module.exports.Sequence = function(opts)
 {
-//    if (!(this instanceof Vixen2seq)) return new Vixen2seq(filename);
-    if (!(this instanceof Vixen2Sequence)) return new (Vixen2Sequence.bind.apply(Vixen2Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    var args = Array.from(arguments);
-    var m_opts = args[0] = (typeof args[0] !== 'object')? {filename: args[0]}: args[0] || {};
-//    Sequence.apply(this, args);
+//    console.log("vix2 seq opts", arguments);
+    if (!(this instanceof Vixen2Sequence)) return makenew(Vixen2Sequence, arguments);
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
+//    var args = Array.from(arguments);
+//    var m_opts = (typeof opts !== 'object')? {param: opts}: opts || {};
+    Sequence.apply(this, arguments);
 
     var where, files;
-    this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(path.dirname(caller(2)), '**', '!(*-bk).vix')))[0];
-    if (!this.filename) throw "Can't find Vixen2 at " + where;
-    if (files.length > 1) throw "Too many Vixen2 files found at " + where;
-    var top = load(this.filename);
+    files = glob.sync(where = path.join(this.opts.folder, '**', '!(*-bk).vix'));
+    if (!files.length) throw "Can't find Vixen2 seq at " + where;
+    if (files.length > 1) throw "Too many Vixen2 seq found at " + where;
+    add_prop('vix2filename', files[0]);
+    var m_top = load(this.vix2filename);
 
-    this.isVixenSeq = true;
-    this.duration = 1 * top.byname.Time.value; //msec
-    var m_interval = 1 * top.byname.EventPeriodInMilliseconds.value;
-    var m_numfr = Math.ceil(this.duration / m_interval);
-    var partial = (m_numfr * m_interval != this.duration);
+    add_prop('isVixenSeq', true);
+    add_prop('duration', 1 * m_top.byname.Time.value); //msec
+    add_prop('FixedFrameInterval', 1 * m_top.byname.EventPeriodInMilliseconds.value);
+    var m_numfr = Math.ceil(this.duration / this.FixedFrameInterval);
+    var partial = (m_numfr * this.FixedFrameInterval != this.duration);
     if (partial)
-        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %d, #channels %d", shortname(this.filename), this.duration, m_interval, m_numfr, !!partial, (top.byname.Channels.children || []).length);
+        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #channels %d", shortname(this.vix2filename), this.duration, this.FixedFrameInterval, m_numfr, !!partial, (m_top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
-    var m_chvals = top.byname.EventValues.value;
+    var m_chvals = m_top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
     m_chvals = new Buffer(m_chvals, 'base64'); //no.toString("ascii"); //http://stackoverflow.com/questions/14573001/nodejs-how-to-decode-base64-encoded-string-back-to-binary
 //    console.log("decoded " + chvals.length + " ch vals");
@@ -49,55 +57,89 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
     if (partial)
         console.log("num ch# %d, partial frame? %d", m_numch, !!partial);
 ////    top.decoded = chvals;
-    var m_frbuf = new Buffer(m_numch);
+    var pivot = new Buffer(m_chvals.byteLength);
+    for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
+        for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
+            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
+    m_chvals = pivot; pivot = null;
+//    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
-        if (typeof chinx === 'undefined') //return all ch vals for a frame
-        {
+        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, m_numch); //all ch vals for this frame
+        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[chinx * m_numfr + frinx]: 0; //single ch val
+//no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
+//        typeof chinx === 'undefined') //return all ch vals for a frame
+//        {
 //            for (var chinx = 0; chinx < numch; ++chinx)
 //                frbuf[chinx] = chvals[chinx * this.numfr + frinx];
-            this.getFrame(frinx, m_frbuf);
-            return m_frbuf;
-        }
-        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[chinx * m_numfr + frinx]: 0;
-//no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
+//            this.getFrame(frinx, m_frbuf);
+//            return m_frbuf;
+//        }
     }
-    this.getFrame = function(frinx, frbuf)
-    {
-        for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
-            frbuf[chinx] = m_chvals[/*chinx * m_numfr*/ chofs + frinx];
-        return m_numch;
-    }
+//    this.getFrame = function(frinx, frbuf)
+//    {
+//        for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
+//            frbuf[chinx] = m_chvals[/*chinx * m_numfr*/ chofs + frinx];
+//        return m_numch;
+//        return m_chvals.slice(frinx * m_numch, m_numch);
+//    }
 //    debugger;
-    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
-    if ((top.byname.Channels || {}).children)
+    var m_prevbuf;
+    this.render = function(frtime)
     {
-        if (top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, top.byname.Channels.children.length, m_numch);
-        var wrstream = m_opts.dump_ch? fs.createWriteStream(path.join(this.filename, '..', shortname(this.filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
-        wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
-        top.byname.Channels.children.forEach(function(child, inx)
+        var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval));
+        if (frtime && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
+        if (this.opts.dedup !== false) m_prevbuf = chvals;
+//        return m_prevbuf = chvals;
+//        console.log("TODO: below is generic");
+        ChannelPool.all.forEach(function(chpool)
         {
-            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
+            chpool.models.forEach(function(model, inx, all)
+            {
+                if (!model.vix2set) { console.log("model %s is not mapped for vix2", model.name); return; }
+                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
+//            model.render(); //tell model to render new output
+            });
+        });
+        return Sequence.prototype.render.call(this, frtime);
+//        var portbufs = {};
+//        ChannelPool.all.forEach(function(chpool, inx, all)
+//        {
+//            portbufs[chpool.name] = chpool.render();
+//        });
+//        return {frnext: frtime + this.FixedFrameInterval, bufs: portbufs};
+    }
+
+//    this.getChannels(m_top.bynme.Channels, m_numch);
+    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    if ((m_top.byname.Channels || {}).children)
+    {
+        if (m_top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top.byname.Channels.children.length, m_numch);
+        var wrstream = this.opts.dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
+        wrstream.write(sprintf("#%d channels:\n", m_top.byname.Channels.children.length));
+        m_top.byname.Channels.children.forEach(function(child, inx)
+        {
+//            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
             var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
             wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
         }.bind(this));
         wrstream.end('#eof\n');
     }
-    if (top.byname.Audio)
+    if (m_top.byname.Audio)
     {
-        var m_audio = path.join(this.filename, '..', top.byname.Audio.value);
-        var m_audiolen = top.byname.Audio.attr.duration;
-        if (top.byname.Audio.attr.filename != top.byname.Audio.value) console.log("audio filename mismatch: '%s' vs. '%s'".red, top.byname.Audio.attr.filename || '(none)', top.byname.Audio.value || '(none)');
-        if (m_opts.audio !== false) this.addMedia(m_audio);
+        var m_audio = path.join(this.vix2filename, '..', m_top.byname.Audio.value);
+        var m_audiolen = m_top.byname.Audio.attr.duration;
+        if (m_top.byname.Audio.attr.filename != m_top.byname.Audio.value) console.log("audio filename mismatch: '%s' vs. '%s'".red, m_top.byname.Audio.attr.filename || '(none)', m_top.byname.Audio.value || '(none)');
+        if (this.opts.audio !== false) this.addMedia(m_audio);
     }
 
 //    console.log("loaded '%s'".green, filename);
 //    console.log("audio '%s'".blue, seq.audio || '(none)');
-    console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".blue, timescale(this.duration), timescale(m_interval), m_numfr, this.channels.length, m_audio);
+    console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".blue, timescale(this.duration), timescale(this.FixedFrameInterval), m_numfr, this.channels.length, m_audio);
     if (m_audiolen != this.duration) console.log("seq len %d != audio len %d".red, this.duration, m_audiolen);
 //    this.setDuration(this.duration, "vix2");
-    if (m_opts.cues !== false) this.fixedInterval = m_interval; //addFixedFrames(vix2.interval, 'vix2');
-    console.log("opts.cues %s, fixint %s, vixint %s".cyan, opts.cues, this.fixedInterval, m_interval);
+//    if (m_opts.cues !== false) this.FixedFrameInterval = m_interval; //addFixedFrames(vix2.interval, 'vix2');
+//    console.log("opts.cues %s, fixint %s, vixint %s".cyan, opts.cues, this.fixedInterval, m_interval);
 
 //    return this;
 /*
@@ -114,12 +156,11 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
     }
 */
 }
-//inherits(Vixen2Sequence, Sequence);
+inherits(Vixen2Sequence, Sequence);
 
 
 //var path = require('path');
 //var glob = require('glob');
-//var bufdiff = require('my-plugins/utils/buf-diff');
 
 //Vixen2 Sequence with custom mapping
 module.exports.ModelExtend = function(model)
@@ -145,42 +186,25 @@ module.exports.ModelExtend = function(model)
 //            if (chbuf[chnum
 //        if (chvals[inx] && chbuf[chnum] &&
 //    this.setPixels(chvals.sl
+
+//        if (frtime && this.opts.dedup && !bufdiff(vix2buf, this.prevbuf)) return false;
+//        if (this.opts.dedup) this.prevbuf = vix2buf;
         var chbuf = vix2buf.slice(vix2ch[0], vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
         var altbuf = vix2alt? vix2buf.slice(vix2alt[0], vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
         if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /*this.opts.*/vix2alt, /*this.opts.*/vix2ch);
-        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
+//        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
+        if (frtime && (this.opts.dedup !== false) && !bufdiff(chbuf, this.prevbuf)) return false;
+//        if (this.opts.dedup !== false)
+        this.prevbuf = chbuf; //CAUTION: assume different buffer memory next time; avoids expensive mem copy
         this.frtime = frtime;
-    }.bind(model);
-
-    model.render = function(frtime, buf)
-    {
-        if (!this.buffers)
-        {
-            this.ff = 0;
-            this.buffers = [];
-            for (var i = 0; i < 2; ++i) this.buffers.push(new Buffer(this.channels.length)); //425
-        }
-
-        var vix2buf = this.buffers[m_ff ^= 1]; //alternating buffers for diff
-        this.getFrame(Math.floor(frtime / this.fixedInterval), vix2buf); //first get Vixen2 frame
-        var dirty = !frtime || bufdiff(m_buffers[0], m_buffers[1]); //this.prevbuf.compare(buf);
-        if (!dirty) //render mapped data
-        {
-            Model.all.forEach(function(model, inx, all)
-            {
-                model.vix2set(frtime, vix2buf); //set this.frtime, this.buf, this.dirty
-                model.render_renxt();
-            });
-            vix2.Sequence.prototype.render.call(this, frtime, buf);
-        }
-        return {frnext: Math.min(frtime + this.fixedInterval, this.duration), dirty: dirty, buf: dirty? frbuf: undefined};
+        this.dirty = true;
     }.bind(model);
 }
 
 
 var Vixen2Profile = module.exports.Profile = function(filename)
 {
-    if (!(this instanceof Vixen2Profile)) return new Vixen2Profile(filename);
+    if (!(this instanceof Vixen2Profile)) return makenew(Vixen2Profile, arguments);
 //    this.filename = filename;
 //    var top = load(filename);
     var m_opts = {path: filename}; //glob shim
@@ -192,6 +216,7 @@ var Vixen2Profile = module.exports.Profile = function(filename)
 
     this.isVixenPro = true;
 //    debugger;
+//    this.getChannels(m_top.bynme.ChannelObjects, m_numch);
     this.channels = {length: numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
     if (!((top.byname.ChannelObjects || {}).children || {}).length) throw "No channels";
 //    if (top.byname.Channels.children.length != numch) console.log("#ch mismatch: %d vs. %d", top.byname.Channels.children.length, numch);

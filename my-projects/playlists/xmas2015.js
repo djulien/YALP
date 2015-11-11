@@ -5,8 +5,9 @@
 //require('colors');
 //require('longjohn'); //http://www.mattinsler.com/post/26396305882/announcing-longjohn-long-stack-traces-for-nodejs
 
-var Playlist = require('my-projects/shared/playlist'); //base class
+var Playlist = require('my-projects/shared/my-custom').Playlist; //playlist'); //base class
 var xmas = module.exports = new Playlist({auto_play: true, loop: 2, folder: 'my-projects/songs/xmas'});
+
 //xmas.name = "Xmas";
 //xmas.volume = 1.0;
 

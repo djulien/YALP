@@ -1,8 +1,8 @@
 //YALP Xmas Sequence - Amazing Grace
 'use strict';
 
-var Sequence = require('my-projects/shared/sequence'); //base class
-var seq = module.exports = new Sequence({use_media_len: false, xaudio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
+var seq = module.exports = new Sequence({use_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
