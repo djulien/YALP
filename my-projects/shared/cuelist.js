@@ -9,7 +9,7 @@ var m_back_trim;
 var Cue = module.exports.Cue = function(opts)
 {
     if (!(this instanceof Cue)) return setnew(Cue, arguments);
-    var add_prop = function(name, value) { if (!this[name]) Object.defineProperty(this, name, {value: value}); }.bind(this); //expose prop but leave it read-only
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 //    m_all.push(this); m_sorted = false;
 
 //    if (!opts.name) opts.name = 'ext';

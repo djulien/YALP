@@ -1,6 +1,8 @@
 //generic model (channel group)
 //also defines a few subclasses for common geometry
 
+'use strict';
+
 var inherits = require('inherits');
 
 
@@ -17,11 +19,7 @@ var Model = module.exports.Model = function(opts)
 {
 //    console.log("model args", arguments);
     if (!(this instanceof Model)) return setnew(Model, arguments); //new (Model.bind.apply(Model, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    var add_prop = function(name, value) //expose prop but leave it read-only
-    {
-//        console.log("this is ", this, this.constructor.name, this.constructor + '');
-        Object.defineProperty(this, name, {value: value});
-    }.bind(this);
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
     add_prop('opts', opts); //preserve unknown options for subclasses
     add_prop('pxsize', opts.rgb? 3: opts.rgbw? 4: 1);
@@ -32,11 +30,11 @@ var Model = module.exports.Model = function(opts)
     add_prop('startch', isdef(opts.startch)? use_channels(opts.startch, this.numch): opts.chpool.getch(this.numch));
 //    this.getbuf = function opts.getbuf;
     var m_buf = null; //CAUTION: don't alloc until all ch assigned
-    add_prop('buf', function()
+    Object.defineProperty(this, 'buf', { enumerable: true, get: function()
     {
         if (!m_buf) m_buf = opts.chpool.buf.slice(this.startch, this.numch);
         return m_buf;
-    });
+    }});
     if (!Model.all) Model.all = [];
     Model.all.push(this);
 
@@ -53,7 +51,7 @@ var Model = module.exports.Model = function(opts)
             this.pixel = function(i, color) //override with custom logic
             {
                 if (arguments.length < 3) return this.buf.readUInt8BE(this.nodeofs(i));
-                this.buf.writeUInt8BE(this.nodeofs(i)), color);
+                this.buf.writeUInt8BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
             }
@@ -68,7 +66,7 @@ var Model = module.exports.Model = function(opts)
             this.pixel = function(i, color) //override with custom logic
             {
                 if (arguments.length < 3) return this.buf.readUInt16BE(this.nodeofs(i));
-                this.buf.writeUInt16BE(this.nodeofs(i)), color);
+                this.buf.writeUInt16BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
             }
@@ -83,7 +81,7 @@ var Model = module.exports.Model = function(opts)
             this.pixel = function(i, color) //override with custom logic
             {
                 if (arguments.length < 3) return this.buf.readUInt24BE(this.nodeofs(i));
-                this.buf.writeUInt24BE(this.nodeofs(i)), color);
+                this.buf.writeUInt24BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
             }
@@ -98,7 +96,7 @@ var Model = module.exports.Model = function(opts)
             this.pixel = function(i, color) //override with custom logic
             {
                 if (arguments.length < 3) return this.buf.readUInt32BE(this.nodeofs(i));
-                this.buf.writeUInt32BE(this.nodeofs(i)), color);
+                this.buf.writeUInt32BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
             }

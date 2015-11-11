@@ -16,6 +16,7 @@ function addSpeed(that, setter) //chkprop,
             m_speed = newval;
             if (setter) setter(newval);
         }.bind(that),
+        enumerable: true,
     });
 }
 

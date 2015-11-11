@@ -6,38 +6,37 @@ module.exports = ChannelPool;
 function ChannelPool(opts)
 {
     if (!(this instanceof ChannelPool)) return new (ChannelPool.bind.apply(ChannelPool, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-    var add_prop = function(name, value) //expose prop but leave it read-only
-    {
-//        console.log("this is ", this, this.constructor.name, this.constructor + '');
-//        if (thing[name]) return; //already there
-        Object.defineProperty(this, name, {value: value});
-//        console.log("extended %s with %s".blue, thing.constructor.name, name);
-    }.bind(this);
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
     add_prop('opts', (typeof opts !== 'object')? {name: opts}: opts || {});
     add_prop('name', this.opts.name || 'UNKNOWN');
     var m_last_adrs = 0;
-    add_prop('last_adrs', function() { return m_last_adrs; });
+    Object.defineProperty(this, 'last_adrs', { get: function() { return m_last_adrs; }, enumerable: true});
     this.getadrs = function(count)
     {
         if (typeof count === 'undefined') count = 1; //default but allow caller to specify 0
         return m_last_adrs += count;
     }
     var m_numch = 0;
-    add_prop('numch', function() { return m_numch; });
+    Object.defineProperty(this, 'numch', { get: function() { return m_numch; }, enumerable: true});
     this.getch = function(count)
     {
         if (typeof count === 'undefined') count = 16; //default but allow caller to specify 0
         return (m_numch += count) - count;
     }
     var m_buf = null; //CAUTION: delay alloc until all ch counts known
-    add_prop('buf', function()
+//    add_prop('buf', function()
+    Object.defineProperty(this, 'buf', { enumerable: true, get: function()
     {
+//no worky        if (!m_numch) require('stack-trace').get().forEach(function(caller) { console.log(caller); });
+//        if (!m_numch) console.log(arguments.callee.caller);
+//        if (!m_numch) require('callsite')().forEach(function(stack, inx) { console.log(stack); });
+        if (!m_numch) debugger;
         if (!m_numch) throw "Chpool: no channels allocated";
         console.log("chpool: %s buf len %d", m_numch, m_buf? "return": "alloc");
         if (!m_buf) m_buf = new Buffer(m_numch);
         return m_buf;
-    });
+    }});
     this.alloc = function(model, opts)
     {
 //    debugger;

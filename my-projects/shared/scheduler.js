@@ -32,7 +32,7 @@ var m_sorted = false;
 var Schedule = module.exports.Schedule = function(opts)
 {
     if (!(this instanceof Schedule)) return setnew(Schedule, arguments);
-    var add_prop = function(name, value) { if (!this[name]) Object.defineProperty(this, name, {value: value}); }.bind(this); //expose prop but leave it read-only
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
     m_all.push(this); m_sorted = false;
 
     if (opts.name) add_prop('name', opts.name);
@@ -43,7 +43,7 @@ var Schedule = module.exports.Schedule = function(opts)
 
 //give preference to shorter schedules so they can override or interrupt longer schedules
     var m_priority;
-    add_prop('priority', function()
+    Object.defineProperty(this, 'priority', { enumerable: true, get: function()
     {
         if (isdef(m_priority)) return m_priority;
         var date_range = mmdd2days(MIN(this.day_to)) - mmdd2days(MIN(this.day_from));
@@ -51,7 +51,7 @@ var Schedule = module.exports.Schedule = function(opts)
         var time_range = hhmm2min(MIN(this.time_to)) - hhmm2min(MIN(this.time_from));
         if (time_range < 0) time_range += 24 * 60; //adjust for midnight wrap
         return m_priority = date_range * 24 * 60 + time_range;
-    }.bind(this));
+    }}); //.bind(this));
 
     var m_wkday, m_starttime, m_stoptime;
     var gettimes = function(weekday)
@@ -141,6 +141,11 @@ run: function(done_cb)
     return true;
 }
 */
+
+function isdef(thing)
+{
+    return (typeof thing !== 'undefined');
+}
 
 function setnew(type, args)
 {

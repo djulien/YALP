@@ -23,6 +23,7 @@ function addDuration(that, listprop) //, chkprop)
             if (newval) throw "Duration is read-only"; //only allow it to be cleared
             m_duration = newval;
         }.bind(that),
+        enumerable: true,
     });
 }
 

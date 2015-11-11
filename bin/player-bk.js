@@ -206,6 +206,7 @@ function play(opts)
                 if (!this.isPlayer) throw "This is not a Player"; //paranoid/sanity context check
                 if (!validate || validate(newval)) m_private[name] = newval; //do this even if value didn't change (setter might need it again)
             }, //.bind(this),
+            enumerable: true,
         });
     } //.bind(this);
 }

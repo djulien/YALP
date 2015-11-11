@@ -16,7 +16,7 @@ var inherits = require('inherits');
 
 
 console.log("TODO: move to mixin");
-var Sequence = require('my-projects/shared/sequence'); //base class
+//var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
 var Vixen2Sequence = module.exports.Sequence = function(opts)
 {
@@ -24,7 +24,7 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
     if (!(this instanceof Vixen2Sequence)) return new (Vixen2Sequence.bind.apply(Vixen2Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     var args = Array.from(arguments);
     var m_opts = args[0] = (typeof args[0] !== 'object')? {filename: args[0]}: args[0] || {};
-    Sequence.apply(this, args);
+//    Sequence.apply(this, args);
 
     var where, files;
     this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(path.dirname(caller(2)), '**', '!(*-bk).vix')))[0];
@@ -122,8 +122,7 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
 //var bufdiff = require('my-plugins/utils/buf-diff');
 
 //Vixen2 Sequence with custom mapping
-
-module.exports.AddMixin = function(model)
+module.exports.ModelExtend = function(model)
 {
     if (!model.opts.vix2ch) return;
     var vix2ch = Array.isArray(model.opts.vix2ch)? model.opts.vix2ch: [model.opts.vix2ch, +0];

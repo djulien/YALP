@@ -25,6 +25,7 @@ function Canvas(opts) //ctor/factory
             need_buf = true;
             m_width = newval;
         },
+        enumerable: true,
     });
     Object.defineProperty(this, "height",
     {
@@ -36,13 +37,16 @@ function Canvas(opts) //ctor/factory
             need_buf = true;
             m_height = newval;
         },
+        enumerable: true,
     });
     Object.defineProperty(this, "buffer",
     {
         get: function () { return m_buf; },
         set: function (newval)
         {
-            if (newval != height) need_buf = true; height = newval; },
+            if (newval != height) need_buf = true; height = newval;
+        },
+        enumerable: true,
     });
 
     this.

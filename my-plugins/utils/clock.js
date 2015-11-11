@@ -43,6 +43,7 @@ module.exports.addNow = function(that, name)
     Object.defineProperty(that, name || "now", //read-only
     {
         get: function() { return module.exports.Now(); },
+        enumerable: true,
     });
 }
 

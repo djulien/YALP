@@ -26,8 +26,8 @@ wookie.name = 'Wookie';
 //    'Shepherd2',
 //];
 
-wookie
-    .addMedia() //__dirname + '**/*.mp3');
+//wookie
+//    .addMedia() //__dirname + '**/*.mp3');
 //none    .addVixen2({audio: false, cues: true});
 
 //render frames on demand:

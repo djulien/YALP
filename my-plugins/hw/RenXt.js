@@ -6,7 +6,7 @@
 var RENXt = module.exports = {}; //namespace
 function Const_RENXt(name, value)
 {
-    Object.defineProperty(RENXt, name, {value: value, writable: false}); //, enumerable: true, configurable: true
+    Object.defineProperty(RENXt, name, {value: value, writable: false, enumerable: true}); //, enumerable: true, configurable: true
 }
 
 

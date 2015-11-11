@@ -1,6 +1,7 @@
 
 'use strict';
 
+var inherits = require('inherits');
 var models = require('my-projects/models/model'); //generic models
 var Rect2D = models.Rect2D;
 

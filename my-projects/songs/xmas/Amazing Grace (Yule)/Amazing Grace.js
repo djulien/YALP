@@ -7,9 +7,9 @@ var seq = module.exports = new Sequence({use_media_len: false, xaudio: false, xc
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
 
-seq
+//seq
 //no    .addVixen2({audio: false, cues: true})
-    .addMedia() //__dirname + '**/*.mp3')
+//    .addMedia() //__dirname + '**/*.mp3')
 //    .addCue({text: 'fx:init', })
 //    .addCue({from: .8, text: 'fx:one', })
 //    .addCue({from: 1.3, text: 'fx:two', })

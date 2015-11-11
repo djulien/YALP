@@ -20,8 +20,8 @@ seq.cues =
 //    .addFixedFrames(50);
 //    .sortCues();
 
-seq
-    .addMedia() //__dirname + '**/*.mp3');
+//seq
+//    .addMedia() //__dirname + '**/*.mp3');
 //    .addVixen2({audio: false, cues: true});
 
 //render frames on demand:

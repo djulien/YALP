@@ -180,6 +180,7 @@
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/index.js" />
+		<Unit filename="tests/inh-test.js" />
 		<Unit filename="tests/ipc-cmd.js" />
 		<Unit filename="tests/ipc-consumer.js" />
 		<Unit filename="tests/ipc-iostats.js" />

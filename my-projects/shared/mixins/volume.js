@@ -16,6 +16,7 @@ function addVolume(that, setter) //chkprop,
             m_volume = newval;
             if (setter) setter(newval);
         }.bind(that),
+        enumerable: true,
     });
 }
 

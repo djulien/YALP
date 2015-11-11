@@ -22,10 +22,12 @@ function NullController(opts)
     Object.defineProperty(this, "used",
     {
         get: function () { return m_wrofs; },
+        enumerable: true,
     };
     Object.defineProperty(this, "available",
     {
         get: function () { return m_buffer.byteLength - m_wrofs; },
+        enumerable: true,
     };
 
     this.out = function(buf, len)

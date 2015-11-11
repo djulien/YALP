@@ -7,6 +7,21 @@ require('my-plugins/my-extensions/object-enum');
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom playlist extensions:
+
+//var PlaylistExtend = module.exports.PlaylistExtend = function(base) {}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom sequence extensions:
+
+var SequenceExtend = module.exports.SequenceExtend = function(base)
+{
+    console.log("TODO: sequence extensions: if (glob(*.vix|*.fseq)load;");
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
 // Ports:
 
 var ChannelPool = require('my-projects/models/chpool');
@@ -300,7 +315,7 @@ var fans = wport.alloc(Rect2D, {w: 8, h: 4, vix2ch: [133, +31]});
 
 models.Model.all.forEach(function(model, inx)
 {
-    vix2.AddMixin(model); //allow Vixen2 channel values to be set/mapped
+    vix2.ModelExtend(model); //allow Vixen2 channel values to be set/mapped
 });
 
 //xmas.songs.forEach(function(seq, inx)

@@ -30,6 +30,7 @@ function Elapsed(reset) //factory/ctor
     Object.defineProperty(this, "now", //relative to start time
     {
         get: function() { return (new Date()).getTime() - this.started; }, //(m_start || reset || 0); }, //TODO: use process.hrtime (nsec)?
+        enumerable: true,
     });
     this.started = /*reset ||*/ this.now; //set time base
     this.scaled = function(msec)
@@ -52,6 +53,7 @@ function Elapsed(reset) //factory/ctor
 //Object.defineProperty(Elapsed.prototype, "now",
 //{
 //    get: function() { return (new Date()).getTime(); }}, //TODO: use process.hrtime (nsec)?
+//    enumerable: true,
 //});
 
 //eof
