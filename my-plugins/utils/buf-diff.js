@@ -1,6 +1,8 @@
 'use strict';
 
-var bufdiff = module.exports = function(buf1, buf2)
+module.exports = bufdiff;
+
+function bufdiff(buf1, buf2)
 {
     var cmp = buf1.byteLength - buf2.byteLength;
     if (cmp < 0) return cmp - buf1.byteLength;

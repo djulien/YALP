@@ -9,7 +9,10 @@ var timescale = require('my-plugins/utils/time-scale');
 var caller = require('my-plugins/utils/caller').stack;
 var bufdiff = require('my-plugins/utils/buf-diff');
 
-var Sequence = module.exports = function(opts) //temp shim
+module.exports = Sequence;
+
+
+function Sequence(opts) //temp shim
 {
     if (!(this instanceof Sequence)) return new (Sequence.bind.apply(Sequence, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     this.opts = opts || {};

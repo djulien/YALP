@@ -1,7 +1,11 @@
 //generic channel pool (hardware port abstraction)
 
+'use strict';
+
+var makenew = require('my-plugins/utils/makenew');
 
 module.exports = ChannelPool;
+
 
 function ChannelPool(opts)
 {
@@ -9,7 +13,7 @@ function ChannelPool(opts)
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
     add_prop('opts', (typeof opts !== 'object')? {name: opts}: opts || {});
-    add_prop('name', this.opts.name || 'UNKNOWN');
+    this.name = this.opts.name || 'UNKNOWN';
     var m_last_adrs = 0;
     Object.defineProperty(this, 'last_adrs', { get: function() { return m_last_adrs; }, enumerable: true});
     this.getadrs = function(count)
@@ -31,9 +35,9 @@ function ChannelPool(opts)
 //no worky        if (!m_numch) require('stack-trace').get().forEach(function(caller) { console.log(caller); });
 //        if (!m_numch) console.log(arguments.callee.caller);
 //        if (!m_numch) require('callsite')().forEach(function(stack, inx) { console.log(stack); });
-        if (!m_numch) debugger;
+        if (!m_numch || !m_buf) debugger;
         if (!m_numch) throw "Chpool: no channels allocated";
-        console.log("chpool: %s buf len %d", m_numch, m_buf? "return": "alloc");
+        console.log("chpool '%s': %s buf len %d", this.name, m_buf? "return": "alloc", m_numch);
 //TODO: alloc prevbuf for dedup
         if (!m_buf) m_buf = new Buffer(m_numch);
         return m_buf;
@@ -55,7 +59,7 @@ function ChannelPool(opts)
         opts.chpool = this; //NOTE: "this" needs to refer to parent ChannelPool here
         var args = Array.prototype.slice.call(arguments, 1); args[0] = opts; //Array.from(arguments); args.shift()
 //        console.log("alloc model args", args);
-        var newmodel = model.apply(null, args);
+        var newmodel = makenew(model, args); //model.apply(null, args);
         m_models.push(newmodel); //keep track of models on this port
         return newmodel;
     }

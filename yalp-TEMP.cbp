@@ -123,6 +123,7 @@
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool.js" />
+		<Unit filename="my-projects/models/columns.js" />
 		<Unit filename="my-projects/models/icicles.js" />
 		<Unit filename="my-projects/models/model.js" />
 		<Unit filename="my-projects/package.json" />

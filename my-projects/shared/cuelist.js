@@ -14,13 +14,16 @@ var relpath = require('my-plugins/utils/relpath');
 var shortname = require('my-plugins/utils/shortname');
 //var Now = require('my-plugins/utils/clock').Now;
 
+module.exports.Cue = Cue;
+module.exports.CueListMixin = CueListMixin;
+
 
 //CAUTION: not cleared if multiple sequences used
 //var m_all = [];
 //var m_sorted = false;
 var m_limit;
 var m_back_trim;
-var Cue = module.exports.Cue = function(opts)
+function Cue(opts)
 {
     if (!(this instanceof Cue)) return makenew(Cue, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
@@ -48,7 +51,7 @@ var Cue = module.exports.Cue = function(opts)
 
 
 //dummy class to donate methods to another class:
-var CueListMixin = module.exports.CueListMixin = function(opts)
+function CueListMixin(opts)
 {
     throw "Mixin class; don't instantiate";
 }

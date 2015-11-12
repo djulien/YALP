@@ -230,18 +230,18 @@ module.exports.open = function(name)
 //                var client = new net.Socket();
                 console.log("try connect %s ...", channel);
                 var client = net.connect(name2port(channel), "localhost"); //https://millermedeiros.github.io/mdoc/examples/node_api/doc/net.html#net.createConnection
-debugger;
+//debugger;
 //                console.log("ons %s ...", channel);
                 client.on('connect', function() //NOTE: don't chain this from above?
                 {
-debugger;
-                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(channel) + " from " + client.port); //CircularJSON.stringify(client));
+//debugger;
+                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(channel)); //+ " from " + client.port); //CircularJSON.stringify(client));
 //                    client.itsmebob = true;
 //                    client.write("hello bob");
 //                    objectMode(client);
 //                    status = 1;
                     client.objclient = objectStream(client); //TODO: does this need to be repeated after reconnect also?
-                    resolve(client.objclient);
+                    resolve(client); //.objclient);
                     client.objclient.on('data', function(data)
                     {
 //                        if (loop++ < 10) console.log('RCV DATA: ', data);
@@ -309,7 +309,7 @@ debugger;
                     }, delay);
                 }
             });
-            sender.promise.then(function(objclient) //defer send until socket client is ready
+            sender.promise.then(function(client) //defer send until socket client is ready
             {
                 if (sender.cb) throw "pending response already exists on this connection";
                 sender.cb = cb;
@@ -318,7 +318,7 @@ debugger;
 //                if (!client.itsmebob) throw "write to wrong obj";
 //                client.write(JSON.stringify(data));
 //                wrobj(client, data);
-                objclient.write(data);
+                client.objclient.write(data);
             });
         },
 
@@ -431,6 +431,18 @@ debugger;
 //                console.log("close subscribed socket");
 //                receiver.server = null; //socket.destroy();
 //            });
+        },
+//        unref: function
+        close: function()
+        {
+            console.log("closing ipc que sockets");
+            for (var channel in senders)
+                senders[channel].promise.then(function(client)
+                {
+                    client.destroy();
+                });
+            for (var channel in receivers)
+                receivers[channel].server.close();
         },
     };
     return retval;

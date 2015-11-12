@@ -21,10 +21,13 @@ var ChannelPool = require('my-projects/models/chpool'); //generic ports
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
+module.exports.Sequence = Vixen2Sequence;
+module.exports.Profile = Vixen2Profile;
+
 
 var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
-var Vixen2Sequence = module.exports.Sequence = function(opts)
+function Vixen2Sequence(opts)
 {
 //    console.log("vix2 seq opts", arguments);
     if (!(this instanceof Vixen2Sequence)) return makenew(Vixen2Sequence, arguments);
@@ -88,7 +91,7 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
     this.render = function(frtime)
     {
         var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval));
-        if (frtime && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
+        if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
         if (this.opts.dedup !== false) m_prevbuf = chvals;
 //        return m_prevbuf = chvals;
 //        console.log("TODO: below is generic");
@@ -96,8 +99,9 @@ var Vixen2Sequence = module.exports.Sequence = function(opts)
         {
             chpool.models.forEach(function(model, inx, all)
             {
-                if (!model.vix2set) { console.log("model %s is not mapped for vix2", model.name); return; }
-                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
+                if (!model.opts.vix2ch /*vix2buf*/) { console.log("model %s is not mapped for vix2", model.name); return; }
+//                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
+                model.vix2buf = chvals;
 //            model.render(); //tell model to render new output
             });
         });
@@ -162,13 +166,52 @@ inherits(Vixen2Sequence, Sequence);
 //var path = require('path');
 //var glob = require('glob');
 
-//Vixen2 Sequence with custom mapping
-module.exports.ModelExtend = function(model)
+var numext = [0, 0];
+ChannelPool.all.forEach(function(chpool)
 {
-    if (!model.opts.vix2ch) return;
+    chpool.models.forEach(function(model, inx)
+    {
+        if (ExtendModel(model)) ++numext[0]; //allow Vixen2 channel values to be set/mapped
+        ++nument[1];
+    });
+});
+console.log("Vixen2 ch map: extended %d/%d models".yellow, numext[0], numext[1]);
+
+
+//Vixen2 Sequence with custom mapping
+//Vixen2Sequence.prototype.ExtendModel = function(model)
+function ExtendModel(model)
+{
+    if (!model.opts.vix2ch) return false;
+    if (!model.vix2render) throw "Missing vix2render() on model '" + model.name + "'"; //return false;
     var vix2ch = Array.isArray(model.opts.vix2ch)? model.opts.vix2ch: [model.opts.vix2ch, +0];
     var vix2alt = Array.isArray(model.opts.vix2alt)? model.opts.vix2alt: model.opts.vix2alt? [model.opts.vix2alt, +0]: null;
 
+    var m_prevbuf;
+    Object.defineProperty(model, 'vix2buf',
+    {
+        enumerable: true,
+        get() { return m_vix2buf; },
+        set(newbuf)
+        {
+//            var chbuf = newbuf.slice(this.opts.vix2ch[0], this.opts.vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
+//            var altbuf = this.opts.vix2alt? newbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
+//            if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /*this.opts.*/vix2alt, /*this.opts.*/vix2ch);
+//        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
+            var chbuf = newbuf.slice(vix2ch[0], vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
+            var altbuf = vix2alt? newbuf.slice(vix2alt[0], vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
+            var ofs;
+            if (altbuf && (ofs = bufdiff(chbuf, altbuf))) console.log("Vixen2 alt buf %j doesn't match %j at ofs %d".red, vix2alt, vix2ch, ofs);
+            if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chbuf, m_prevbuf)) return; //don't force dirty on first frame, only if no prior buf
+//        if (this.opts.dedup !== false)
+            if (this.opts.dedup !== false) m_prevbuf = chbuf; //CAUTION: assume different buffer memory next time; avoids expensive mem copy
+//            this.frtime = frtime;
+//            this.dirty = true;
+            this.vix2render(chbuf); //only pass the part of interest; //newbuf); //NOTE: pass full buffer so vix2ch values are correct as-is; model can choose to store it or not
+        }.bind(model),
+    });
+    return true;
+/*
     model.vix2set = function(frtime, vix2buf)
     {
 //    var vix2ch = chbuf.slice(400, 16);
@@ -193,23 +236,24 @@ module.exports.ModelExtend = function(model)
         var altbuf = vix2alt? vix2buf.slice(vix2alt[0], vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
         if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /*this.opts.*/vix2alt, /*this.opts.*/vix2ch);
 //        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
-        if (frtime && (this.opts.dedup !== false) && !bufdiff(chbuf, this.prevbuf)) return false;
+        if (/*frtime*/ this.prevbuf && (this.opts.dedup !== false) && !bufdiff(chbuf, this.prevbuf)) return false; //don't force dirty on first frame, only if no prior buf
 //        if (this.opts.dedup !== false)
         this.prevbuf = chbuf; //CAUTION: assume different buffer memory next time; avoids expensive mem copy
         this.frtime = frtime;
         this.dirty = true;
     }.bind(model);
+*/
 }
 
 
-var Vixen2Profile = module.exports.Profile = function(filename)
+function Vixen2Profile(filename)
 {
     if (!(this instanceof Vixen2Profile)) return makenew(Vixen2Profile, arguments);
 //    this.filename = filename;
 //    var top = load(filename);
     var m_opts = {path: filename}; //glob shim
     var where, files;
-    this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(path.dirname(caller(2)), '**', '!(*-bk).pro')))[0];
+    this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(caller(1, __filename), '..', '**', '!(*-bk).pro')))[0];
     if (!this.filename) throw "Can't find Vixen2 profile at " + where;
     if (files.length > 1) throw "Too many Vixen2 profiles found at " + where;
     var top = load(this.filename);

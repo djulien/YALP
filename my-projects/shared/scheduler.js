@@ -6,6 +6,9 @@ var makenew = require('my-plugins/utils/makenew');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
+module.exports.Schedule = Schedule;
+module.exports.SchedulerMixin = SchedulerMixin;
+
 
 //TODO: merge scheduler code?
 //Date.prototype.mmdd = function() { return 100 * (this.getMonth() + 1) + this.getDate(); }
@@ -32,7 +35,7 @@ function SafeItem(choices, which)
 //CAUTION: not cleared if multiple playlists used
 var m_all = [];
 var m_sorted = false;
-var Schedule = module.exports.Schedule = function(opts)
+function Schedule(opts)
 {
     if (!(this instanceof Schedule)) return makenew(Schedule, arguments);
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
@@ -84,7 +87,7 @@ Schedule.prototype.active = function(now)
 
 
 //dummy class to donate methods to another class:
-var SchedulerMixin = module.exports.SchedulerMixin = function(opts)
+function SchedulerMixin(opts)
 {
     throw "Mixin class; don't instantiate";
 }

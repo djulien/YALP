@@ -20,8 +20,10 @@ var ChannelPool = require('my-projects/models/chpool');
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 add_method(Array.prototype, 'push_ifdef', function(newval) { if (isdef(newval)) this.push(newval); });
 
+module.exports = Sequence;
 
-var Sequence = module.exports = function(opts)
+
+function Sequence(opts)
 {
 //    console.log("seq args", arguments);
     if (!(this instanceof Sequence)) return makenew(Sequence, arguments);
@@ -31,8 +33,9 @@ var Sequence = module.exports = function(opts)
     add_prop('isSequence', true);
     add_prop('opts', (typeof opts !== 'object')? {name: opts}: opts || {}); //preserve unknown options for subclasses
 //    console.log("seq opts %j", this.opts);
-    add_prop('folder', this.opts.folder || path.dirname(caller(2))); //allow caller to override auto-collect folder in case sequence is elsewhere
-    add_prop('name', this.opts.name || shortname(this.folder)); //caller(2)));
+    add_prop('folder', this.opts.folder || path.dirname(caller(1, __filename))); //allow caller to override auto-collect folder in case sequence is elsewhere
+    console.log("seq folder", this.folder);
+    this.name = this.opts.name || shortname(this.folder); //caller(2)));
 
     var m_media = [];
     Object.defineProperty(this, 'media', //let caller set it, but not directly

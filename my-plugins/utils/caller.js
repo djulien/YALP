@@ -11,11 +11,16 @@ module.exports.stackx = function(depth)
     return callsite()[depth].getFileName();
 }
 
-module.exports.stack = function(depth)
+module.exports.stack = function(depth, exclude)
 {
     var trace = stack.get();
 //    console.log("stack trace %j", trace);
-    return trace[depth].getFileName();
+    for (;;)
+    {
+        var retval = trace[depth].getFileName();
+        if (retval == exclude) { ++depth; continue; }
+        return retval;
+    }
 }
 
 module.exports.caller = function(depth)

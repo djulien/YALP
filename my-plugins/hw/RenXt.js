@@ -224,7 +224,7 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-module.exports.AddMixin = function(port)
+module.exports.AddProtocol = function(port)
 {
     console.log("TODO: add RenXt protocol to port '%s'", port.name, port);
 }

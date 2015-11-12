@@ -19,8 +19,10 @@ var Schedule = require('my-projects/shared/scheduler').Schedule;
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 //add_method(Array.prototype, 'push_ifdef', function(newval) { if (isdef(newval)) this.push(newval); });
 
+module.exports = Playlist;
 
-var Playlist = module.exports = function(opts)
+
+function Playlist(opts)
 {
 //    console.log("playlist args", arguments);
     if (!(this instanceof Playlist)) return makenew(Playlist, arguments);
@@ -30,8 +32,8 @@ var Playlist = module.exports = function(opts)
     add_prop('isPlaylist', true);
     add_prop('opts', (typeof opts !== 'object')? {name: opts}: opts || {}); //preserve unknown options for subclasses
     console.log("playlist opts %j", this.opts);
-    add_prop('folder', this.opts.folder || path.dirname(caller(2))); //allow caller to override auto-collect folder in case playlist is elsewhere
-    add_prop('name', this.opts.name || shortname(this.folder)); //caller(2)));
+    add_prop('folder', this.opts.folder || path.dirname(caller(1, __filename))); //allow caller to override auto-collect folder in case playlist is elsewhere
+    this.name = this.opts.name || shortname(this.folder); //caller(2)));
     var m_que = ipc.open('playlist'); //TODO: add designator to support multiple active playlists?
     this.SchedDrop(); //kludge: clear previous playlist schedule
 
@@ -109,7 +111,11 @@ var Playlist = module.exports = function(opts)
                 this.started = clock.Now();
                 reply("now playing[%s], was? %s", clock.Now.asString(this.started), !!m_playing);
                 m_pending_stop = false; //cancelled
-                if (!m_playing) send_frame();
+                if (m_playing) break;
+                send_frame(); //start playback
+//                if (this.opts.auto_play === false) m_que.unref(); //started manually; allow playlist to close after playback
+                if (this.opts.auto_play === false) setTimeout(function() { m_que.close(); }, 44000);
+                if (this.opts.auto_play === false) setTimeout(function() { console.log("handles", process._getActiveHandles()); }, 45000);
                 break;
             case 'pause!':
                 reply("now paused, was? %s", !m_playing);
@@ -147,7 +153,7 @@ var Playlist = module.exports = function(opts)
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
         if (!this.frtime) this.elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
         var frdata = this.songs[this.selected].render(this.frtime); //, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
-        console.log("rendered frdata: %j", frdata);
+//        console.log("rendered frdata: %j", frdata);
         frdata.song = this.selected;
         frdata.frtime = this.frtime;
         if (!frdata.frnext) frdata.frnext = this.songs[this.selected].duration;
@@ -161,7 +167,7 @@ var Playlist = module.exports = function(opts)
             if (++this.selected >= this.songs.length) { this.selected = 0; if (this.opts.loop && (this.opts.loop !== true)) --this.opts.loop; }
 //            console.log("next up: song[%s/%s], stop? %s, loop? %s: ", this.selected, this.songs.length, m_pending_stop, this.loop, this.songs[this.selected]);
             if (!this.selected && (m_pending_stop || !this.opts.loop)) return; //{ console.log("handles", process._getActiveHandles()); return; } //cmd('pause');
-            broadcast({media: this.songs[this.selected].filename}); //load new media in player
+            broadcast({media: this.songs[this.selected].media[0]}); //load new media in player
         }
 
 //    console.log("delay next %d", frdata.next - elapsed.now);
@@ -179,6 +185,7 @@ var Playlist = module.exports = function(opts)
     });
     var broadcast = function(send_data)
     {
+        console.log("playlist broadcast:", send_data);
         var keepers = [];
         m_numgood = m_numbad = 0;
         m_subscribers.forEach(function(reply_cb, inx)
@@ -193,7 +200,7 @@ var Playlist = module.exports = function(opts)
     }
 
 //NO    this.ports = {};
-    if (this.opts.auto_play) setTimeout(function() { this.scheduler(); }.bind(this), 1000); //give caller time to adjust schedule or async files to load
+    if (this.opts.auto_play !== false) setTimeout(function() { this.scheduler(); }.bind(this), 1000); //give caller time to adjust schedule or async files to load
 
     function xadd_prop(name, value) //expose prop but leave it read-only
     {

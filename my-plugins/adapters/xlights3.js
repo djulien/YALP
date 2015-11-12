@@ -17,10 +17,12 @@ var shortname = require('my-plugins/utils/shortname');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
+module.exports.Sequence = xLights3Sequence;
+
 
 //console.log("TODO: move to mixin");
 var Sequence = require('my-projects/shared/sequence'); //base class
-var xLights3Sequence = module.exports.Sequence = function(opts)
+function xLights3Sequence(opts)
 {
 //    console.log("xlnc3 seq opts", arguments);
     if (!(this instanceof xLights3Sequence)) return makenew(xLights3Sequence, arguments);

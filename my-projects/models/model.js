@@ -5,13 +5,20 @@
 
 var inherits = require('inherits');
 var caller = require('my-plugins/utils/caller').caller;
+var shortname = require('my-plugins/utils/shortname');
 var makenew = require('my-plugins/utils/makenew');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
+//use function names so model.name can be set from ctor:
+module.exports.Model = Model;
+module.exports.Single0D = Single0D;
+module.exports.Strip1D = Strip1D;
+module.exports.Rect2D = Rect2D;
+
 
 //var Model = require('my-projects/models/base_model');
-var Model = module.exports.Model = function(opts)
+function Model(opts)
 {
 //    console.log("model args", arguments);
     if (!(this instanceof Model)) return makenew(Model, arguments); //new (Model.bind.apply(Model, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
@@ -19,8 +26,10 @@ var Model = module.exports.Model = function(opts)
 
     add_prop('opts', opts); //preserve unknown options for subclasses
     add_prop('pxsize', opts.rgb? 3: opts.rgbw? 4: 1);
-    add_prop('name', opts.name || caller(2));
-//    console.log("model opts %j", opts);
+    this.name = opts.name || this.constructor.name; //shortname(caller(1, __filename)));
+    this.dirty = (opts.zinit !== false);
+//    debugger;
+//    console.log("model name %s, opts %j", this.constructor.name, opts);
 //    var chpool = opts.chpool;
     add_prop('adrs', isdef(opts.adrs)? use_adrs(opts.adrs): opts.chpool.getadrs());
     add_prop('numch', isdef(opts.numch)? opts.numch: this.pxsize * (isdef(opts.numpx)? opts.numpx: 16));
@@ -30,9 +39,14 @@ var Model = module.exports.Model = function(opts)
     Object.defineProperty(this, 'buf', { enumerable: true, get: function()
     {
         opts.chpool.dirty = true; //kludge: assume that caller will update buf
-        if (!m_buf) m_buf = opts.chpool.buf.slice(this.startch, this.numch);
+        if (!m_buf)
+        {
+            m_buf = opts.chpool.buf.slice(this.startch, this.numch);
+            if (opts.zinit !== false) m_buf.fill(0);
+            if (this.allocbuf) this.allocbuf(m_buf);
+        }
         return m_buf;
-    }});
+    }.bind(this)});
 //no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
 //    Model.all.push(this);
 
@@ -120,11 +134,12 @@ var Model = module.exports.Model = function(opts)
 
 Model.prototype.render = function(frtime, force_dirty)
 {
+    this.frtime = frtime;
     if (!this.dirty && !force_dirty) return;
     this.buf.fill(frtime); //TODO
     this.dirty = false;
 //TODO    if (!dedup) parent_chpool.dirty = true;
-    return frtime + 99999; //TODO: tell caller when to update me again
+    return frtime + 999999; //TODO: tell caller when to update me again
 }
 
 /*
@@ -172,7 +187,7 @@ Rect2D;
 */
 
 
-var Rect2D = module.exports.Rect2D = function(opts) //w, h, more_args)
+function Rect2D(opts) //w, h, more_args)
 {
 //    console.log("rect2d args", arguments);
 //    console.log("fiixup", [null].concat.apply(arguments));
@@ -193,8 +208,7 @@ var Rect2D = module.exports.Rect2D = function(opts) //w, h, more_args)
 inherits(Rect2D, Model);
 
 
-
-var Strip1D = module.exports.Strip1D = function(opts)
+function Strip1D(opts)
 {
     if (!(this instanceof Strip1D)) return makenew(Strip1D, arguments); //new (Strip1D.bind.apply(Strip1D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts !== 'object')? {numpx: opts}: opts || {};
@@ -205,7 +219,7 @@ var Strip1D = module.exports.Strip1D = function(opts)
 inherits(Strip1D, Model);
 
 
-var Single0D = module.exports.Single0D = function(opts)
+function Single0D(opts)
 {
     if (!(this instanceof Single0D)) return makenew(Single0D, arguments); //new (Single0D.bind.apply(Single0D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts !== 'object')? {numpx: opts}: opts || {};

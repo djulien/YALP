@@ -6,8 +6,10 @@ var makenew = require('my-plugins/utils/makenew');
 var models = require('my-projects/models/model'); //generic models
 var Rect2D = models.Rect2D;
 
+module.exports = IcicleBank; //use function names so model.name can be set from ctor
+
 var allinst = [];
-var IcicleBank = module.exports = function(opts)
+function IcicleBank(opts)
 {
     if (!(this instanceof IcicleBank)) return makenew(IcicleBank, arguments);
     opts = (typeof opts !== 'object')? {param: opts}: opts || {};
