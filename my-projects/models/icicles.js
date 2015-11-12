@@ -6,22 +6,53 @@ var makenew = require('my-plugins/utils/makenew');
 var models = require('my-projects/models/model'); //generic models
 var Rect2D = models.Rect2D;
 
-module.exports = IcicleBank; //use function names so model.name can be set from ctor
+module.exports = IcicleSegment2D; //use function names so model.name can be set from ctor
+//TODO: composite icicles (super-model)
 
-var allinst = [];
-function IcicleBank(opts)
+
+//var allinst = [];
+function IcicleSegment2D(opts)
 {
-    if (!(this instanceof IcicleBank)) return makenew(IcicleBank, arguments);
+    if (!(this instanceof IcicleSegment2D)) return makenew(IcicleSegment2D, arguments);
     opts = (typeof opts !== 'object')? {param: opts}: opts || {};
+//    if (isdef(opts.w) && (opts.w != 42)) throw "Incorrect col w: " + opts.w;
+//    if (isdef(opts.h) && (opts.h != 51)) throw "Incorrect col h: " + opts.h;
+//    opts.w = 42; opts.h = 51;
     var args = Array.from(arguments); args[0] = opts;
     Rect2D.apply(this, args);
 
 //    if (!IcicleBank.all) IcicleBank.all = [];
-    allinst.push(this);
+//    allinst.push(this);
 }
-inherits(IcicleBank, Rect2D);
+inherits(IcicleSegment2D, Rect2D);
+
+IcicleSegment2D.all =
+function Columns2D(opts)
+{
+    if (!(this instanceof Columns2D)) return makenew(Columns2D, arguments);
+    opts = (typeof opts !== 'object')? {param: opts}: opts || {};
+    if (isdef(opts.w) && (opts.w != 42)) throw "Incorrect col w: " + opts.w;
+    if (isdef(opts.h) && (opts.h != 51)) throw "Incorrect col h: " + opts.h;
+    opts.w = 42; opts.h = 51;
+    var args = Array.from(arguments); args[0] = opts;
+    Rect2D.apply(this, args);
+}
+inherits(Columns2D, Rect2D);
 
 
+//custom icicle layout:
+//
+// 20  10  0
+// 21  11  1
+//  :   :  :
+// 29  19  9
+//
+//each icicle = 10 nodes (T2B), mostly R2L
+//
+//canvas is 2D rectangle (fully populated, but in varying order)
+
+
+/*
 //composite model:
 IcicleBank.all = function(opts)
 {
@@ -44,6 +75,7 @@ IcicleBank.all = function(opts)
     }
 }
 inherits(IcicleBank.all, Rect2D);
+*/
 
 
 //eof

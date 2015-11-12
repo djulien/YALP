@@ -50,7 +50,7 @@ function Model(opts)
 //no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
 //    Model.all.push(this);
 
-    this.nodeofs = function(i) { return this.pxsize * i; } //overridable with custom node order
+    this.nodeofs = function(i) { return this.pxsize * i; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
     switch (this.pxsize)
     {
         case 1:
@@ -62,7 +62,7 @@ function Model(opts)
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (arguments.length < 3) return this.buf.readUInt8BE(this.nodeofs(i));
+                if (!isdef(color)) return this.buf.readUInt8BE(this.nodeofs(i));
                 this.buf.writeUInt8BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
@@ -77,7 +77,7 @@ function Model(opts)
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (arguments.length < 3) return this.buf.readUInt16BE(this.nodeofs(i));
+                if (!isdef(color)) return this.buf.readUInt16BE(this.nodeofs(i));
                 this.buf.writeUInt16BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
@@ -92,7 +92,7 @@ function Model(opts)
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (arguments.length < 3) return this.buf.readUInt24BE(this.nodeofs(i));
+                if (!isdef(color)) return this.buf.readUInt24BE(this.nodeofs(i));
                 this.buf.writeUInt24BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
@@ -107,7 +107,7 @@ function Model(opts)
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (arguments.length < 3) return this.buf.readUInt32BE(this.nodeofs(i));
+                if (!isdef(color)) return this.buf.readUInt32BE(this.nodeofs(i));
                 this.buf.writeUInt32BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
@@ -200,7 +200,7 @@ function Rect2D(opts) //w, h, more_args)
     var args = Array.from(arguments); args[0] = opts;
     Model.apply(this, args);
 
-    this.xy2node = function(x, y) { return this.nodeofs(y * opts.w + x); } //overide with custom node order
+    this.xy2node = function(x, y) { return this.nodeofs((x < 0)? -1: (x >= opts.w)? opts.numpx: y * opts.w + x); } //if x out of range force result to be as well; override with custom node order
     this.pixel = function(x, y, color) { return Model.prototype.pixel.call(this, this.xy2node(x, y), color); } //override with custom logic
     this.R2L = function(x) { return opts.w - x - 1; }
     this.B2T = function(y) { return opts.h - y - 1; }
