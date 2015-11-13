@@ -10,6 +10,7 @@ require('my-plugins/my-extensions/object-enum');
 
 module.exports.Playlist = CustomPlaylist;
 module.exports.Sequence = CustomSequence;
+//module.exports.ChannelPools = ChannelPools;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -275,6 +276,7 @@ var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 24+8, h: 10, zinit: fals
 var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 34, h: 10, zinit: false});
 var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 15+33, h:10, zinit: false});
 var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, zinit: false, vix2ch: [2, +13]});
+ic_all.vix2render = function() {} //TODO
 
 //custom node ordering:
 icbig.xy2node = function(x, y)
@@ -296,58 +298,79 @@ ic_all.xy2node = function(x, y)
 
 //show_group('floods', [282, +15], [400, +15]);
 var floods = gport.alloc(Rect2D, {name: 'floods', w: 4, h: 4, zinit: false, vix2ch: [282, +15], vix2alt: [400, +15]}); //, chpool: aport}); //new Model();
+floods.vix2render = function() {} //TODO
 
 //show_group('mtree', [47, +23]);
 var mtree = gport.alloc(Strip1D, {name: 'mtree', w: 24, zinit: false, vix2ch: [47, +23]});
+mtree.vix2render = function() {} //TODO
 //show_group('mtree_bank', [71, +3]);
 var mtree_bank = noport.alloc(Strip1D, {name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +3], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
+mtree_bank.vix2render = function() {} //TODO
 //show_group('tb', [75, +1]);
 var tb = noport.alloc(Strip1D, {name: 'tb', w: 2, zinit: false, vix2ch: [75, +1], ball1: 75, ball2: 76});
+tb.vix2render = function() {} //TODO
 
 //show_group('angel', [40, +2]);
 var angel = gport.alloc(Strip1D, {name: 'angel', w: 3, zinit: false, vix2ch: [40, +2], body: 40, wings: 41, trumpet: 42});
+angel.vix2render = function() {} //TODO
 
 //show_group('star', [43, +2]);
 var star = noport.alloc(Strip1D, {name: 'star', w: 3, zinit: false, vix2ch: [43, +2], aura_B: 43, inner_Y: 44, outer_W: 45});
+star.vix2render = function() {} //TODO
 
 
 //show_group('shep', [103, +3]);
 var shep = bport.alloc(Strip1D, {name: 'shep', w: 4, zinit: false, vix2ch: [103, +3], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
+shep.vix2render = function() {} //TODO
 //show_group('sheep', [107, +5]);
 var sheep = bport.alloc(Strip1D, {name: 'sheep', w: 6, zinit: false, vix2ch: [107, +5], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
+sheep.vix2render = function() {} //TODO
 //show_group('she_bank', [113, +3]);
-var she_bank = bport.alloc(Strip1D, {name: 'she-bank', w: 4, zinit: false, vix2ch: [113, +3], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
+var sh_bank = bport.alloc(Strip1D, {name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +3], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
+sh_bank.vix2render = function() {} //TODO
 
 
 //show_group('gdoor', [298, +1], [416, +1]);
 var gdoor = wport.alloc(Strip1D, {name: 'gdoor', w: 2, zinit: false, vix2ch: [298, +1], vix2alt: [416, +1], macro: +0, bitmap: +1});
+gdoor.vix2render = function() {} //TODO
 
 //show_group('ab', [16, +23]);
 var ab = wport.alloc(Rect2D, {name: 'ab', w: 3, h: 8, zinit: false, vix2ch: [16, +23], body: +0, wings: +1, bell: +2});
+ab.vix2render = function() {} //TODO
 
 //show_group('nat', 46, [83, +7], 232);
 var cross = wport.alloc(Single0D, {name: 'cross', numch: 1, zinit: false, vix2ch: 46, cross: 46});
+cross.vix2render = function() {} //TODO
 var nat = wport.alloc(Strip1D, {name: 'nat-people', w: 9, vix2ch: [83, +7], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
+nat.vix2render = function() {} //TODO
 var donkey = wport.alloc(Single0D, {name: 'donkey', numch: 1, zinit: false, vix2ch: 232, donkey: 232});
+donkey.vix2render = function() {} //TODO
 
 //show_group('gift', [77, +4], 82);
 var gift = wport.alloc(Strip1D, {name: 'gift', w: 6, zinit: false, vix2ch: [77, +4], gift_1M: 77, gift_2R: 78, gift_3B_top: 79, gift_3B_bot: 80, tags: 81});
+gift.vix2render = function() {} //TODO
 var city = wport.alloc(Single0D, {name: 'city', numch: 1, zinit: false, vix2ch: 82, city: 82});
+city.vix2render = function() {} //TODO
 
 //show_group('acc', [96, +4]);
 var acc = wport.alloc(Strip1D, {name: 'acc', w: 5, zinit: false, vix2ch: [96, +4], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
+acc.vix2render = function() {} //TODO
 //show_group('acc_bank', [101, +1]);
 var acc_bank = wport.alloc(Strip1D, {name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +1], on23_off01: 101, on13_off02: 102});
+acc_bank.vix2render = function() {} //TODO
 
 //show_group('tuneto', 205);
 var tuneto = wport.alloc(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
+tuneto.vix2render = function() {} //TODO
 
 //show_group('af', [117, +63]);
 //show_group('arches', [117, +31]);
 //show_group('fans', [149, +31]);
 //var af = aport.alloc(Rect2D, {name: 'af', w: 8, h: 8, zinit: false, vix2ch: [117, +63]});
 var arches = wport.alloc(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2ch: [117, +31]});
+arches.vix2render = function() {} //TODO
 var fans = wport.alloc(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +31]});
+fans.vix2render = function() {} //TODO
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////

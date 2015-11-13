@@ -3,10 +3,12 @@
 
 'use strict';
 
+var Color = require('onecolor');
 var inherits = require('inherits');
 var caller = require('my-plugins/utils/caller').caller;
 var shortname = require('my-plugins/utils/shortname');
 var makenew = require('my-plugins/utils/makenew');
+var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
@@ -25,38 +27,41 @@ function Model(opts)
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
     add_prop('opts', opts); //preserve unknown options for subclasses
-    add_prop('pxsize', opts.rgb? 3: opts.rgbw? 4: 1);
     this.name = opts.name || this.constructor.name; //shortname(caller(1, __filename)));
-    this.dirty = (opts.zinit !== false);
+    add_prop('nodelen', opts.rgb? 3: opts.rgbw? 4: opts.rg? 2: 1); //#bytes/node in hardware (rgb/w, no alpha)
+    if (isdef(opts.numch) && isdef(opts.numpx) && (opts.numch != this.nodelen * opts.numpx)) throw "Numch " + opts.numch + " doesn't match numpx " + opts.numpx;
+    this.dirty = (opts.zinit !== false); //force initial render?
 //    debugger;
 //    console.log("model name %s, opts %j", this.constructor.name, opts);
+
 //    var chpool = opts.chpool;
     add_prop('adrs', isdef(opts.adrs)? use_adrs(opts.adrs): opts.chpool.getadrs());
-    add_prop('numch', isdef(opts.numch)? opts.numch: this.pxsize * (isdef(opts.numpx)? opts.numpx: 16));
+    add_prop('numch', isdef(opts.numch)? opts.numch: this.nodelen * (isdef(opts.numpx)? opts.numpx: 16));
+//    Object.defineProperty(this, 'numch', { enumerable: true, get: function() { return m_buf.byteLength; }});
+    add_prop('numpx', Math.floor(this.numch / this.nodelen)); //TODO: allow last partial node to be used?
+//    Object.defineProperty(this, 'numpx', { enumerable: true, get: function() { return Math.floor(m_buf.byteLength / this.nodelen); }});
     add_prop('startch', isdef(opts.startch)? use_channels(opts.startch, this.numch): opts.chpool.getch(this.numch));
+    var m_buf = null, m_nodes; //CAUTION: don't alloc until all ch assigned on this port
+    Object.defineProperties(this, 'buf', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }});
+    Object.defineProperties(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_nodes; }});
 //    this.getbuf = function opts.getbuf;
-    var m_buf = null; //CAUTION: don't alloc until all ch assigned
-    Object.defineProperty(this, 'buf', { enumerable: true, get: function()
+    function alloc()
     {
-        opts.chpool.dirty = true; //kludge: assume that caller will update buf
-        if (!m_buf)
-        {
-            m_buf = opts.chpool.buf.slice(this.startch, this.numch);
-            if (opts.zinit !== false) m_buf.fill(0);
-            if (this.allocbuf) this.allocbuf(m_buf);
-        }
-        return m_buf;
-    }.bind(this)});
-//no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
-//    Model.all.push(this);
+//        opts.chpool.dirty = true; //kludge: assume that caller will update buf
+        if (m_buf) return;
+        m_buf = opts.chpool.buf.slice(this.startch, this.numch); //slice from parent allows models to overlap
+        m_nodes = new DataView(m_buf); //new Uint32Array(m_buffer); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Typed_arrays
+        if (opts.zinit !== false) this.fill(opts.zinit); //can be a color; //m_buf.fill(0);
+        if (this.allocbuf) this.allocbuf(m_buf); //allow custom slicing/mapping
+    } //.bind(this)});
 
-    this.nodeofs = function(i) { return this.pxsize * i; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
-    switch (this.pxsize)
+    this.nodeofs = function(i) { return this.nodelen * i; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
+    switch (this.nodelen)
     {
         case 1:
             this.fill = function(color)
             {
-                this.buf.fill(color);
+                this.buf.fill(mono(color));
                 this.dirty = true;
                 return this; //fluent
             }
@@ -114,8 +119,11 @@ function Model(opts)
             }
             break;
         default:
-            throw "Unhandled node size: " + this.pxsize;
+            throw "Unhandled node size: " + this.nodelen;
     }
+
+//no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
+//    Model.all.push(this);
 
     function use_adrs(adrs)
     {
@@ -131,6 +139,39 @@ function Model(opts)
     }
 }
 
+
+function color2mono(color)
+{
+    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
+}
+
+function color2rgb(color)
+{
+    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).rgb();
+}
+
+function color2rg(color)
+{
+    color = ((typeof color !== 'object')? Color('#' + color.toString(16)): color).rgb();
+    return (color.red() << 8) | color.green(); //??
+}
+
+    static node_value rgb2mono(node_value rgb, int rownum)
+    {
+//    int brightness = MAX(MAX(rgb[0], rgb[1]), rgb[2]); //use strongest color element as monochrome brightness
+        int brightness = RGB2R(rgb); //MAX(MAX(RGB2R(rgb), RGB2G(rgb)), RGB2B(rgb));
+        int more_row = 0xff - rownum * 0x11; //scale up row# to fill address space; NOTE: this will sort higher rows first
+//    rownum = 0x99 - rownum; //kludge: sort lower rows first to work like Vixen 2.x chipiplexing plug-in
+//    if (brightness && (prop->desc.numnodes == 56))? (n / 7): 0; //chipiplexed row# 0..7 (always 0 for pwm); assume horizontal matrix order
+        return RGB2Value(brightness, brightness? more_row: 0, brightness? rownum: 0); //tag dumb color with chipiplexed row# to force row uniqueness
+    }
+
+Model.prototype.clear = function(color)
+{
+//    console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.byteLength / 4, color.toString(16));
+    for (var n = 0; n < this.numpx; n+= 4) m_nodes.setUint32(n, color); //CAUTION: byte offset, not uint32 offset
+    m_dirty = true;
+}
 
 Model.prototype.render = function(frtime, force_dirty)
 {

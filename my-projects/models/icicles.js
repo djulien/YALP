@@ -6,11 +6,14 @@ var makenew = require('my-plugins/utils/makenew');
 var models = require('my-projects/models/model'); //generic models
 var Rect2D = models.Rect2D;
 
+function isdef(thing) { return (typeof thing !== 'undefined'); }
+
+
 module.exports = IcicleSegment2D; //use function names so model.name can be set from ctor
 //TODO: composite icicles (super-model)
 
 
-//var allinst = [];
+var allinst = [];
 function IcicleSegment2D(opts)
 {
     if (!(this instanceof IcicleSegment2D)) return makenew(IcicleSegment2D, arguments);
@@ -21,23 +24,23 @@ function IcicleSegment2D(opts)
     var args = Array.from(arguments); args[0] = opts;
     Rect2D.apply(this, args);
 
-//    if (!IcicleBank.all) IcicleBank.all = [];
-//    allinst.push(this);
+//    if (!IcicleSegment2D.all) IcicleSegment2D.all = [];
+//    IcicleSegment2D.all.push(this);
+    allinst.push(this);
 }
 inherits(IcicleSegment2D, Rect2D);
 
-IcicleSegment2D.all =
-function Columns2D(opts)
+IcicleSegment2D.all = function(opts)
 {
-    if (!(this instanceof Columns2D)) return makenew(Columns2D, arguments);
+    if (!(this instanceof IcicleSegment2D.all)) return makenew(IcicleSegment2D.all, arguments);
     opts = (typeof opts !== 'object')? {param: opts}: opts || {};
-    if (isdef(opts.w) && (opts.w != 42)) throw "Incorrect col w: " + opts.w;
-    if (isdef(opts.h) && (opts.h != 51)) throw "Incorrect col h: " + opts.h;
-    opts.w = 42; opts.h = 51;
+    if (isdef(opts.w) && (opts.w != 207)) throw "Incorrect col w: " + opts.w;
+    if (isdef(opts.h) && (opts.h != 10)) throw "Incorrect col h: " + opts.h;
+    opts.w = 207; opts.h = 10;
     var args = Array.from(arguments); args[0] = opts;
     Rect2D.apply(this, args);
 }
-inherits(Columns2D, Rect2D);
+inherits(IcicleSegment2D.all, Rect2D);
 
 
 //custom icicle layout:

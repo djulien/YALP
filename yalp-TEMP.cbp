@@ -65,6 +65,7 @@
 		<Unit filename="my-plugins/fault-mon.js" />
 		<Unit filename="my-plugins/file-mon.js" />
 		<Unit filename="my-plugins/hw/RenXt.js" />
+		<Unit filename="my-plugins/hw/RenXt_api.cpp-ex" />
 		<Unit filename="my-plugins/hw/canvas.js" />
 		<Unit filename="my-plugins/hw/console.js" />
 		<Unit filename="my-plugins/hw/dslop.js" />
@@ -131,6 +132,7 @@
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012a.pro" />
 		<Unit filename="my-projects/playlists/even-test-bk.js" />
 		<Unit filename="my-projects/playlists/hween2015a.js" />
+		<Unit filename="my-projects/playlists/prop-test.js" />
 		<Unit filename="my-projects/playlists/xmas2015.js" />
 		<Unit filename="my-projects/shared/cuelist-bk.js" />
 		<Unit filename="my-projects/shared/cuelist.js" />
@@ -197,6 +199,7 @@
 		<Unit filename="tests/ipc-schedule.js" />
 		<Unit filename="tests/ipc-trace.js" />
 		<Unit filename="tests/mail.js" />
+		<Unit filename="tests/multi-class.js" />
 		<Unit filename="tests/pi-led.js" />
 		<Unit filename="tests/playback.js" />
 		<Unit filename="tests/playlist-test.js" />
