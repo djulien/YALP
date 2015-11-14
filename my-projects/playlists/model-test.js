@@ -1,10 +1,34 @@
 
 'use strict';
 
-var ChannelPool = require('my-projects/models/chpool');
 
+/*
+var fs = require('fs');
+var abspath = require('my-plugins/utils/abspath');
 
-var aport = new ChannelPool('aport');
+//create a little Vixen2 test file just to satisfy loader:
+var vix = fs.createWriteStream(abspath('../tmp/test.vix'), {flags: 'w'});
+vix.write('<myseq>');
+vix.write('  <Time>10000</Time>'); //duration, msec
+vix.write('  <EventPeriodInMilliseconds>50</EventPeriodInMilliseconds>');
+var chvals =
+var base64 = new Buffer(chvals, 'base64'); //no.toString("ascii"); //http://stackoverflow.com/questions/14573001/nodejs-how-to-decode-base64-encoded-string-back-to-binary
+vix.write('  <EventValues>' + base64 + '</EventValues>');
+vix.write('  <Channels>');
+vix.write('    <Channel enabled="True" output="1" color="FFFFFF">name</Channel>');
+vix.write('  </Channels>');
+vix.end('</myseq>');
+*/
+
+/*
+var glob = require('glob');
+
+//var seq = require(require.resolve(glob.sync("my-projects/songs/xmas/Amaz*")[0]));
+var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
+var seq = new Sequence({auto_collect: false, folder: 'tmp', use_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+seq.addMedia('my-projects/songs/xmas/Amaz*'); //__dirname + '** / *.mp3')
+*/
+
 
 /*
 //then add hardware drivers and protocol handlers:
@@ -21,6 +45,10 @@ ChannelPool.all.forEach(function(chpool, inx)
 */
 
 
+//require('my-projects/shared/my-custom.js');
+var ChannelPool = require('my-projects/models/chpool');
+var aport = new ChannelPool('a-port');
+
 //generic model definitions:
 var models = require('my-projects/models/model'); //generic models
 var Rect2D = models.Rect2D;
@@ -28,8 +56,8 @@ var Strip1D = models.Strip1D;
 var Single0D = models.Single0D;
 
 //custom models:
-var IcicleSegment2D = require('my-projects/models/icicles');
-var Columns2D = require('my-projects/models/columns');
+//var IcicleSegment2D = require('my-projects/models/icicles');
+//var Columns2D = require('my-projects/models/columns');
 
 /*
 //show_group('col', [181, +23]);
@@ -52,15 +80,22 @@ var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, z
 ic_all.vix2render = function() {} //TODO
 */
 
+debugger;
 
 var rect = aport.alloc(Rect2D, {name: 'rect', w: 10, h: 10, rgb: 'GRB', zinit: true});
 console.log("rect nodes#1", rect.nodes);
 
-for (var i = 0; i < rect.numpx; ++i) rect.pixel(i, Color(
+for (var i = 0; i < rect.numpx; ++i) rect.pixel(i, rect.color((i << 16) | (i << 8) | i));
 console.log("rect nodes#2", rect.nodes);
 
-rect.fill(
+rect.fill(0x123456);
 console.log("rect nodes#3", rect.nodes);
+
+debugger;
+for (var y = 0; y < rect.opts.h; ++y)
+    for (var x = 0; x < rect.opts.w; ++x)
+        rect.pixel2D(x, y, 16 * x + y);
+console.log("rect nodes#4: ", rect.nodes);
 
 
 //var numext = [0, 0];
