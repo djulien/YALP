@@ -4,6 +4,7 @@
 'use strict';
 
 var Color = require('onecolor');
+var int24 = require('int24');
 var inherits = require('inherits');
 var caller = require('my-plugins/utils/caller').caller;
 var shortname = require('my-plugins/utils/shortname');
@@ -11,6 +12,8 @@ var makenew = require('my-plugins/utils/makenew');
 var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
+Color.isGray = function() { return (this.red() == this.green()) && (this.green() == this.blue()); }
+
 
 //use function names so model.name can be set from ctor:
 module.exports.Model = Model;
@@ -42,10 +45,10 @@ function Model(opts)
 //    Object.defineProperty(this, 'numpx', { enumerable: true, get: function() { return Math.floor(m_buf.byteLength / this.nodelen); }});
     add_prop('startch', isdef(opts.startch)? use_channels(opts.startch, this.numch): opts.chpool.getch(this.numch));
     var m_buf = null, m_nodes; //CAUTION: don't alloc until all ch assigned on this port
-    Object.defineProperties(this, 'buf', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }});
-    Object.defineProperties(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_nodes; }});
+    Object.defineProperty(this, 'buf', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }});
+    Object.defineProperty(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_nodes; }});
 //    this.getbuf = function opts.getbuf;
-    function alloc()
+    var alloc = function()
     {
 //        opts.chpool.dirty = true; //kludge: assume that caller will update buf
         if (m_buf) return;
@@ -53,7 +56,7 @@ function Model(opts)
         m_nodes = new DataView(m_buf); //new Uint32Array(m_buffer); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Typed_arrays
         if (opts.zinit !== false) this.fill(opts.zinit); //can be a color; //m_buf.fill(0);
         if (this.allocbuf) this.allocbuf(m_buf); //allow custom slicing/mapping
-    } //.bind(this)});
+    }.bind(this);
 
     this.nodeofs = function(i) { return this.nodelen * i; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
     switch (this.nodelen)
@@ -61,14 +64,14 @@ function Model(opts)
         case 1:
             this.fill = function(color)
             {
-                this.buf.fill(mono(color));
+                this.buf.fill(color2mono(color)); //TODO: this.nodes.?
                 this.dirty = true;
                 return this; //fluent
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (!isdef(color)) return this.buf.readUInt8BE(this.nodeofs(i));
-                this.buf.writeUInt8BE(this.nodeofs(i), color);
+                if (!isdef(color)) return this.buf[this.nodeofs(i)]; //.readUInt8BE(this.nodeofs(i));
+                this.buf[this.nodeofs(i)] = color2mono(color); //.writeUInt8BE(this.nodeofs(i), color2mono(color));
                 this.dirty = true;
                 return this; //fluent
             }
@@ -76,14 +79,15 @@ function Model(opts)
         case 2:
             this.fill = function(color)
             {
-                for (var i = 0; i < this.numch; i += 2) this.buf.writeUInt16BE(i, color);
+                color = color2rg(color);
+                for (var i = 0; i < this.numch; i += 2) this.nodes.writeUInt16BE(i, color);
                 this.dirty = true;
                 return this; //fluent
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (!isdef(color)) return this.buf.readUInt16BE(this.nodeofs(i));
-                this.buf.writeUInt16BE(this.nodeofs(i), color);
+                if (!isdef(color)) return this.nodes.readUInt16BE(this.nodeofs(i));
+                this.buf.writeUInt16BE(this.nodeofs(i), color2rg(color));
                 this.dirty = true;
                 return this; //fluent
             }
@@ -91,14 +95,14 @@ function Model(opts)
         case 3:
             this.fill = function(color)
             {
-                for (var i = 0; i < this.numch; i += 3) this.buf.writeUInt24BE(i, color);
+                for (var i = 0; i < this.numch; i += 3) int24.writeUInt24BE(this.buf, i, color); //this.nodes.writeUInt24BE(i, color);
                 this.dirty = true;
                 return this; //fluent
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (!isdef(color)) return this.buf.readUInt24BE(this.nodeofs(i));
-                this.buf.writeUInt24BE(this.nodeofs(i), color);
+                if (!isdef(color)) return int24.readUInt24BE(this.buf, this.nodeofs(i)); //this.nodes.readUInt24BE(this.nodeofs(i));
+                int24.writeUInt24BE(this.buf, this.nodeofs(i), color); //this.nodes.writeUInt24BE(this.nodeofs(i), color);
                 this.dirty = true;
                 return this; //fluent
             }
@@ -106,14 +110,14 @@ function Model(opts)
         case 4:
             this.fill = function(color)
             {
-                for (var i = 0; i < this.numch; i += 4) this.buf.writeUInt32BE(i, color);
+                for (var i = 0; i < this.numch; i += 4) this.nodes.writeUInt32BE(i, color2rgbw(color));
                 this.dirty = true;
                 return this; //fluent
             }
             this.pixel = function(i, color) //override with custom logic
             {
-                if (!isdef(color)) return this.buf.readUInt32BE(this.nodeofs(i));
-                this.buf.writeUInt32BE(this.nodeofs(i), color);
+                if (!isdef(color)) return this.nodes.readUInt32BE(this.nodeofs(i));
+                this.nodes.writeUInt32BE(this.nodeofs(i), color2rgbw(color));
                 this.dirty = true;
                 return this; //fluent
             }
@@ -142,7 +146,99 @@ function Model(opts)
 
 function color2mono(color)
 {
-    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
+/*
+        int brightness = RGB2R(rgb); //MAX(MAX(RGB2R(rgb), RGB2G(rgb)), RGB2B(rgb));
+        int more_row = 0xff - rownum * 0x11; //scale up row# to fill address space; NOTE: this will sort higher rows first
+//    rownum = 0x99 - rownum; //kludge: sort lower rows first to work like Vixen 2.x chipiplexing plug-in
+//    if (brightness && (prop->desc.numnodes == 56))? (n / 7): 0; //chipiplexed row# 0..7 (always 0 for pwm); assume horizontal matrix order
+        return RGB2Value(brightness, brightness? more_row: 0, brightness? rownum: 0); //tag dumb color with chipiplexed row# to force row uniqueness
+*/
+    switch (typeof color)
+    {
+        case 'boolean': return color? 255: 0;
+        case 'null': return 0;
+//        case 'undefined': throw "Color is undefined";
+        case 'object':
+            if (color instanceof Color) return color.lightness();
+            //fall thru
+        case 'string':
+            return Color(color).lightness();
+//            //fall thru
+        case 'number': //RGBA or 0xFF
+            return (color & 0xFFFFFF00)? Math.max((color >> 24) & 0xFF, (color >> 16) & 0xFF, (color >> 8) & 0xFF): color & 0xFF; //Color(color).lightness(): color;
+        default:
+            throw "Unhandled: convert " + typeof color + " to monochrome";
+    }
+//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
+}
+
+function color2rg(color)
+{
+    switch (typeof color)
+    {
+        case 'boolean': return color? 0xFFFF: 0;
+        case 'null': return 0;
+//        case 'undefined': throw "Color is undefined";
+        case 'object':
+            if (color instanceof Color) return (color.red() << 8) | color.green();
+            //fall thru
+        case 'string':
+            color = Color(color);
+            return (color.red() << 8) | color.green();
+//            //fall thru
+        case 'number': //RGBA or 0xFFFF
+            return (color >> 16 || color) & 0xFFFF;
+        default:
+            throw "Unhandled: convert " + typeof color + " to monochrome";
+    }
+//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
+}
+
+function color2rgb(color)
+{
+    switch (typeof color)
+    {
+        case 'boolean': return color? 0xFFFFFF: 0;
+        case 'null': return 0;
+//        case 'undefined': throw "Color is undefined";
+        case 'object':
+            if (color instanceof Color) return color.rgb();
+            //fall thru
+        case 'string':
+            return Color(color).rgb();
+//            //fall thru
+        case 'number': //RGBA or 0xFFFFFF00
+            return color >> 8;
+        default:
+            throw "Unhandled: convert " + typeof color + " to monochrome";
+    }
+}
+
+function color2rgbw(color)
+{
+    switch (typeof color)
+    {
+        case 'boolean': return color? 0xFF: 0;
+        case 'null': return 0;
+//        case 'undefined': throw "Color is undefined";
+        case 'object':
+            if (color instanceof Color) return ((color.red() == color.green()) && (color.green() == color.blue())? gb() << 8)
+            //fall thru
+        case 'string':
+            color = Color(color);
+            return color.isGray()? color.red(): color.rgb() << 8;
+//            //fall thru
+        case 'number': //RGBA
+            return color >> 8;
+        default:
+            throw "Unhandled: convert " + typeof color + " to monochrome";
+    }
+}
+
+
+function mono2rgba(color)
+{
+    return Color('#FFF').lightness(color / 255).rgb();
 }
 
 function color2rgb(color)
@@ -150,21 +246,12 @@ function color2rgb(color)
     return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).rgb();
 }
 
+
 function color2rg(color)
 {
     color = ((typeof color !== 'object')? Color('#' + color.toString(16)): color).rgb();
     return (color.red() << 8) | color.green(); //??
 }
-
-    static node_value rgb2mono(node_value rgb, int rownum)
-    {
-//    int brightness = MAX(MAX(rgb[0], rgb[1]), rgb[2]); //use strongest color element as monochrome brightness
-        int brightness = RGB2R(rgb); //MAX(MAX(RGB2R(rgb), RGB2G(rgb)), RGB2B(rgb));
-        int more_row = 0xff - rownum * 0x11; //scale up row# to fill address space; NOTE: this will sort higher rows first
-//    rownum = 0x99 - rownum; //kludge: sort lower rows first to work like Vixen 2.x chipiplexing plug-in
-//    if (brightness && (prop->desc.numnodes == 56))? (n / 7): 0; //chipiplexed row# 0..7 (always 0 for pwm); assume horizontal matrix order
-        return RGB2Value(brightness, brightness? more_row: 0, brightness? rownum: 0); //tag dumb color with chipiplexed row# to force row uniqueness
-    }
 
 Model.prototype.clear = function(color)
 {

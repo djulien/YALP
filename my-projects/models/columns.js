@@ -75,7 +75,7 @@ var xymap = [], debug_map = [];
         var xylist = [];
 //        for (var node = XY(Math.floor(inx / 8), Math.round(y)); node <
 //        xymap.push(this.buf.slice(start, len));
-        debug_map.push(seg.start + '..' + seg.start + yinc - 1);
+        debug_map.push(seg.start + '..' + (seg.start + yinc - 1));
         xymap.push(xylist);
     }
 });
