@@ -25,7 +25,7 @@ var glob = require('glob');
 
 //var seq = require(require.resolve(glob.sync("my-projects/songs/xmas/Amaz*")[0]));
 var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
-var seq = new Sequence({auto_collect: false, folder: 'tmp', use_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = new Sequence({auto_collect: false, folder: 'tmp', xuse_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 seq.addMedia('my-projects/songs/xmas/Amaz*'); //__dirname + '** / *.mp3')
 */
 
@@ -84,18 +84,33 @@ debugger;
 
 var rect = aport.alloc(Rect2D, {name: 'rect', w: 10, h: 10, rgb: 'GRB', zinit: true});
 console.log("rect nodes#1", rect.nodes);
+//console.log("json", rect.json());
+console.log("port render:", aport.render());
+console.log();
 
 for (var i = 0; i < rect.numpx; ++i) rect.pixel(i, rect.color((i << 16) | (i << 8) | i));
 console.log("rect nodes#2", rect.nodes);
+//console.log("json", rect.json());
+console.log();
 
 rect.fill(0x123456);
 console.log("rect nodes#3", rect.nodes);
+//console.log("json", rect.json());
+console.log();
 
-debugger;
+//debugger;
 for (var y = 0; y < rect.opts.h; ++y)
     for (var x = 0; x < rect.opts.w; ++x)
         rect.pixel2D(x, y, 16 * x + y);
 console.log("rect nodes#4: ", rect.nodes);
+//console.log("json", rect.json());
+console.log();
+
+rect.json('["#123", "#456", "#789", "#abc", "#def"]');
+console.log("rect nodes#5", rect.nodes);
+//console.log("json", rect.json());
+console.log();
+
 
 
 //var numext = [0, 0];

@@ -1,4 +1,4 @@
-var que = require('my-plugins/utils/ipc')("test");
+var que = require('my-plugins/utils/ipc').open("test");
 
 //if (false)
 setTimeout(function()

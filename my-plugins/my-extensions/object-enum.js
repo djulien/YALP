@@ -1,5 +1,7 @@
 'use strict';
 
+require('colors');
+
 module.exports.add_method = add_method;
 module.exports.classname = classname;
 

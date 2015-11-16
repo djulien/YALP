@@ -3,7 +3,7 @@
 'use strict';
 
 var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
-var seq = module.exports = new Sequence({use_media_len: false, audio: false}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = module.exports = new Sequence({xuse_media_len: false, audio: false}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //.then(function(seq)
 //{
 //seq.name = 'C';

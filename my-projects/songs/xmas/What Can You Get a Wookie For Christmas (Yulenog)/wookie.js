@@ -3,7 +3,7 @@
 'use strict';
 
 var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
-var wookie = module.exports = /*new*/ Sequence({use_media_len: false, audio: false, folder: __dirname}); //{auto_collect: true, interval: 50, }); //comonjs
+var wookie = module.exports = /*new*/ Sequence({use_media_len: true, audio: false, folder: __dirname}); //{auto_collect: true, interval: 50, }); //comonjs
 wookie.name = 'Wookie';
 //Wookie.path = './What Can You Get a Wookie for Christmas (Yulenog & Nathan Kuruna-trimmed).mp3';
 //Wookie.tracks = './tracks.txt'; //Audacity label file

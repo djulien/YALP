@@ -45,12 +45,13 @@ function Vixen2Sequence(opts)
     var m_top = load(this.vix2filename);
 
     add_prop('isVixenSeq', true);
-    add_prop('duration', 1 * m_top.byname.Time.value); //msec
+    var m_duration = 1 * m_top.byname.Time.value; //msec
+    if (!this.opts.use_media_len) this.addCue({to: m_duration}); //kludge: create dummy cue to force duration length; //add_prop('duration', m_duration);
     add_prop('FixedFrameInterval', 1 * m_top.byname.EventPeriodInMilliseconds.value);
-    var m_numfr = Math.ceil(this.duration / this.FixedFrameInterval);
-    var partial = (m_numfr * this.FixedFrameInterval != this.duration);
+    var m_numfr = Math.ceil(m_duration / this.FixedFrameInterval);
+    var partial = (m_numfr * this.FixedFrameInterval != m_duration);
     if (partial)
-        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #channels %d", shortname(this.vix2filename), this.duration, this.FixedFrameInterval, m_numfr, !!partial, (m_top.byname.Channels.children || []).length);
+        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #channels %d", shortname(this.vix2filename), m_duration, this.FixedFrameInterval, m_numfr, !!partial, (m_top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
     var m_chvals = m_top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
@@ -69,7 +70,7 @@ function Vixen2Sequence(opts)
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
-        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
+        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
         return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[chinx * m_numfr + frinx]: 0; //single ch val
 //no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
 //        typeof chinx === 'undefined') //return all ch vals for a frame
@@ -85,29 +86,38 @@ function Vixen2Sequence(opts)
 //        for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
 //            frbuf[chinx] = m_chvals[/*chinx * m_numfr*/ chofs + frinx];
 //        return m_numch;
-//        return m_chvals.slice(frinx * m_numch, m_numch);
+//        return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch);
 //    }
 //    debugger;
     var m_prevbuf;
-    this.render = function(frtime)
+    this.render = function(frtime) //pseudo-animation by pushing de-duped Vixen2 ch vals to models
     {
         debugger;
         var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval));
-        if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
-        if (this.opts.dedup !== false) m_prevbuf = chvals;
+        var ic_debug = chvals.slice(2, 2+14);
+//        if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
+        if (!m_prevbuf || (this.opts.dedup === false) || bufdiff(chvals, m_prevbuf)) //no dedup or chvals changed
+        {
+            if (this.opts.dedup !== false) m_prevbuf = chvals;
 //        return m_prevbuf = chvals;
 //        console.log("TODO: below is generic");
-        ChannelPool.all.forEach(function(chpool)
-        {
-            chpool.models.forEach(function(model, inx, all)
+            ChannelPool.all.forEach(function(chpool)
             {
-                if (!model.opts.vix2ch /*vix2buf*/) { console.log("model %s is not mapped for vix2", model.name); return; }
+//                if (chpool.dirty) console.log("chpool buf",
+                chpool.models.forEach(function(model, inx, all) //update Vixen-aware models
+                {
+//                if (!model.opts.vix2ch /*vix2buf*/) { console.log("model %s is not mapped for vix2", model.name); return; }
 //                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
-                model.vix2buf = chvals; //give all channels
+                    if (!model.opts.vix2ch) return; //doesn't want Vixen2 channels
+                    model.vix2buf = chvals; //send all channels so models can influence each other; not really - model will slice it down
 //            model.render(); //tell model to render new output
+                });
             });
-        });
-        return Sequence.prototype.render.call(this, frtime);
+        }
+        var retval = Sequence.prototype.render.call(this, frtime);
+        var frnext = frtime + this.FixedFrameInterval;
+        retval.frnext = (typeof retval.frnext === 'number')? Math.min(retval.frnext, frnext): frnext; //set next pseudo-animation frame time
+        return retval;
 //        var portbufs = {};
 //        ChannelPool.all.forEach(function(chpool, inx, all)
 //        {
@@ -141,9 +151,9 @@ function Vixen2Sequence(opts)
 
 //    console.log("loaded '%s'".green, filename);
 //    console.log("audio '%s'".blue, seq.audio || '(none)');
-    console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".blue, timescale(this.duration), timescale(this.FixedFrameInterval), m_numfr, this.channels.length, m_audio);
-    if (m_audiolen != this.duration) console.log("seq len %d != audio len %d".red, this.duration, m_audiolen);
-//    this.setDuration(this.duration, "vix2");
+    console.log("duration %s, interval %s, #fr %d, #ch %d, audio %s".blue, timescale(m_duration), timescale(this.FixedFrameInterval), m_numfr, this.channels.length, m_audio);
+    if (m_audiolen != m_duration) console.log("seq len %d != audio len %d".red, m_duration, m_audiolen);
+//    this.setDuration(m_duration, "vix2");
 //    if (m_opts.cues !== false) this.FixedFrameInterval = m_interval; //addFixedFrames(vix2.interval, 'vix2');
 //    console.log("opts.cues %s, fixint %s, vixint %s".cyan, opts.cues, this.fixedInterval, m_interval);
 
@@ -182,19 +192,19 @@ function ExtendModel(model)
     Object.defineProperty(model, 'vix2buf',
     {
         enumerable: true,
-        get() { return m_vix2buf; },
+        get() { return m_prevbuf; },
         set(newbuf) //NOTE: different buffer segments are passed in from caller; this allows dedup without mem copying, but creates more slicing
         {
-//            var chbuf = newbuf.slice(this.opts.vix2ch[0], this.opts.vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
-//            var altbuf = this.opts.vix2alt? newbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
+//            var chbuf = newbuf.slice(this.opts.vix2ch[0], this.opts.vix2ch[0] + this.opts.vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
+//            var altbuf = this.opts.vix2alt? newbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[0] + this.opts.vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
 //            if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /*this.opts.*/vix2alt, /*this.opts.*/vix2ch);
 //        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
-            var chbuf = newbuf.slice(vix2ch[0], vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
+            var chbuf = newbuf.slice(vix2ch[0], vix2ch[0] + vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
             if (vix2alt) //paranoid check on alternate range of channels
             {
                 var ofs;
-                var altbuf = newbuf.slice(vix2alt[0], vix2alt[1]); //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
-                if (ofs = bufdiff(chbuf, altbuf)) console.log("Vixen2 alt buf %j doesn't match %j at ofs %d".red, vix2alt, vix2ch, ofs);
+                var altbuf = newbuf.slice(vix2alt[0], vix2alt[0] + vix2alt[1]); //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
+                if (ofs = bufdiff(chbuf, altbuf)) console.warn("Vixen2 alt buf %j %j doesn't match %j %j at ofs %d".red, vix2alt, altbuf, vix2ch, chbuf, ofs);
             }
             if (/*frtime*/ m_prevbuf && (model.opts.dedup !== false) && !bufdiff(chbuf, m_prevbuf)) return; //don't force dirty on first frame, only if no prior buf
 //        if (this.opts.dedup !== false)
@@ -208,9 +218,9 @@ function ExtendModel(model)
 /*
     model.vix2set = function(frtime, vix2buf)
     {
-//    var vix2ch = chbuf.slice(400, 16);
+//    var vix2ch = chbuf.slice(400, 400 + 16);
 //    var dirty = this.buf.compare(vix2ch);
-//    chbuf.copy(this.buf, 0, 400); //slice(400, 16);
+//    chbuf.copy(this.buf, 0, 400); //slice(400, 400 + 16);
 //    var dirty = false, mism = false;
 //    const INX = [139, 125, 118, 117, 116, 115, 114, 113, 112, 111, 110, 109, 108, 107, 106, 105];
 //    var ALT = []; for (var i = 400; i < 400 + 16; ++i) ALT.push(i);
@@ -226,8 +236,8 @@ function ExtendModel(model)
 
 //        if (frtime && this.opts.dedup && !bufdiff(vix2buf, this.prevbuf)) return false;
 //        if (this.opts.dedup) this.prevbuf = vix2buf;
-        var chbuf = vix2buf.slice(vix2ch[0], vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
-        var altbuf = vix2alt? vix2buf.slice(vix2alt[0], vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
+        var chbuf = vix2buf.slice(vix2ch[0], vix2ch[0] + vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
+        var altbuf = vix2alt? vix2buf.slice(vix2alt[0], vix2alt[0] + vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
         if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /-*this.opts.*-/vix2alt, /-*this.opts.*-/vix2ch);
 //        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
         if (/-*frtime*-/ this.prevbuf && (this.opts.dedup !== false) && !bufdiff(chbuf, this.prevbuf)) return false; //don't force dirty on first frame, only if no prior buf

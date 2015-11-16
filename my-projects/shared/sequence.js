@@ -36,6 +36,7 @@ function Sequence(opts)
     add_prop('folder', this.opts.folder || path.dirname(caller(1, __filename))); //allow caller to override auto-collect folder in case sequence is elsewhere
     console.log("seq folder", this.folder);
     this.name = this.opts.name || shortname(this.folder); //caller(2)));
+    this.latency = isdef(this.opts.latency)? this.opts.latency: 230; //default 230 msec audio delay; TODO: try to calculate this based on bitrate + framesize?
 
     var m_media = [];
     Object.defineProperty(this, 'media', //let caller set it, but not directly
@@ -44,13 +45,13 @@ function Sequence(opts)
         set: function(newval) { (Array.isArray(newval)? newval: [newval]).forEach(function(pattern) { this.addMedia(pattern); }.bind(this)); },
         enumerable: true,
     });
-    var m_duration;
+    var m_duration = 0;
     Object.defineProperty(this, 'duration', { enumerable: true, get: function()
     {
-        if (m_duration) return m_duration;
-        m_duration = 0;
-        m_media.forEach(function(media) { m_duration += media.duration; });
-        this.ResetCue(m_duration);
+//        if (m_duration) return m_duration;
+//        m_duration = 0;
+//        m_media.forEach(function(media) { m_duration += media.duration; });
+//        this.ResetCue(m_duration);
         return m_duration;
     }});
     this.addMedia = function(pattern)
@@ -64,6 +65,7 @@ function Sequence(opts)
 //        console.log("old count %d, new %d, latest ", oldcount, this.media.length, this.media.slice(-1)[0]);
         if (this.media.length > oldcount + 1) throw "Multiple files found at '" + where + "' ";
         if (this.media.length == oldcount) throw "Can't find media at '" + where + "'";
+        if (opts.use_media_len /*!== false*/) m_duration += this.media.slice(-1)[0].duration;
         return this; //fluent
     }
 
@@ -77,7 +79,13 @@ function Sequence(opts)
     this.addCue = function(newcue)
     {
         console.log("add cue %j", newcue);
-        m_cues.push_ifdef(new Cue(newcue));
+        m_cues.push(new Cue(newcue));
+        if (!opts.use_media_len)
+        {
+            var last_cue = m_cues.slice(-1)[0];
+//            if (cue_end && !m_cuemax) process.nextTick(function() { m_duration = m_cuemax; }); //wait until all cues + media loaded
+            m_duration = Math.max(m_duration, last_cue.to || last_cue.from);
+        }
         return this; //fluent
     }
 
@@ -123,19 +131,26 @@ Sequence.prototype.get_duration = function(filename)
 //generic implementation
 Sequence.prototype.render = function(frtime)
 {
-    var portbufs = {};
-    var frnext_min = (this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
+    var portbufs = {}, hasbuf = false;
+    var frnext_min = this.duration; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
+//check each port for pending output and next refresh time:
     ChannelPool.all.forEach(function(chpool, inx, all)
     {
-        chpool.models.forEach(function(model, inx, all)
-        {
-            var frnext = model.render(frtime); //tell model to render new output
-            if (frnext < frnext_min) frnext_min = frnext;
-        });
-        var portbuf = chpool.render();
-        if (portbuf) portbufs[chpool.name] = portbuf;
+//        chpool.models.forEach(function(model, inx, all)
+//        {
+//            var frnext = model.render(frtime); //tell model to render new output
+//            if (frnext < frnext_min) frnext_min = frnext;
+//        });
+        var portbuf = chpool.render(frtime); //{frnext, buf}
+        if (!portbuf) return; //continue;
+        portbufs[chpool.name] = portbuf.buf;
+        if (portbuf.buf) hasbuf = true;
+//        if (portbuf.frnext === false) return; //no further animation wanted
+//        if (portbuf.frnext === true) portbuf.frnext = frtime + ?; //asap; //this.duration; //one more update at end of seq
+        if (typeof portbuf.frnext !== 'number') return;
+        frnext_min = Math.min(frnext_min, portbuf.frnext); //set next animation frame time
     });
-    return {frnext: frnext_min, bufs: portbufs};
+    return {frnext: frnext_min, bufs: hasbuf? portbufs: null};
 }
 
 
@@ -176,7 +191,7 @@ Sequence.prototype.xrender = function(frtime)
     for (var i = 0; i < 4; ++i)
     {
         var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
-        var portbuf = buf.slice(used, len); used += len;
+        var portbuf = buf.slice(used, used + len); used += len;
         portbuf.fill(0x11 * (i + 1)); //TODO
         frdata['port' + i] = portbuf;
     }

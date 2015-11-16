@@ -142,8 +142,8 @@ function show_group(name, range_check)
 //    var minch = 9999, maxch = 0;
     ranges.forEach(function(range, inx)
     {
-        if (!Array.isArray(range) /*typeof range !== 'object'*/) range = [range, +0];
-        for (var ch = range[0]; ch <= range[0] + range[1]; ++ch) okch[ch] = inx;
+        if (!Array.isArray(range) /*typeof range !== 'object'*/) range = [range, +1];
+        for (var ch = range[0]; ch < range[0] + range[1]; ++ch) okch[ch] = inx;
     });
     var ok = chmap[name].every(function(ch, chname, grp)
     {
@@ -242,140 +242,202 @@ var Rect2D = models.Rect2D;
 var Strip1D = models.Strip1D;
 var Single0D = models.Single0D;
 
+
 //custom models:
 var IcicleSegment2D = require('my-projects/models/icicles');
-var Columns2D = require('my-projects/models/columns');
+//var Columns2D = require('my-projects/models/columns');
 
 //NOTE: set zinit to allow smoother xition from previous seq
 //NOTE: vixch should match profile info from above
 
 
-//show_group('fx', [395, +4]);
-var fx = noport.alloc(Strip1D, {name: 'fx', w: 5, zinit: false, vix2ch: [395, +4], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
+//show_group('fx', [395, +5]);
+var fx = noport.alloc(Strip1D, {name: 'fx', w: 5, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
 fx.vix2render = function() {} //TODO
 
-//show_group('snglobe', [300, +1], [418, +1]);
-var snglobe = noport.alloc(Strip1D, {name: 'snglobe', w: 2, zinit: false, vix2ch: [300, +1], vix2alt: [418, +1], macro: +0, bitmap: +1});
+//show_group('snglobe', [300, +2], [418, +2]);
+var snglobe = noport.alloc(Strip1D, {name: 'snglobe', w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
 snglobe.vix2render = function() {} //TODO
 
 
-//show_group('col', [181, +23]);
-var cols_LMRH = yport.alloc(Columns2D, {name: 'cols-LMRH', /*w: 42, h: 51, numnodes: 3 * 80,*/ rgb: 'GRB', zinit: false, vix2ch: [181, +23], noop: [181, 182, 189, 197, 198]});
-//show_group('colL', [181, +7]);
-//var colL = yport.alloc(Strip1D, {name: 'colL', w: 6, zinit: false, adrs: cols_, startch: cols_LMR.startch}); //, vix2ch: [183, +5], top: 183, bottom: 188}); //overlay
-//show_group('colM', [189, +7]);
-//var colM = yport.alloc(Strip1D, {name: 'colM', w: 7, zinit: false, startch: cols_LMR.startchvix2ch: [190, +6], top: 190, bottom: 196});
-//show_group('colR', [197, +7]);
-//var colR = yport.alloc(Strip1D, {name: 'colR', w: 6, zinit: false, vix2ch: [199, +5], top: 199, bottom: 204});
+/*
+//show_group('col', [181, +24]);
+var cols_LMRH = yport.alloc(Columns2D, {name: 'cols-LMRH', rgb: 'GRB', zinit: false, vix2ch: [181, +24], noop: [181, 182, 189, 197, 198]}); //w: 42, h: 51, numnodes: 3 * 80,
+//show_group('colL', [181, +8]);
+//var colL = yport.alloc(Strip1D, {name: 'colL', w: 6, zinit: false, adrs: cols_, startch: cols_LMR.startch}); //, vix2ch: [183, +6], top: 183, bottom: 188}); //overlay
+//show_group('colM', [189, +8]);
+//var colM = yport.alloc(Strip1D, {name: 'colM', w: 7, zinit: false, startch: cols_LMR.startchvix2ch: [190, +7], top: 190, bottom: 196});
+//show_group('colR', [197, +8]);
+//var colR = yport.alloc(Strip1D, {name: 'colR', w: 6, zinit: false, vix2ch: [199, +6], top: 199, bottom: 204});
+*/
 
-//show_group('ic', [2, +13]);
-var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 33, h: 10, zinit: false});
-var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 30, h: 10, zinit: false});
-var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 30, h: 10, zinit: false});
-var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 24+8, h: 10, zinit: false});
-var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 34, h: 10, zinit: false});
-var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 15+33, h:10, zinit: false});
-var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, zinit: false, vix2ch: [2, +13]});
-ic_all.vix2render = function() {} //TODO
+
+/*
+debugger;
+var aprop = {}; //noport.alloc(Strip1D, {name: 'aprop', w: 14, zinit: false, vix2ch: [2, +14]});
+aprop.vix2render = function()
+{
+//    debugger;
+    for (var i = 0; i < 14; ++i) this.pixel(i, this.vix2buf[i]);
+}
+var ic1 = noport.alloc(Strip1D, {name: 'ic1', w: 2, zinit: false, vix2ch: [2, +2]});
+ic1.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic2 = noport.alloc(Strip1D, {name: 'ic2', w: 2, zinit: false, vix2ch: [4, +2]});
+ic2.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic3 = noport.alloc(Strip1D, {name: 'ic3', w: 2, zinit: false, vix2ch: [6, +2]});
+ic3.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic4 = noport.alloc(Strip1D, {name: 'ic4', w: 2, zinit: false, vix2ch: [8, +2]});
+ic4.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic5 = noport.alloc(Strip1D, {name: 'ic5', w: 2, zinit: false, vix2ch: [10, +2]});
+ic5.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic6 = noport.alloc(Strip1D, {name: 'ic6', w: 2, zinit: false, vix2ch: [12, +2]});
+ic6.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+var ic7 = noport.alloc(Strip1D, {name: 'ic7', w: 2, zinit: false, vix2ch: [14, +2]});
+ic7.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2buf[1]); }
+*/
+
+//show_group('ic', [2, +14]);
+/*
+var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 33, h: 10, zinit: false, order: [{from: 33, to: 1}]});
+var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
+var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
+var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 24+8, h: 10, zinit: false, order: [{from: 24+8, to: 1+8}, {from: 8, to: 1}]});
+var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 34, h: 10, zinit: false, order: [{from: 34, to: 1}]});
+var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 15+33, h:10, zinit: false, order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
+var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, zinit: false, vix2ch: [2, +14]});
+*/
+var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 4, h: 2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
+var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 4, h:2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
+var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 16, h: 2, zinit: false, vix2ch: [2, +14]});
+
+ic_all.vix2render = function()
+{
+    if (!this.xmap) //map Vixen2 ic# to ic columns
+    {
+        this.xmap = [];
+//        for (var x = 0; x < this.opts.w; ++x) this.xspread[Math.round(x / this.vix2ch[1])]
+        for (var x = 0; x < this.opts.vix2ch[1]; ++x) this.xmap.push(Math.round(this.opts.w * x / this.opts.vix2ch[1]));
+        this.xmap.push(this.opts.w);
+        console.log("ic xmap:", this.xmap);
+    }
+//    for (var x = this.xmap0, xinc = this.opts.w / this.vix2ch[1]; x < this.opts.w; x += xinc) //207 / 14 ~= 15 pixels wide each Vix2 seg
+//    for (var seg = 0; seg < this.opts.vix2ch[1]; ++seg)
+    this.vix2buf.forEach(function(chval, inx)
+    {
+        var segcolor = this.color(chval * 0x10101); //{red: chval, green: chval, blue: chval}); //set to grayscale
+//        console.log("set [%d..%d] to %s", this.xmap[inx], this.xmap[inx + 1], segcolor);
+        for (var x = this.xmap[inx]; x < this.xmap[inx + 1]; ++x)
+            this.column(x, segcolor);
+    }.bind(this));
+//    console.log("vixbuf", this.vix2buf);
+//    console.log("icbuf", this.json());
+}
 
 //custom node ordering:
-icbig.xy2node = function(x, y)
-{
-    const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 9, 10, 11, 12, 13, 16, 15, 14];
-    if (x < 15) return (15+33-1 - x) * 10 + 10-1 - y;
-    if (x < 15 + 33) return (ORDER[x - 15] - 1) * 10 + 10-1 - y;
-}
+//icbig.xy2node = function(x, y)
+//{
+//    const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 9, 10, 11, 12, 13, 16, 15, 14];
+//    if (x < 15) return (15+33-1 - x) * 10 + 10-1 - y;
+//    if (x < 15 + 33) return (ORDER[x - 15] - 1) * 10 + 10-1 - y;
+//}
+//ic_all.xy2node = function(x, y)
+//{
+//    if (x < 33) return ic1.xy2node(x, y); //(33-1 - x) * 10 + 10-1 - y;
+//    if (x < 33 + 30) return ic2.xy2node(x - 33, y); //(33+30-1 - x) * 10 + 10-1 - y;
+//    if (x < 33 + 30 + 30) return ic3.xy2node(x - 33 - 30, y); //(33+30+30-1 - x) * 10 + 10-1 - y;
+//    if (x < 33 + 30 + 30 + 24+8) return ic4.xy2node(x - 33 - 30 - 30, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
+//    if (x < 33 + 30 + 30 + 24+8 + 34) return ic5.xy2node(x - 33 - 30 - 30 - 24-8, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
+//    return icbig.xy2node(x - 33 - 30 - 30 - 24-8 - 34, y);
+//}
 
-ic_all.xy2node = function(x, y)
-{
-    if (x < 33) return ic1.xy2node(x, y); //(33-1 - x) * 10 + 10-1 - y;
-    if (x < 33 + 30) return ic2.xy2node(x - 33, y); //(33+30-1 - x) * 10 + 10-1 - y;
-    if (x < 33 + 30 + 30) return ic3.xy2node(x - 33 - 30, y); //(33+30+30-1 - x) * 10 + 10-1 - y;
-    if (x < 33 + 30 + 30 + 24+8) return ic4.xy2node(x - 33 - 30 - 30, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
-    if (x < 33 + 30 + 30 + 24+8 + 34) return ic5.xy2node(x - 33 - 30 - 30 - 24-8, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
-    return icbig.xy2node(x - 33 - 30 - 30 - 24-8 - 34, y);
-}
 
-//show_group('floods', [282, +15], [400, +15]);
-var floods = gport.alloc(Rect2D, {name: 'floods', w: 4, h: 4, zinit: false, vix2ch: [282, +15], vix2alt: [400, +15]}); //, chpool: aport}); //new Model();
+/*
+//show_group('floods', [282, +16], [400, +16]);
+var floods = gport.alloc(Rect2D, {name: 'floods', w: 4, h: 4, zinit: false, vix2ch: [282, +16], vix2alt: [400, +15]}); //, chpool: aport}); //new Model();
 floods.vix2render = function() {} //TODO
 
-//show_group('mtree', [47, +23]);
-var mtree = gport.alloc(Strip1D, {name: 'mtree', w: 24, zinit: false, vix2ch: [47, +23]});
+//show_group('mtree', [47, +24]);
+var mtree = gport.alloc(Strip1D, {name: 'mtree', w: 24, zinit: false, vix2ch: [47, +24]});
 mtree.vix2render = function() {} //TODO
-//show_group('mtree_bank', [71, +3]);
-var mtree_bank = noport.alloc(Strip1D, {name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +3], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
+//show_group('mtree_bank', [71, +4]);
+var mtree_bank = noport.alloc(Strip1D, {name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
 mtree_bank.vix2render = function() {} //TODO
-//show_group('tb', [75, +1]);
-var tb = noport.alloc(Strip1D, {name: 'tb', w: 2, zinit: false, vix2ch: [75, +1], ball1: 75, ball2: 76});
+//show_group('tb', [75, +2]);
+var tb = noport.alloc(Strip1D, {name: 'tb', w: 2, zinit: false, vix2ch: [75, +2], ball1: 75, ball2: 76});
 tb.vix2render = function() {} //TODO
 
-//show_group('angel', [40, +2]);
-var angel = gport.alloc(Strip1D, {name: 'angel', w: 3, zinit: false, vix2ch: [40, +2], body: 40, wings: 41, trumpet: 42});
+//show_group('angel', [40, +3]);
+var angel = gport.alloc(Strip1D, {name: 'angel', w: 3, zinit: false, vix2ch: [40, +3], body: 40, wings: 41, trumpet: 42});
 angel.vix2render = function() {} //TODO
 
-//show_group('star', [43, +2]);
-var star = noport.alloc(Strip1D, {name: 'star', w: 3, zinit: false, vix2ch: [43, +2], aura_B: 43, inner_Y: 44, outer_W: 45});
+//show_group('star', [43, +3]);
+var star = noport.alloc(Strip1D, {name: 'star', w: 3, zinit: false, vix2ch: [43, +3], aura_B: 43, inner_Y: 44, outer_W: 45});
 star.vix2render = function() {} //TODO
 
 
-//show_group('shep', [103, +3]);
-var shep = bport.alloc(Strip1D, {name: 'shep', w: 4, zinit: false, vix2ch: [103, +3], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
+//show_group('shep', [103, +4]);
+var shep = bport.alloc(Strip1D, {name: 'shep', w: 4, zinit: false, vix2ch: [103, +4], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
 shep.vix2render = function() {} //TODO
-//show_group('sheep', [107, +5]);
-var sheep = bport.alloc(Strip1D, {name: 'sheep', w: 6, zinit: false, vix2ch: [107, +5], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
+//show_group('sheep', [107, +6]);
+var sheep = bport.alloc(Strip1D, {name: 'sheep', w: 6, zinit: false, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
 sheep.vix2render = function() {} //TODO
-//show_group('she_bank', [113, +3]);
-var sh_bank = bport.alloc(Strip1D, {name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +3], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
+//show_group('she_bank', [113, +4]);
+var sh_bank = bport.alloc(Strip1D, {name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
 sh_bank.vix2render = function() {} //TODO
 
 
-//show_group('gdoor', [298, +1], [416, +1]);
-var gdoor = wport.alloc(Strip1D, {name: 'gdoor', w: 2, zinit: false, vix2ch: [298, +1], vix2alt: [416, +1], macro: +0, bitmap: +1});
+//show_group('gdoor', [298, +2], [416, +2]);
+var gdoor = wport.alloc(Strip1D, {name: 'gdoor', w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +1], macro: +0, bitmap: +1});
 gdoor.vix2render = function() {} //TODO
 
-//show_group('ab', [16, +23]);
-var ab = wport.alloc(Rect2D, {name: 'ab', w: 3, h: 8, zinit: false, vix2ch: [16, +23], body: +0, wings: +1, bell: +2});
+//show_group('ab', [16, +24]);
+var ab = wport.alloc(Rect2D, {name: 'ab', w: 3, h: 8, zinit: false, vix2ch: [16, +24], body: +0, wings: +1, bell: +2});
 ab.vix2render = function() {} //TODO
 
-//show_group('nat', 46, [83, +7], 232);
+//show_group('nat', 46, [83, +8], 232);
 var cross = wport.alloc(Single0D, {name: 'cross', numch: 1, zinit: false, vix2ch: 46, cross: 46});
 cross.vix2render = function() {} //TODO
-var nat = wport.alloc(Strip1D, {name: 'nat-people', w: 9, vix2ch: [83, +7], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
+var nat = wport.alloc(Strip1D, {name: 'nat-people', w: 9, vix2ch: [83, +9], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
 nat.vix2render = function() {} //TODO
 var donkey = wport.alloc(Single0D, {name: 'donkey', numch: 1, zinit: false, vix2ch: 232, donkey: 232});
 donkey.vix2render = function() {} //TODO
 
-//show_group('gift', [77, +4], 82);
-var gift = wport.alloc(Strip1D, {name: 'gift', w: 6, zinit: false, vix2ch: [77, +4], gift_1M: 77, gift_2R: 78, gift_3B_top: 79, gift_3B_bot: 80, tags: 81});
+//show_group('gift', [77, +5], 82);
+var gift = wport.alloc(Strip1D, {name: 'gift', w: 6, zinit: false, vix2ch: [77, +5], gift_1M: 77, gift_2R: 78, gift_3B_top: 79, gift_3B_bot: 80, tags: 81});
 gift.vix2render = function() {} //TODO
 var city = wport.alloc(Single0D, {name: 'city', numch: 1, zinit: false, vix2ch: 82, city: 82});
 city.vix2render = function() {} //TODO
 
-//show_group('acc', [96, +4]);
-var acc = wport.alloc(Strip1D, {name: 'acc', w: 5, zinit: false, vix2ch: [96, +4], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
+//show_group('acc', [96, +5]);
+var acc = wport.alloc(Strip1D, {name: 'acc', w: 5, zinit: false, vix2ch: [96, +5], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
 acc.vix2render = function() {} //TODO
-//show_group('acc_bank', [101, +1]);
-var acc_bank = wport.alloc(Strip1D, {name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +1], on23_off01: 101, on13_off02: 102});
+//show_group('acc_bank', [101, +2]);
+var acc_bank = wport.alloc(Strip1D, {name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
 acc_bank.vix2render = function() {} //TODO
 
 //show_group('tuneto', 205);
 var tuneto = wport.alloc(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
 tuneto.vix2render = function() {} //TODO
 
-//show_group('af', [117, +63]);
-//show_group('arches', [117, +31]);
-//show_group('fans', [149, +31]);
-//var af = aport.alloc(Rect2D, {name: 'af', w: 8, h: 8, zinit: false, vix2ch: [117, +63]});
-var arches = wport.alloc(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2ch: [117, +31]});
+//show_group('af', [117, +64]);
+//show_group('arches', [117, +32]);
+//show_group('fans', [149, +32]);
+//var af = aport.alloc(Rect2D, {name: 'af', w: 8, h: 8, zinit: false, vix2ch: [117, +64]});
+var arches = wport.alloc(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2ch: [117, +32]});
 arches.vix2render = function() {} //TODO
-var fans = wport.alloc(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +31]});
+var fans = wport.alloc(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +32]});
 fans.vix2render = function() {} //TODO
+*/
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // apply custom model extensions:
 
+debugger;
 var numext = [0, 0];
 ChannelPool.all.forEach(function(chpool)
 {

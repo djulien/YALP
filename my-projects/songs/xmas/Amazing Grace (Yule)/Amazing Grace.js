@@ -2,7 +2,7 @@
 'use strict';
 
 var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
-var seq = module.exports = new Sequence({use_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = module.exports = new Sequence({xuse_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];
@@ -53,7 +53,7 @@ seq.render = function(frtime, buf)
     for (var i = 0; i < 4; ++i)
     {
         var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
-        var portbuf = buf.slice(used, len); used += len;
+        var portbuf = buf.slice(used, used + len); used += len;
 //        portbuf.fill(0x11 * (i + 1)); //TODO: port ch remap
         frdata['port' + i] = portbuf;
     }

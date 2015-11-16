@@ -37,7 +37,7 @@ function ChannelPool(opts)
 //        if (!m_numch) require('callsite')().forEach(function(stack, inx) { console.log(stack); });
         if (!m_numch || !m_buf) debugger;
         if (!m_numch) throw "Chpool: no channels allocated";
-        console.log("chpool '%s': %s buf len %d", this.name, m_buf? "return": "alloc", m_numch);
+//        console.log("chpool '%s': %s buf len %d", this.name, m_buf? "return": "alloc", m_numch);
 //TODO: alloc prevbuf for dedup
         if (!m_buf) m_buf = new Buffer(m_numch);
         return m_buf;
@@ -69,13 +69,21 @@ function ChannelPool(opts)
 }
 
 
-ChannelPool.prototype.render = function(force)
+ChannelPool.prototype.render = function(frtime, force)
 {
     if (!this.dirty && !force) return null;
-    var usedlen = this.numch; //TODO
+//    var usedlen = this.numch; //TODO
+    var frnext_min = false; //this.duration; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
+    this.models.forEach(function(model, inx, all)
+    {
+        var frnext = model.render(frtime); //tell model to render new output
+        if (typeof frnext !== 'number') return;
+        frnext_min = (typeof frnext_min === 'number')? Math.min(frnext_min, frnext): frnext;
+    });
     this.dirty = false;
 //TODO: dedup
-    return this.buf.slice(0, usedlen);
+//    return this.buf.slice(0, usedlen);
+    return {frnext: frnext_min, buf: this.buf};
 }
 
 //eof

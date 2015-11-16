@@ -44,6 +44,7 @@
 		<Unit filename="README.md" />
 		<Unit filename="TODO.txt" />
 		<Unit filename="bin/player-bk.js" />
+		<Unit filename="bin/player.js" />
 		<Unit filename="bin/playlist-bk.js" />
 		<Unit filename="bin/playlist.js" />
 		<Unit filename="bin/seq1-bk.js" />
@@ -127,9 +128,11 @@
 		<Unit filename="my-projects/models/columns.js" />
 		<Unit filename="my-projects/models/icicles.js" />
 		<Unit filename="my-projects/models/model.js" />
+		<Unit filename="my-projects/models/pixel-widths.js" />
 		<Unit filename="my-projects/package.json" />
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012RGB.pro" />
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012a.pro" />
+		<Unit filename="my-projects/playlists/empty.js" />
 		<Unit filename="my-projects/playlists/even-test-bk.js" />
 		<Unit filename="my-projects/playlists/hween2015a.js" />
 		<Unit filename="my-projects/playlists/model-test.js" />

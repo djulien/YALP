@@ -61,6 +61,16 @@ function Playlist(opts)
         return this; //fluent
     }
 
+    var m_speed = 1.0;
+    Object.defineProperty(this, 'speed', //let caller set it, but not directly
+    {
+        get: function() { return m_speed; },
+        set: function(newval) { m_speed = Math.min(Math.max(newval, .1), 100); },
+        enumerable: true,
+    });
+    if (isdef(this.opts.speed)) this.speed = this.opts.speed;
+//    console.log("speed %s", this.speed);
+
     var m_schedule = [];
     Object.defineProperty(this, 'schedule',
     {
@@ -115,7 +125,7 @@ function Playlist(opts)
                 send_frame(); //start playback
 //                if (this.opts.auto_play === false) m_que.unref(); //started manually; allow playlist to close after playback
                 if (this.opts.auto_play === false) setTimeout(function() { m_que.close(); }, 44000);
-                if (this.opts.auto_play === false) setTimeout(function() { console.log("handles", process._getActiveHandles()); }, 45000);
+//                if (this.opts.auto_play === false) setTimeout(function() { console.log("handles", process._getActiveHandles()); }, 45000);
                 break;
             case 'pause!':
                 reply("now paused, was? %s", !m_playing);
@@ -123,13 +133,19 @@ function Playlist(opts)
                 m_pending_stop = false; //satisfied
                 m_playing = null;
                 break;
+            case 'speed*':
+                if (m_playing) { reply("busy playing"); break; }
+                this.speed = data[1]; //Math.min(Math.max(1 * data[1], .1), 100);
+                reply("speed set to %s", this.speed);
+                break;
             case 'rewind!':
                 if (m_playing) { reply("busy playing"); break; }
+//TODO                m_que.broadcast({media: this.songs[this.selected].media[0], playback: false});
                 reply("rewind, was playing? %s", !!m_playing);
                 this.selected = this.frtime = 0;
                 break;
             case 'status!':
-                reply("song[%s/%s].frame[%s/%s], playing? %s, #subscribers %d", this.selected, this.songs.length, this.frtime, (this.selected < this.songs.length)? this.songs[this.selected].duration: -1, !!m_playing, m_subscribers.length);
+                reply("song[%s/%s].frame[%s/%s], playing? %s, #subscribers %d", this.selected, this.songs.length, this.frtime, (this.selected < this.songs.length)? this.songs[this.selected].duration: -1, !!m_playing, m_que.subscribers.length);
                 break;
             case 'quit!':
                 reply("will quit now");
@@ -153,51 +169,65 @@ function Playlist(opts)
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
         if (!this.frtime) this.elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
         var frdata = this.songs[this.selected].render(this.frtime); //, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
+//frdata.allbuf = this.songs[this.selected].chvals(this.frtime / 50); //debug: entire buf
 //        console.log("rendered frdata: %j", frdata);
         frdata.song = this.selected;
         frdata.frtime = this.frtime;
         if (!frdata.frnext) frdata.frnext = this.songs[this.selected].duration;
-        if (m_subscribers.length || !this.frtime) console.log("prep[@%s] song[%s/%s].frtime[%s/%s] for %s subscribers (%s good, %s bad), delay next %s", clock.Now.asString(), this.selected, this.songs.length, this.frtime, this.songs.length? this.songs[this.selected].duration: -1, m_subscribers.length, m_numgood, m_numbad, frdata.frnext - this.elapsed.now);
-//no    if (subscribers.length)
-        broadcast(frdata); //TODO: pipe?
+        frdata.delay = frdata.frnext / this.speed - this.elapsed.now; //for debug/info only
+        if (m_que.subscribers.length || !this.frtime) console.log("prep[@%s] song[%s/%s].frtime[%s/%s] for %s subscribers (%s good, %s bad), delay next %s", clock.Now.asString(), this.selected, this.songs.length, this.frtime, this.songs.length? this.songs[this.selected].duration: -1, m_que.subscribers.length, m_que.subscribers.numgood, m_que.subscribers.numbad, frdata.delay); //frnext - this.elapsed.now);
+//no, do it anyway    if (subscribers.length)
+        if (frdata.bufs) m_que.broadcast(frdata); //TODO: pipe?
+//example messages enqueued for 10 sec song:
+//{media: {filename: ..., duration: 10000, playback: true, latency: 230}}
+//{song: 0, frtime: 0, frnext: 50, bufs: {port1: [...], port2: [...], ...}}
+//{song: 0, frtime: 50, frnext: 100, bufs: {port1: [...], port2: [...], ...}}
+// :
+//{song: 0, frtime: 9950, frnext: 10000, bufs: {port1: [...], port2: [...], ...}}
+//{media: {filename: ..., duration: 10000, playback: true, latency: 230}}
+// :
 
+//        frdata.frnext /= this.speed;
+//        var limit = this.songs[this.selected].duration / this.speed;
         if ((this.frtime = frdata.frnext) >= this.songs[this.selected].duration) //advance to next frame, wrap at end; TODO: push down into Sequence?
         {
             this.frtime = 0;
             if (++this.selected >= this.songs.length) { this.selected = 0; if (this.opts.loop && (this.opts.loop !== true)) --this.opts.loop; }
 //            console.log("next up: song[%s/%s], stop? %s, loop? %s: ", this.selected, this.songs.length, m_pending_stop, this.loop, this.songs[this.selected]);
-            if (!this.selected && (m_pending_stop || !this.opts.loop)) return; //{ console.log("handles", process._getActiveHandles()); return; } //cmd('pause');
-            broadcast({media: this.songs[this.selected].media[0]}); //load new media in player
+            if (!this.selected && (m_pending_stop || !this.opts.loop)) { console.warn("done"); return; } //{ console.log("handles", process._getActiveHandles()); return; } //cmd('pause');
+            m_que.broadcast({media: this.songs[this.selected].media[0], playback: true}); //load new media in player
         }
 
 //    console.log("delay next %d", frdata.next - elapsed.now);
-        m_playing = setTimeout(function() { send_frame(); }, frdata.frnext - this.elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
+        m_playing = setTimeout(function() { send_frame(); }, frdata.frnext / this.speed - this.elapsed.now); //auto-correct cumulative timing; //frdata.curtime); //NOTE: timing is approx
     }.bind(this);
 
-    var m_subscribers = [];
-    var m_numgood = 0, m_numbad = 0;
-    m_que.rcv('frames', function(data_ignore, reply_cb)
+//    var m_subscribers = [];
+//    var m_numgood = 0, m_numbad = 0;
+    m_que.subscr /*.rcv*/('frames', function(data_ignore, reply_cb)
     {
 //debugger;
-        console.log("subscribe req:", data_ignore);
-        m_subscribers.push(reply_cb);
+//        console.log("subscribe req:", data_ignore);
+//        m_que.m_subscribers.push(reply_cb);
+//        m_que.subscribers.length = m_que.m_subscribers.length;
         reply_cb("okay, will send you frames");
     });
-    var broadcast = function(send_data)
-    {
-        console.log("playlist broadcast:", send_data);
-        var keepers = [];
-        m_numgood = m_numbad = 0;
-        m_subscribers.forEach(function(reply_cb, inx)
-        {
-            if (reply_cb(send_data) > 0) { ++m_numgood; keepers.push(reply_cb); }
-            else { console.log("stop sending to %s", inx); ++m_numbad; }
-        });
-        var pruned = m_subscribers.length - keepers.length;
-        if (!pruned) return;
-        m_subscribers = keepers;
-        console.log("%s subscribers left after %s pruned", m_subscribers.length, pruned);
-    }
+//    m_que.broadcast = function(send_data)
+//    {
+//        if (m_que.subscribers.length) console.log("playlist broadcast:", send_data);
+//        var keepers = [];
+//        m_que.subscribers.numgood = m_que.subscribers.numbad = 0;
+//        m_que.m_subscribers.forEach(function(reply_cb, inx)
+//        {
+//            if (reply_cb(send_data) > 0) { ++m_que.subscribers.numgood; keepers.push(reply_cb); }
+//            else { console.log("stop sending to %s", inx); ++m_que.subscribers.numbad; }
+//        });
+//        var pruned = m_que.m_subscribers.length - keepers.length;
+//        if (!pruned) return;
+//        m_que.m_subscribers = keepers;
+//        m_que.subscribers.length = m_que.m_subscribers.length;
+//        console.log("%s subscribers left after %s pruned", m_que.m_subscribers.length, pruned);
+//    }
 
 //NO    this.ports = {};
     if (this.opts.auto_play !== false) setTimeout(function() { this.scheduler(); }.bind(this), 1000); //give caller time to adjust schedule or async files to load

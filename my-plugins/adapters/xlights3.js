@@ -64,7 +64,7 @@ function xLights3Sequence(opts)
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
-        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, m_numch); //all ch vals for this frame
+        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch); //all ch vals for this frame
         return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[chinx * m_numfr + frinx]: 0; //single ch val
     }
 //    debugger;

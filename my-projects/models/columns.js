@@ -74,7 +74,7 @@ var xymap = [], debug_map = [];
     {
         var xylist = [];
 //        for (var node = XY(Math.floor(inx / 8), Math.round(y)); node <
-//        xymap.push(this.buf.slice(start, len));
+//        xymap.push(this.buf.slice(start, start + len));
         debug_map.push(seg.start + '..' + (seg.start + yinc - 1));
         xymap.push(xylist);
     }
@@ -105,10 +105,10 @@ debugger;
 Columns2D.prototype.allocbuf = function(chbuf) //all Vixen2 channels
 {
     debugger;
-//    this.colL = buf.slice(0, 37);
-//    this.colH = buf.slice(37, 42);
-//    this.colM = buf.slice(37 + 42, 50);
-//    this.colR = buf.slice(37 + 42 + 50, 50);
+//    this.colL = buf.slice(0, 0 + 37);
+//    this.colH = buf.slice(37, 37 + 42);
+//    this.colM = buf.slice(37 + 42, 37 + 42 + 50);
+//    this.colR = buf.slice(37 + 42 + 50, 37 + 42 + 50 + 50);
 //divide target into segments representing Vixen2 channels:
     if (this.mapped_buf) throw "Duplicate buf remap";
     this.mapped_buf = [];
@@ -123,7 +123,7 @@ Columns2D.prototype.allocbuf = function(chbuf) //all Vixen2 channels
         for (var inx = 0, ofs = seg.start, inc = seg.span / seg.count, len = Math.round(inc); inx < seg.count; ++inx, ofs += inc)
         {
             var start = Math.round(ofs);
-            this.mapped_buf.push(this.buf.slice(start, len));
+            this.mapped_buf.push(this.buf.slice(start, start + len));
             this.debug_map.push(start + '..' + start + len - 1);
         }
     });

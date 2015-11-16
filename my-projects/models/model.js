@@ -3,17 +3,18 @@
 
 'use strict';
 
-var Color = require('onecolor');
-var int24 = require('int24');
+//var Color = require('onecolor');
 var inherits = require('inherits');
-var buffer = require('buffer');
+//var buffer = require('buffer');
 var caller = require('my-plugins/utils/caller').caller;
 var shortname = require('my-plugins/utils/shortname');
 var makenew = require('my-plugins/utils/makenew');
+var pixelwidths = require('my-projects/models/pixel-widths');
+
 var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
+require('my-plugins/my-extensions/object-enum'); //allow object.forEach()
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
-Color.isGray = function() { return (this.red() == this.green()) && (this.green() == this.blue()); }
 
 
 //use function names so model.name can be set from ctor:
@@ -34,7 +35,18 @@ function Model(opts)
     this.name = opts.name || this.constructor.name; //shortname(caller(1, __filename)));
     add_prop('nodelen', opts.rgb? 3: opts.rgbw? 4: opts.rg? 2: 1); //#bytes/node in hardware (rgb/w, no alpha)
     if (isdef(opts.numch) && isdef(opts.numpx) && (opts.numch != this.nodelen * opts.numpx)) throw "Numch " + opts.numch + " doesn't match numpx " + opts.numpx;
-    this.dirty = (opts.zinit !== false); //force initial render?
+    var m_dirty = false; //true/false or when becomes dirty (msec)
+    Object.defineProperty(this, 'dirty',
+    {
+        get: function() { return m_dirty; }, //opts.chpool.dirty;
+        set: function(newval)
+        {
+            if (newval && !m_dirty) opts.chpool.dirty = m_dirty = true; //only set chpool, not reset
+            else if (!newval && m_dirty) m_dirty = false;
+        }, //.bind(this),
+        enumerable: true,
+    });
+    if (opts.zinit !== false) this.dirty = true; //force initial render in case nothing else does; NOTE: buffer can't be allocated yet, so just set flag here
 //    debugger;
 //    console.log("model name %s, opts %j", this.constructor.name, opts);
 
@@ -53,7 +65,7 @@ function Model(opts)
     {
 //        opts.chpool.dirty = true; //kludge: assume that caller will update buf
         if (m_buf) return;
-        m_buf = opts.chpool.buf.slice(this.startch, this.numch); //slice from parent allows models to overlap
+        m_buf = opts.chpool.buf.slice(this.startch, this.startch + this.numch); //slice from parent allows models to overlap
 //        m_nodes = new DataView(m_buf); //new Uint32Array(m_buffer); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Typed_arrays
         m_buf.inspect = this.inspect_nodes;
         if (opts.zinit !== false) this.fill(this.color(opts.zinit)); //can be a color; //m_buf.fill(0);
@@ -61,39 +73,9 @@ function Model(opts)
     }.bind(this);
 
     this.nodeofs = function(inx) { return this.nodelen * inx; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
-    switch (this.nodelen)
-    {
-        case 1:
-            this.color = Mono.prototype.color;
-            this.toRGB = Mono.prototype.toRGB;
-            this.fill = Mono.prototype.fill;
-            this.pixel = Mono.prototype.pixel;
-            this.inspect_nodes = null;
-            break;
-        case 2:
-            this.color = Bicolor.prototype.color;
-            this.toRGB = Bicolor.prototype.toRGB;
-            this.fill = Bicolor.prototype.fill;
-            this.pixel = Bicolor.prototype.pixel;
-            this.inspect_nodes = Bicolor.prototype.inspect_nodes;
-            break;
-        case 3:
-            this.color = RGB.prototype.color;
-            this.toRGB = RGB.prototype.toRGB;
-            this.fill = RGB.prototype.fill;
-            this.pixel = RGB.prototype.pixel;
-            this.inspect_nodes = RGB.prototype.inspect_nodes;
-            break;
-        case 4:
-            this.color = RGBW.prototype.color;
-            this.toRGB = RGBW.prototype.toRGB;
-            this.fill = RGBW.prototype.fill;
-            this.pixel = RGBW.prototype.pixel;
-            this.inspect_nodes = RGBW.prototype.inspect_nodes;
-            break;
-        default:
-            throw "Unhandled node size: " + this.nodelen;
-    }
+    var subclass = [null, pixelwidths.Mono, pixelwidths.Bicolor, pixelwidths.RGB, pixelwidths.RGBW][this.nodelen];
+    if (!subclass) throw "Unhandled node size: " + this.nodelen;
+    subclass.prototype.forEach(function(func, name) { if (func) this[name] = func; }.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
 
 //no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
 //    Model.all.push(this);
@@ -113,232 +95,27 @@ function Model(opts)
 }
 
 
-function Mono() {} //dummy ctor
-//pre-convert color into correct node width and format:
-Mono.prototype.color = function(color)
-{
-/*
-        int brightness = RGB2R(rgb); //MAX(MAX(RGB2R(rgb), RGB2G(rgb)), RGB2B(rgb));
-        int more_row = 0xff - rownum * 0x11; //scale up row# to fill address space; NOTE: this will sort higher rows first
-//    rownum = 0x99 - rownum; //kludge: sort lower rows first to work like Vixen 2.x chipiplexing plug-in
-//    if (brightness && (prop->desc.numnodes == 56))? (n / 7): 0; //chipiplexed row# 0..7 (always 0 for pwm); assume horizontal matrix order
-        return RGB2Value(brightness, brightness? more_row: 0, brightness? rownum: 0); //tag dumb color with chipiplexed row# to force row uniqueness
-*/
-    switch (typeof color)
-    {
-        case 'boolean': return color? 255: 0;
-        case 'null': return 0;
-//        case 'undefined': throw "Color is undefined";
-        case 'object':
-            if (color instanceof Color) return color.lightness();
-            //fall thru
-        case 'string':
-            return Color(color).lightness();
-//            //fall thru
-//no        case 'number': //RGBA or 0xFF
-//            return (color & 0xFFFFFF00)? Math.max((color >>> 24) & 0xFF, (color >>> 16) & 0xFF, (color >>> 8) & 0xFF): color & 0xFF; //Color(color).lightness(): color;
-        case 'number': //RGB
-            return Math.max((color >>> 16) & 0xFF, (color >>> 8) & 0xFF, color & 0xFF);
-        default:
-            throw "Unhandled: convert " + typeof color + " to monochrome";
-    }
-//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
-}
-Mono.prototype.toRGB = function(color)
-{
-    return (color << 16) | (color << 8) | color; //Color('#FFF').lightness(color / 255).rgb();
-}
-Mono.prototype.fill = function(color)
-{
-    this.nodes.fill(color); //color2mono(color)); //TODO: this.nodes.?
-    this.dirty = true;
-    return this; //fluent
-}
-Mono.prototype.pixel = function(inx, color) //get/set node color
-{
-    if (!isdef(color)) return this.nodes[this.nodeofs(inx)]; //.readUInt8BE(this.nodeofs(i));
-    this.nodes[this.nodeofs(inx)] = color; //color2mono(color); //.writeUInt8BE(this.nodeofs(i), color2mono(color));
-    this.dirty = true;
-    return this; //fluent
-}
-//Mono.prototype.inspect_nodes = function(depth, opts) {}
-
-
-function Bicolor() {} //dummy ctor
-//pre-convert color into correct node width and format:
-Bicolor.prototype.color = function(color)
-{
-    switch (typeof color)
-    {
-        case 'boolean': return color? 0xFFFF: 0;
-        case 'null': return 0;
-//        case 'undefined': throw "Color is undefined";
-        case 'object':
-            if (color instanceof Color) return (color.red() << 8) | color.green(); //2-byte value
-            //fall thru
-        case 'string':
-            color = Color(color);
-            return (color.red() << 8) | color.green();
-//            //fall thru
-        case 'number': //RGB
-            return (color >>> 8) & 0xFFFF;
-        default:
-            throw "Unhandled: convert " + typeof color + " to monochrome";
-    }
-//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
-}
-Bicolor.prototype.toRGB = function(color)
-{
-    return color << 8; //Color({red: color >>> 8, green: color & 0xFF}).rgb();
-}
-Bicolor.prototype.fill = function(color)
-{
-//    color = color2rg(color);
-    for (var ofs = 0; ofs < this.numch; ofs += 2) this.nodes.writeUInt16BE(ofs, color);
-    this.dirty = true;
-    return this; //fluent
-}
-Bicolor.prototype.pixel = function(inx, color) //get/set node color
-{
-    if (!isdef(color)) return this.nodes.readUInt16BE(this.nodeofs(inx));
-    this.nodes.writeUInt16BE(this.nodeofs(inx), color); //color2rg(color));
-    this.dirty = true;
-    return this; //fluent
-}
-Bicolor.prototype.inspect_nodes = function(depth, opts)
-{
-    var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 2)
-    {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 2 + " "; break; }
-        buf += " " + ('0000' + this./*nodes.*/readUInt16BE(ofs).toString(16)).slice(-4);
-    }
-    return "<Bicolor-buf" + buf + ">";
-}
-
-
-function RGB() {} //dummy ctor
-//pre-convert color into correct node width and format:
-RGB.prototype.color = function(color)
-{
-    switch (typeof color)
-    {
-        case 'boolean': return color? 0xFFFFFF: 0;
-        case 'null': return 0;
-//        case 'undefined': throw "Color is undefined";
-        case 'object':
-            if (color instanceof Color) return color.rgb();
-            //fall thru
-        case 'string':
-            return Color(color).rgb();
-//            //fall thru
-        case 'number': //RGB
-            return color & 0xFFFFFF; // >>> 8; //drop alpha
-        default:
-            throw "Unhandled: convert " + typeof color + " to monochrome";
-    }
-//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
-}
-RGB.prototype.toRGB = function(color)
-{
-    return color; //.rgb();
-}
-RGB.prototype.fill = function(color)
-{
-    for (var ofs = 0; ofs < this.numch; ofs += 3) int24.writeUInt24BE(this.nodes, ofs, color);
-    this.dirty = true;
-    return this; //fluent
-}
-RGB.prototype.pixel = function(inx, color) //get/set node color
-{
-    if (!isdef(color)) return int24.readUInt24BE(this.nodes, this.nodeofs(inx)); //this.nodes.readUInt24BE(this.nodeofs(i));
-    int24.writeUInt24BE(this.nodes, this.nodeofs(inx), color); //this.nodes.writeUInt24BE(this.nodeofs(i), color);
-    this.dirty = true;
-    return this; //fluent
-}
-RGB.prototype.inspect_nodes = function(depth, opts)
-{
-    var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 3)
-    {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 3 + " "; break; }
-        buf += " " + ('000000' + int24.readUInt24BE(this/*.nodes*/, ofs).toString(16)).slice(-6);
-    }
-    return "<RGB-buf" + buf + ">";
-}
-
-
-function RGBW() {} //dummy ctor
-//pre-convert color into correct node width and format:
-RGBW.prototype.color = function(color)
-{
-    switch (typeof color)
-    {
-        case 'boolean': return color? 0xFF: 0; //just set white channel
-        case 'null': return 0;
-//        case 'undefined': throw "Color is undefined";
-        case 'object':
-            if (color instanceof Color) return color.isGray()? color.red(): color.rgb() << 8; //set white channel for grayscale or R/G/B if non-gray
-            //fall thru
-        case 'string':
-            color = Color(color);
-            return color.isGray()? color.red(): color.rgb() << 8;
-//            //fall thru
-        case 'number': //RGB
-            return ((color >>> 8 ^ color) & 0xFFFF)? color << 8: color & 0xFF; //color vs. grayscale
-        default:
-            throw "Unhandled: convert " + typeof color + " to monochrome";
-    }
-}
-RGBW.prototype.toRGB = function(color)
-{
-    if (color & 0xFFFFFF00) return color >>> 8; //RGB
-    return (color << 16) | (color << 8) | color; //grayscale
-}
-RGBW.prototype.fill = function(color)
-{
-    for (var ofs = 0; ofs < this.numch; ofs += 4) this.nodes.writeUInt32BE(ofs, color); //color2rgbw(color));
-    this.dirty = true;
-    return this; //fluent
-}
-RGBW.prototype.pixel = function(inx, color) //get/set node color
-{
-    if (!isdef(color)) return this.nodes.readUInt32BE(this.nodeofs(inx));
-    this.nodes.writeUInt32BE(this.nodeofs(inx), color); //color2rgbw(color));
-    this.dirty = true;
-    return this; //fluent
-}
-RGBW.prototype.inspect_nodes = function(depth, opts)
-{
-    var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 4)
-    {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 4 + " "; break; }
-        buf += " " + ('00000000' + this./*nodes.*/readUInt32BE(ofs).toString(16)).slice(-8);
-    }
-    return "<RGBW-buf" + buf + ">";
-}
-
-
 Model.prototype.clear = function(color)
 {
 //    console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.byteLength / 4, color.toString(16));
 //    for (var n = 0; n < this.numpx; n+= 4) m_nodes.setUint32(n, color); //CAUTION: byte offset, not uint32 offset
 //    m_dirty = true;
     this.fill(color || 0);
+    return this; //fluent
 }
+
 
 Model.prototype.render = function(frtime, force_dirty)
 {
-    throw "Model.render(): override this function in subclass";
-    this.frtime = frtime;
-    if (!this.dirty && !force_dirty) return;
-    this.fill(frtime); //TODO
+//    throw "Model.render(): override this function in subclass";
+    this.frtime = frtime; //latest render time
+//    if (!this.dirty && !force_dirty) return null;
+//already done unless animation is running  this.fill(frtime); //TODO
+    var frnext = false; //when next render is needed; false for never, true for asap
     this.dirty = false;
 //TODO    if (!dedup) parent_chpool.dirty = true;
-    return frtime + 999999; //TODO: tell caller when to update me again
+    return frnext; //frtime + 999999; //TODO: tell caller when to update me again
 }
-
 /*
     model.render = function(frtime, buf)
     {
@@ -392,6 +169,7 @@ function Rect2D(opts) //w, h, more_args)
 //    console.log("fiixup", [null].concat.apply(arguments));
 //    console.log("fix2", [null].concat(Array.from(arguments)));
     if (!(this instanceof Rect2D)) return makenew(Rect2D, arguments); //new (Rect2D.bind.apply(Rect2D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+    var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
     opts = (typeof opts === 'string')? {name: opts}: (typeof opts === 'number')? {numpx: opts}: opts || {};
     if (!isdef(opts.w)) opts.w = 16; //16 x 16 is good for simple icons, so use that as default
     if (!isdef(opts.h)) opts.h = 16;
@@ -399,6 +177,8 @@ function Rect2D(opts) //w, h, more_args)
     var args = Array.from(arguments); args[0] = opts;
     Model.apply(this, args);
 
+    add_prop('w', opts.w);
+    add_prop('h', opts.h);
 //additional methods for 2D node access:
     this.xy2node = function(x, y) { return (x < 0)? -1: (x >= opts.w)? opts.numpx: y * opts.w + x; } //if x out of range force result to be as well; override with custom node order
 //    var m_oldpixel = this.pixel.bind(this);
@@ -409,12 +189,28 @@ function Rect2D(opts) //w, h, more_args)
 inherits(Rect2D, Model);
 
 
+Rect2D.prototype.row = function(y, color)
+{
+    for (var x = 0; x < this.w; ++x)
+        this.pixel2D(x, y, color);
+    return this; //fluent
+}
+
+
+Rect2D.prototype.column = function(x, color)
+{
+    for (var y = 0; y < this.h; ++y)
+        this.pixel2D(x, y, color);
+    return this; //fluent
+}
+
+
 function Strip1D(opts)
 {
     if (!(this instanceof Strip1D)) return makenew(Strip1D, arguments); //new (Strip1D.bind.apply(Strip1D, [null].concat(Array.from(arguments))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
     opts = (typeof opts === 'string')? {name: opts}: (typeof opts === 'number')? {numpx: opts}: opts || {};
     if (!isdef(opts.w)) opts.w = 8; //16F688 typically drives 8 channels, so use that as default
-    if (!isdef(opts.numpx)) opts.numpx = opts.w * opts.h;
+    if (!isdef(opts.numpx)) opts.numpx = opts.w;
     var args = Array.from(arguments); args[0] = opts;
     Model.apply(this, args);
 }
@@ -452,7 +248,7 @@ function ChannelGroup(opts)
 //    var m_adrs = opts.adrs;
 //    var m_startch: opts.startch;
 //    var m_numch = opts.numch;
-//    var m_buf = get buf() { return ctlr.buf? ctlr.buf: ctlr.buf = this.buf.slice(ctlr.startch, ctlr.numch)}});
+//    var m_buf = get buf() { return ctlr.buf? ctlr.buf: ctlr.buf = this.buf.slice(ctlr.startch, ctlr.startch + ctlr.numch)}});
 }
 inherits(ChannelGroup, Fluent);
 

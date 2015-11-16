@@ -432,6 +432,41 @@ debugger;
 //                receiver.server = null; //socket.destroy();
 //            });
         },
+
+        subscribers: {numgood: 0, numbad: 0, length: 0, list: []},
+//        m_subscribers: [],
+//        m_numgood: 0,
+//        m_numbad: 0,
+        subscr: function(channel, cb) //same as rcv, but sender is a subscriber
+        {
+            this.rcv(channel, function(data, reply_cb)
+            {
+debugger;
+                console.log("subscribe req:", data);
+                this.subscribers.list.push(reply_cb);
+                this.subscribers.length = this.subscribers.list.length;
+                cb(data, reply_cb);
+//                reply_cb("okay, will send you iostats");
+            }.bind(this));
+        },
+        broadcast: function(send_data)
+        {
+            if (this.subscribers.length) console.log("broadcast:", send_data);
+            var keepers = [];
+            this.subscribers.numgood = this.subscribers.numbad = 0;
+            this.subscribers.list.forEach(function(reply_cb, inx)
+            {
+                if (reply_cb(send_data) > 0) { ++this.subscribers.numgood; keepers.push(reply_cb); }
+                else { console.log("stop sending to %s", inx); ++this.subscribers.numbad; }
+            }.bind(this));
+//            var pruned = this.subscribers.list.length - keepers.length;
+//            if (!pruned) return;
+            if (!this.subscribers.bad) return;
+            this.subscribers.list = keepers;
+            this.subscribers.length = this.subscribers.list.length;
+            console.log("%s subscribers left after %s pruned", this.subscribers.list.length, pruned);
+        },
+
 //        unref: function
         close: function()
         {
