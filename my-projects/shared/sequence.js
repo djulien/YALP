@@ -36,7 +36,8 @@ function Sequence(opts)
     add_prop('folder', this.opts.folder || path.dirname(caller(1, __filename))); //allow caller to override auto-collect folder in case sequence is elsewhere
     console.log("seq folder", this.folder);
     this.name = this.opts.name || shortname(this.folder); //caller(2)));
-    this.latency = isdef(this.opts.latency)? this.opts.latency: 230; //default 230 msec audio delay; TODO: try to calculate this based on bitrate + framesize?
+    if (isdef(this.opts.latency)) this.latency = this.opts.latency; //default 230 msec audio delay; TODO: try to calculate this based on bitrate + framesize?
+//    console.log("seq latency opts %s", this.latency);
 
     var m_media = [];
     Object.defineProperty(this, 'media', //let caller set it, but not directly
@@ -61,12 +62,19 @@ function Sequence(opts)
         var oldcount = this.media.length;
 //        console.log("old media %d", this.media.length, this.media.length? this.media[0]: null);
 //path.dirname(opts.dirname)
-        glob.sync(where = pattern || path.join(this.folder, '**', '!(*-bk).{mp3,mp4,wav,ogg,webm}')).forEach(function(filename) { filename = require.resolve(filename); console.log("adding media[%s] %s", m_media.length, filename); m_media.push({filename: filename, duration: 1000 * this.get_duration(filename)}); }.bind(this));
+        glob.sync(where = pattern || path.join(this.folder, '**', '!(*-bk).{mp3,mp4,wav,ogg,webm}')).forEach(function(filename)
+        {
+            filename = require.resolve(filename);
+            var info = this.get_duration(filename);
+            console.log("adding media[%s] %s", m_media.length, filename, "media info", info, "seq already has? %s", isdef(this.latency));
+            if (!isdef(this.latency) /*m_media.length*/) this.latency = info.latency; //isdef(this.opts.latency)? this.opts.latency: info.latency;
+            m_media.push({filename: filename, duration: 1000 * info.audiolen, latency: info.latency});
+            if (opts.use_media_len /*!== false*/) m_duration += medialen;
+//            console.log("latency", this.latency, this.opts.latency, this.media[0].latency);
+        }.bind(this));
 //        console.log("old count %d, new %d, latest ", oldcount, this.media.length, this.media.slice(-1)[0]);
         if (this.media.length > oldcount + 1) throw "Multiple files found at '" + where + "' ";
         if (this.media.length == oldcount) throw "Can't find media at '" + where + "'";
-        if (opts.use_media_len /*!== false*/) m_duration += this.media.slice(-1)[0].duration;
-        if (!oldcount) this.latency = isdef(this.opts.latency)? this.opts.latency: this.media[0].latency || 0; //TODO: calculate latency based on sample and bitrate
         return this; //fluent
     }
 
@@ -121,9 +129,10 @@ debugger;
 
 Sequence.prototype.get_duration = function(filename)
 {
+    var latency = 230; //TODO: calculate latency based on sample and bit rates and frame size
     switch (path.extname(filename))
     {
-        case '.mp3': return mp3len(filename);
+        case '.mp3': return {audiolen: mp3len(filename), latency: latency};
         default: throw "Don't know how to get duration of " + path.extname(filename) + " file";
     }
 }
@@ -151,7 +160,7 @@ Sequence.prototype.render = function(frtime)
         if (typeof portbuf.frnext !== 'number') return;
         frnext_min = Math.min(frnext_min, portbuf.frnext); //set next animation frame time
     });
-    return {frnext: frnext_min, bufs: hasbuf? portbufs: null};
+    return {frnext: frnext_min, outbufs: hasbuf? portbufs: null};
 }
 
 

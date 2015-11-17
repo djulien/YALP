@@ -42,29 +42,29 @@ var ChannelPool = require('my-projects/models/chpool');
 ChannelPool.all.forEach(function(chpool)
 {
     chpool.incoming = null;
-    if (!chpool.port) return;
+    if (!chpool.port) { console.log("no port", chpool.name); return; }
 //handlers:
     chpool.port
-        .on('open', function() { chpool.isopen = chpool.port.isOpen(); console.log("'%s' opened @%s".green, opts.device, ChannelPool.op_elapsed.scaled()); })
+        .on('open', function() { chpool.isopen = chpool.port.isOpen(); console.log("'%s' opened @%s".green, chpool.opts.device, ChannelPool.op_elapsed.scaled()); })
 //.flush(cb(err)) data received but not read
-        .port.on('data', function(data)
+        .on('data', function(data)
         {
-            console.log("'%s' received %d data @%s: '%s'".blue, chpool.device, data.length, ChannelPool.op_elapsed.scaled(), data.toString('utf8').replace(/\n/g, "\\n"));
+            console.log("'%s' received %d data @%s: '%s'".blue, chpool.opts.device, data.length, ChannelPool.op_elapsed.scaled(), data.toString('utf8').replace(/\n/g, "\\n"));
             if (!chpool.incoming) chpool.incoming = [];
             chpool.incoming.push(data);
         })
-        .on('error', function(err) { console.log("'%s' ERR @%s: ".red, opts.device, ChannelPool.op_elapsed.scaled(), err); })
-        .on('close', function() { chpool.isopen = false; console.log("'%s' closed @%s".cyan, opts.device, ChannelPool.op_elapsed.scaled()); });
+        .on('error', function(err) { console.log("'%s' ERR @%s: ".red, chpool.opts.device, ChannelPool.op_elapsed.scaled(), err); })
+        .on('close', function() { chpool.isopen = false; console.log("'%s' closed @%s".cyan, chpool.opts.device, ChannelPool.op_elapsed.scaled()); });
     chpool.port.wrote = function(data, cb) //write + drain; based on example from https://github.com/voodootikigod/node-serialport/blob/master/README.md
     {
         var elapsed = new Elapsed();
         chpool.port.write(data, function(err)
         {
-            if (err) { console.log("'%s' write error @%s: ".red + err, chpool.device, elapsed.scaled()); return cb(err); }
+            if (err) { console.log("'%s' write error @%s: ".red + err, chpool.opts.device, elapsed.scaled()); return cb(err); }
             chpool.port.drain(function(err)
             {
-                if (err) { console.log("'%s' drain error @%s: ".red + err, chpool.device, elapsed.scaled()); return cb(err); }
-                console.log("'%s' write+drain @%s: ".blue, chpool.device, elapsed.scaled());
+                if (err) { console.log("'%s' drain error @%s: ".red + err, chpool.pfs.device, elapsed.scaled()); return cb(err); }
+                console.log("'%s' write+drain @%s: ".blue, chpool.opts.device, elapsed.scaled());
                 cb();
             });
         });
@@ -72,6 +72,7 @@ ChannelPool.all.forEach(function(chpool)
 });
 
 
+//TODO: allow player to start before playlist (ipc problem)
 function Player(opts)
 {
 //    console.log("player args", arguments);
@@ -163,7 +164,7 @@ function Player(opts)
                 reply("ports %sed? %s", data, ok);
                 break;
             case 'status!':
-                reply("media '%j', speed %s, volume %s, muted %s, #subscribers %d, frtime %s, elapsed %s", this.media, this.speed, this.volume, this.mute, m_que.subscribers.length, this.frame.frtime, this.elapsed.now());
+                reply("media '%j', speed %s, volume %s, muted %s, #subscribers %d, frtime %s, elapsed %s", this.media, this.speed, this.volume, this.mute, m_que.subscribers.length, this.frame.frtime, this.elapsed.now);
                 break;
             case 'quit!':
                 reply("will quit now");
@@ -201,16 +202,16 @@ function Player(opts)
             if (!this.audiostart) //player started part way thru a song?
             {
                 console.log("no audio");
-                if (this.restarted) process.exit(1);
+                if (this.restartreq > 3) process.exit(1); //too many retries
                 m_playlist.send('cmd', 'rewind', function(data_reply) { console.log("rewind reply:", data_reply); return false; });
-                this.restarted = true;
+                this.restarted = (this.restarted || 0) + 1;
                 return true; //request more data
             }
             data.audiostart = this.audiostart; //debug
             data.ioahead = this.opts.ioahead; //debug
             data.when = this.audiostart + data.frtime - this.opts.ioahead; //when to send output to hardware; set .ioahead to match USB/serial latency
             this.frame = data; //remember latest one (for status/debug, not critical to playback)
-//??            if (!data.frtime) this.send_frame(data.bufs); //first frame can go immediately
+//??            if (!data.frtime) this.send_frame(data.outbufs); //first frame can go immediately
             this.send_frame(data, true);
         }
         return true; //request more data
@@ -228,15 +229,17 @@ function Player(opts)
 
 Player.prototype.port_open = function()
 {
+    console.log("port open");
     ChannelPool.op_elapsed = new Elapsed();
     ChannelPool.all.forEach(function(chpool)
     {
-        if (!chpool.port) return;
+        if (!chpool.port) { console.log(chpool.name + " no port"); return; }
         if (chpool.isopen) { console.log("port '%s' already open".red, port.name); return; }
+        console.log("open port ", chpool.name, chpool.opts.device);
         chpool.port.open(); //function(err)
 //        {
-//            if (err) { console.log("'%s' open err after %s: ".red + err, chpool.device, ChannelPool.op_elapsed.scaled()); return; }
-//            console.log("'%s' opened after %d".green, chpool.device, this.op_elapsed.scaled());
+//            if (err) { console.log("'%s' open err after %s: ".red + err, chpool.opts.device, ChannelPool.op_elapsed.scaled()); return; }
+//            console.log("'%s' opened after %d".green, chpool.opts.device, this.op_elapsed.scaled());
 //            chpool.isopen = chpool.port.isOpen(); //true;
 //            this.io("ls\n");
 //            this.io("echo hello there;\n");
@@ -250,11 +253,13 @@ Player.prototype.port_open = function()
 
 Player.prototype.port_close = function()
 {
+    console.log("port close");
     ChannelPool.op_elapsed = new Elapsed();
     ChannelPool.all.forEach(function(chpool)
     {
-        if (!chpool.port) return;
+        if (!chpool.port) { console.log(chpool.name + " no port"); return; }
         if (!chpool.isopen) { console.log("port '%s' already closed".red, port.name); return; }
+        console.log("close port ", chpool.name, chpool.opts.device);
         chpool.port.close();
     });
 }
@@ -271,20 +276,22 @@ Player.prototype.send_frame = function(frdata, first)
         /*this.pending =*/ setTimeout(function() { this.send_frame(frdata); }.bind(this), delay); //(re)try later
         return;
     }
-    if (delay < -this.opts.tslop) console.log("frame[%s] late by %d msec!".red, frdata.frtime, -delay);
-    else if (delay) console.log("frame[%s] timing is a little off but not bad: %d msec".yellow, frdata.frtime, delay);
+//    if (delay < -this.opts.tslop) console.log("frame[%s] late by %d msec!".red, frdata.frtime, -delay);
+//    else if (delay) console.log("frame[%s] timing is a little off but not bad: %d msec".yellow, frdata.frtime, delay);
+    frdata.outstatus = (delay < -this.opts.tslop)? "overdue": delay? "not-bad": "good";
 //add info to frdata for debug and iostats:
     frdata.delay = delay;
-    ftdata.sent = sent.asString(); //useful for debug
-    console.log("frame", frdata);
+    frdata.time_debug = 'sent ' + clock.Now.asString(sent) + ', when ' + clock.Now.asString(frdata.when) + ', audio ' + clock.Now.asString(this.audiostart); //useful for debug
+//    console.log("frame", frdata); //without input
 //first pass: save input received so far and send time-critical output
     ChannelPool.all.forEach(function(chpool, inx)
     {
         chpool.insave = chpool.incoming; //save input received so far for analysis
         chpool.incoming = null;
-        if (!chpool.device || !chpool.isopen) return;
-        if (!frdata.bufs[chpool.name]) return; //no data for this port
-        chpool.port.write(frdata.bufs[chpool.name]);
+        if (!chpool.opts.device || !chpool.isopen) return;
+        if (!(frdata.outbufs || {})[chpool.name]) return; //no data for this port
+//        console.log("write", typeof frdata.outbufs[chpool.name], frdata.outbufs[chpool.name].byteLength, frdata.outbufs[chpool.name]); process.exit();
+        chpool.port.write(frdata.outbufs[chpool.name]);
     });
 //second pass: package received input and send with output to I/O monitor
     frdata.inbufs = {};
@@ -294,6 +301,7 @@ Player.prototype.send_frame = function(frdata, first)
         (chpool.insave || []).forEach(function(inchunk, inx) { inlen += inchunk.length; }); //add up chunk lengths first to reduce mem alloc overhead
         if (inlen) frdata.inbufs[chpool.name] = Buffer.concat(chpool.insave, inlen); //Uint8Array(inlen);
     });
+    console.log("frame", frdata); //with input
     this.iostats(frdata); //send to I/O monitor for processing
 }
 
@@ -304,9 +312,10 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
 //    if (this.paused) { this.resume(); return; }
 //    this.paused = false;
     var svvol = this.volume;
+    this.pbcancel();
     this.elapsed = new Elapsed(); //measure startup latency
     this.audiostart = clock.Now() + (opts.latency || 0); //guess when audio will actually start; typically ~ 200 msec; adjust .latency to match
-    console.log("set audiostart", this.audiostart);
+    console.log("set audiostart", this.audiostart, clock.Now.asString(this.audiostart), "latency", opts.latency);
     return fs.createReadStream(opts.filename)
 //BROKEN            .pipe(pool) //does this make much difference?
 //        .pipe(new MuteStream()) //mute) //TODO
@@ -322,7 +331,7 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
                 {
 //                    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
                     var meminfo = opts.want_stats? process.memoryUsage(): {rss: 0, vsize: 0, heapTotal: 0, heapUsed: 0};
-                    console.log("audio start latency: actual %d, expected %d", this.elapsed.now(), opts.latency);
+                    console.log("audio start latency: actual %d, expected %d", this.elapsed.now, opts.latency);
                     this.audiostart = clock.Now(); //sync playback to actual audio start time; first (init) frame can be premature, but subsequent frames must be synced correctly
 //                    this.emit('song.start', {file: filename.path, latency: this.elapsed.now}); //, memrss: memscale(meminfo.rss), memvsize: memscale(meminfo.vsize || 0), memhtot: memscale(meminfo.heapTotal), memhused: memscale(meminfo.heapUsed)});
 //                    if (this.elapsed.now > 200) console.log("audio '%s' started @%s, reseting", path.basename(filename.path), this.elapsed.scaled());
@@ -330,7 +339,7 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
                 }.bind(this))
                 .once('flush', function () //speaker
                 {
-                    this.speaker = this.decoder = null;
+                    this.pbcancel();
                     console.log('audio flush time is: %s', this.elapsed.scaled());
                 }.bind(this))
                 .once('close', function () //speaker
@@ -338,7 +347,7 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
 //                    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
 //                        this.elapsed = {now: this.elapsed.now, scaled: function() { return }; //freeze elapsed timer
 //                    this.elapsed.pause();
-                    this.speaker = this.decoder = null;
+                    this.pbcancel();
                     console.log("audio ended @%s", this.elapsed.scaled());
 //TODO                    this.seqstop(); //NOTE: do this < emit(stop) so no trailing data comes in > next song starts
 //                    this.emit('song.stop', filename.path);
@@ -347,7 +356,7 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
                 .once('error', function (err) //stream or speaker
                 {
 //                    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                    this.speaker = this.decoder = null;
+                    this.pbcancel();
                     console.log('audio error @%s: '.red, this.elapsed.scaled(), err);
 //                    this.error("audio error: " + err); //emit('error', err, filename.path);
 //                        this.seqstop();
@@ -355,18 +364,27 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
                 .once('finish', function () //stream
                 {
 //                    if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-                    this.speaker = this.decoder = null;
+                    this.pbcancel();
                     console.log('audio finish time is: %s', this.elapsed.scaled());
                 }.bind(this));
         }.bind(this))
         .once('error', function (err)
         {
 //            if (!this.isSequence) throw "wrong 'this'"; //paranoid/sanity context check
-            this.speaker = this.decoder = null;
+            this.pbcancel();
             this.error("lame decoder error: " + err); //emit('error', err, filename.path);
 //            console.log('lame decoder error: '.red, err);
 //                this.seqstop();
         }.bind(this));
+}
+
+
+Player.prototype.pbcancel = function()
+{
+//TODO: unreliable
+    if (this.speaker) this.speaker.close();
+    if (this.decoder) this.decoder.end();
+    this.speaker = this.decoder = null;
 }
 
 

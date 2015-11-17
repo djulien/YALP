@@ -214,8 +214,9 @@ var RenXt = require('my-plugins/hw/RenXt');
 const FPS = 20; //target 50 msec frame rate
 ChannelPool.all.forEach(function(chpool, inx)
 {
-    if (!chpool.device) return;
-    chpool.port = new serial.SerialPort(chool.device, { baudrate: 242500, dataBits: 8, parity: 'none', stopBits: 1, buffersize: Math.floor(242500 / (1 + 8 + 2) / FPS) /*2048*10*/ }, false), //false => don't open immediately (default = true)
+    if (!chpool.opts.device) return;
+    console.log("port ", chpool.name, chpool.opts.device);
+    chpool.port = new serial.SerialPort(chpool.opts.device, { baudrate: 242500, dataBits: 8, parity: 'none', stopBits: 1, buffersize: Math.floor(242500 / (1 + 8 + 2) / FPS) /*2048*10*/ }, false), //false => don't open immediately (default = true)
     RenXt.AddProtocol(chpool); //protocol handler
 });
 
@@ -312,7 +313,7 @@ var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 2, h: 2, zinit: false, o
 var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 4, h: 2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
 var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
 var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 4, h:2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
-var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 16, h: 2, zinit: false, vix2ch: [2, +14]});
+var ic_all = yport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 16, h: 2, zinit: false, vix2ch: [2, +14]});
 
 ic_all.vix2render = function()
 {

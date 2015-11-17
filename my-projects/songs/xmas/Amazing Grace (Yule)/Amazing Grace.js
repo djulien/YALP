@@ -2,7 +2,7 @@
 'use strict';
 
 var Sequence = require('my-projects/shared/my-custom').Sequence; //sequence'); //base class
-var seq = module.exports = new Sequence({xuse_media_len: false, audio: false, xcues: true}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
+var seq = module.exports = new Sequence({xuse_media_len: false, audio: false, xcues: true, latency: 30}); //{auto_collect: true, interval: 50, dedupe: true, cache: false, });
 //seq.name = 'Amazing';
 //seq.timing = './tracks.txt'; //Audacity label file
 //seq.cues = [];

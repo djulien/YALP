@@ -40,7 +40,7 @@ function Playlist(opts)
     var m_ready = Q.promise(function(resolve, reject) //defer operation until ready
     {
 //        this.ready = function(value) { resolve(value); };
-        setTimeout(function() { resolve(0); }, 5000); //kludge: give async files time to load; TODO: pend/unpend
+        setTimeout(function() { resolve(0); }, 1000); //kludge: give async files time to load; TODO: pend/unpend
         this.error = function(value) { reject(value); };
     }.bind(this));
 
@@ -59,10 +59,10 @@ function Playlist(opts)
         {
             console.log("adding song[%s] %s", m_songs.length, require.resolve(filename));
             var song = require(require.resolve(filename));
-//            console.log("added song", m_songs[m_songs.length - 1]);
             if (!song) throw "Song '" + filename + "' failed to load.";
             if (!song.duration) throw "Song '" + filename + "' has no length.";
             m_songs.push(song);
+//            console.log("added song", song);
         }); //.bind(this));
         if (this.songs.length > oldcount + 1) throw "Multiple files found at '" + where + "'";
         if (this.songs.length == oldcount) throw "Can't find sequence at '" + where + "'";
@@ -194,7 +194,9 @@ function Playlist(opts)
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
         if (!this.frtime) //start of song
         {
-            m_que.broadcast({media: this.songs[this.selected].media[0], playback: true}); //load new media in player *before* first frame
+            var media = this.songs[this.selected].media[0];
+            media.latency = this.songs[this.selected].latency; //kludge: override media latency with seq
+            m_que.broadcast({media: media, playback: true}); //load new media in player *before* first frame
             this.elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
         }
         var frdata = this.songs[this.selected].render(this.frtime); //, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
@@ -207,7 +209,7 @@ function Playlist(opts)
         frdata.delay = frdata.frnext / this.speed - this.elapsed.now; //for debug/info only
 //        if (m_que.subscribers.length || !this.frtime) console.log("prep[@%s] song[%s/%s].frtime[%s/%s] for %s subscribers (%s good, %s bad), delay next %s", clock.Now.asString(), this.selected, this.songs.length, this.frtime, this.songs.length? this.songs[this.selected].duration: -1, m_que.subscribers.length, m_que.subscribers.numgood, m_que.subscribers.numbad, frdata.delay); //frnext - this.elapsed.now);
 //no, do it anyway    if (subscribers.length)
-        /*if (frdata.bufs)*/ m_que.broadcast(frdata); //NOTE: send even if no data so bad connections can be cleaned up; TODO: pipe?
+        /*if (frdata.outbufs)*/ m_que.broadcast(frdata); //NOTE: send even if no data so bad connections can be cleaned up; TODO: pipe?
 //example messages enqueued for 10 sec song:
 //{media: {filename: ..., duration: 10000, playback: true, latency: 230}}
 //{song: 0, frtime: 0, frnext: 50, bufs: {port1: [...], port2: [...], ...}}
@@ -261,7 +263,7 @@ function Playlist(opts)
 //    }
 
 //NO    this.ports = {};
-    if (this.opts.auto_play !== false) setTimeout(function() { this.scheduler(); }.bind(this), 1000); //give caller time to adjust schedule or async files to load
+    if (this.opts.auto_play !== false) /*setTimeout*/ process.nextTick(function() { this.scheduler(); }.bind(this)); //, 1000); //give caller time to adjust schedule or async files to load
 
     function xadd_prop(name, value) //expose prop but leave it read-only
     {

@@ -43,6 +43,7 @@
 		</Compiler>
 		<Unit filename="README.md" />
 		<Unit filename="TODO.txt" />
+		<Unit filename="bin/iostats.js" />
 		<Unit filename="bin/player-bk.js" />
 		<Unit filename="bin/player.js" />
 		<Unit filename="bin/playlist-bk.js" />

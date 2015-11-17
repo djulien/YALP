@@ -6,10 +6,10 @@ module.exports = bufdiff;
 
 function bufdiff(buf1, buf2)
 {
-    var cmp = buf1.byteLength - buf2.byteLength;
+    var cmp = (buf1? buf1.byteLength: 0) - (buf2? buf2.byteLength: 0);
     if (cmp < 0) return cmp - buf1.byteLength; //force retval > buflen
     if (cmp > 0) return cmp + buf2.byteLength;
-    var taillen = buf1.byteLength % 4, cmplen = buf1.byteLength - taillen;
+    var taillen = buf1? buf1.byteLength % 4: 0, cmplen = buf1? buf1.byteLength - taillen: 0;
     for (var ofs = 0; ofs < /*buf1.byteLength*/ cmplen; ofs += 4)
     {
         cmp = buf1.readUInt32BE(ofs) - buf2.readUInt32BE(ofs);
