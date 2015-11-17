@@ -34,7 +34,7 @@ var lame = require('lame');
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 //require('my-projects/shared/my-custom');
-require('my-projects/playlists/empty'); //force custom models to load
+var empty = require('my-projects/playlists/empty'); //force custom models to load
 var ChannelPool = require('my-projects/models/chpool');
 
 //set up event handlers for all ports:
@@ -187,7 +187,7 @@ function Player(opts)
 //subscribe to frame + media events from playlist:
 //    var m_frames = []; //fifo; not needed? (use timers instead, since there will only be a few)
     var m_playlist = ipc.open('playlist');
-    m_playlist.send('frames', "hello!", function(data)
+    m_playlist.send('frames', "hello!", function(data) //subscribe to playlist
     {
         if (data.media) //{filename, duration, latency}
         {
@@ -196,15 +196,25 @@ function Player(opts)
             if (data.playback) this.playback(data.media);
 //            else this.elapsed = null; //no playback
         }
-        if (isdef(data.frtime)) //{song, frtime, frnext, bufs}
+        if (isdef(data.frtime)) //{song, loop, frtime, frnext, bufs}
         {
+            if (!this.audiostart) //player started part way thru a song?
+            {
+                console.log("no audio");
+                if (this.restarted) process.exit(1);
+                m_playlist.send('cmd', 'rewind', function(data_reply) { console.log("rewind reply:", data_reply); return false; });
+                this.restarted = true;
+                return true; //request more data
+            }
+            data.audiostart = this.audiostart; //debug
+            data.ioahead = this.opts.ioahead; //debug
             data.when = this.audiostart + data.frtime - this.opts.ioahead; //when to send output to hardware; set .ioahead to match USB/serial latency
             this.frame = data; //remember latest one (for status/debug, not critical to playback)
-//??            if (!data.frtime) send_frame(data.bufs); //first frame can go immediately
-            send_frame(data, true);
+//??            if (!data.frtime) this.send_frame(data.bufs); //first frame can go immediately
+            this.send_frame(data, true);
         }
         return true; //request more data
-    });
+    }.bind(this));
 
     m_que.subscr('iostats', function(data_ignore, reply_cb)
     {
@@ -252,15 +262,20 @@ Player.prototype.port_close = function()
 
 Player.prototype.send_frame = function(frdata, first)
 {
-    frdata.delay = frdata.when - (frdata.sent = clock.Now());
-    if (frdata.delay > this.opts.tslop)
+    var sent = clock.Now();
+    var delay = frdata.when - sent;
+    if (delay > this.opts.tslop)
     {
-        if (!first) console.log("frame[%s] premature by %d msec; rescheduling".red, frdata.frtime, frdata.delay);
-        /*this.pending =*/ setTimeout(function() { send_frame(frdata); }, frdata.delay); //(re)try later
+        if (!first) frdata.premature = delay; //for debug and iostats
+        if (!first) console.log("frame[%s] premature by %d msec; rescheduling".red, frdata.frtime, delay);
+        /*this.pending =*/ setTimeout(function() { this.send_frame(frdata); }.bind(this), delay); //(re)try later
         return;
     }
-    if (frdata.delay < -this.opts.tslop) console.log("frame[%s] late by %d msec!".red, frdata.frtime, -frdata.delay);
-    else if (frdata.delay) console.log("frame[%s] timing is a little off but not bad: %d msec".yellow, frdata.frtime, frdata.delay);
+    if (delay < -this.opts.tslop) console.log("frame[%s] late by %d msec!".red, frdata.frtime, -delay);
+    else if (delay) console.log("frame[%s] timing is a little off but not bad: %d msec".yellow, frdata.frtime, delay);
+//add info to frdata for debug and iostats:
+    frdata.delay = delay;
+    ftdata.sent = sent.asString(); //useful for debug
     console.log("frame", frdata);
 //first pass: save input received so far and send time-critical output
     ChannelPool.all.forEach(function(chpool, inx)
@@ -290,7 +305,8 @@ Player.prototype.playback = function(opts) //{filename, duration, latency}
 //    this.paused = false;
     var svvol = this.volume;
     this.elapsed = new Elapsed(); //measure startup latency
-    this.audiostart = clock.Now() + opts.latency; //guess when audio will actually start; typically ~ 200 msec; adjust .latency to match
+    this.audiostart = clock.Now() + (opts.latency || 0); //guess when audio will actually start; typically ~ 200 msec; adjust .latency to match
+    console.log("set audiostart", this.audiostart);
     return fs.createReadStream(opts.filename)
 //BROKEN            .pipe(pool) //does this make much difference?
 //        .pipe(new MuteStream()) //mute) //TODO

@@ -235,7 +235,7 @@ module.exports.open = function(name)
                 client.on('connect', function() //NOTE: don't chain this from above?
                 {
 //debugger;
-                    console.log('CONNECTED TO: ' + "localhost" + ':' + name2port(channel)); //+ " from " + client.port); //CircularJSON.stringify(client));
+                    console.log('CONNECTED TO %s at %s:%s', channel, "localhost", name2port(channel)); //+ " from " + client.port); //CircularJSON.stringify(client));
 //                    client.itsmebob = true;
 //                    client.write("hello bob");
 //                    objectMode(client);
@@ -288,7 +288,7 @@ debugger;
                 });
                 client.on('close', function(had_error)
                 {
-                    console.log('Connection closed ' + channel, had_error);
+                    console.log('Connection closed %s, had err? %s', channel, had_error);
                     if (client && client.objclient) client.objclient.end();
 //                    on_exit[client.oxinx] = null; //don't need to close it later
 //                    sender.promise = client = null; //client.objclient = null; //reopen next time
@@ -339,7 +339,7 @@ debugger;
 //                receiver.socket = socket;
                 var objsocket = objectStream(socket);
                 objsocket.id = socket.remoteAddress + ':' + socket.remotePort;
-                console.log("CONNECTED: remote %s, local %d", objsocket.id, socket.localPort);
+                console.log("CONNECTED %s: remote %s, local %d", channel, objsocket.id, socket.localPort);
 //                var states = {}; //keep track of client connection states so we know when to break subscription streams
                 objsocket.on('data', function(data)
                 {
@@ -439,6 +439,7 @@ debugger;
 //        m_numbad: 0,
         subscr: function(channel, cb) //same as rcv, but sender is a subscriber
         {
+            this.subscribers.of = name2port(name + ':' + channel);
             this.rcv(channel, function(data, reply_cb)
             {
 debugger;
@@ -451,20 +452,20 @@ debugger;
         },
         broadcast: function(send_data)
         {
-            if (this.subscribers.length) console.log("broadcast:", send_data);
+//            if (this.subscribers.length) console.log("broadcast %s:", this.subscribers.of, send_data);
             var keepers = [];
             this.subscribers.numgood = this.subscribers.numbad = 0;
             this.subscribers.list.forEach(function(reply_cb, inx)
             {
                 if (reply_cb(send_data) > 0) { ++this.subscribers.numgood; keepers.push(reply_cb); }
-                else { console.log("stop sending to %s", inx); ++this.subscribers.numbad; }
+                else { console.log("%s stop sending to %s", this.subscribers.of, inx); ++this.subscribers.numbad; }
             }.bind(this));
 //            var pruned = this.subscribers.list.length - keepers.length;
 //            if (!pruned) return;
-            if (!this.subscribers.bad) return;
+            if (!this.subscribers.numbad) return;
             this.subscribers.list = keepers;
             this.subscribers.length = this.subscribers.list.length;
-            console.log("%s subscribers left after %s pruned", this.subscribers.list.length, pruned);
+            console.log("%s subscribers left after %s pruned", this.subscribers.list.length, this.subscribers.numbad); //pruned);
         },
 
 //        unref: function

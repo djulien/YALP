@@ -66,6 +66,7 @@ function Sequence(opts)
         if (this.media.length > oldcount + 1) throw "Multiple files found at '" + where + "' ";
         if (this.media.length == oldcount) throw "Can't find media at '" + where + "'";
         if (opts.use_media_len /*!== false*/) m_duration += this.media.slice(-1)[0].duration;
+        if (!oldcount) this.latency = isdef(this.opts.latency)? this.opts.latency: this.media[0].latency || 0; //TODO: calculate latency based on sample and bitrate
         return this; //fluent
     }
 

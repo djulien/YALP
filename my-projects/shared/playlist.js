@@ -11,6 +11,7 @@ var ipc = require('my-plugins/utils/ipc');
 var clock = require('my-plugins/utils/clock');
 var Elapsed = require('my-plugins/utils/elapsed');
 var shortname = require('my-plugins/utils/shortname');
+var Q = require('q'); //https://github.com/kriskowal/q
 //var add_method = require('my-plugins/my-extensions/object-enum').add_method;
 var SchedulerMixin = require('my-projects/shared/scheduler').SchedulerMixin;
 var Schedule = require('my-projects/shared/scheduler').Schedule;
@@ -36,6 +37,12 @@ function Playlist(opts)
     this.name = this.opts.name || shortname(this.folder); //caller(2)));
     var m_que = ipc.open('playlist'); //TODO: add designator to support multiple active playlists?
     this.SchedDrop(); //kludge: clear previous playlist schedule
+    var m_ready = Q.promise(function(resolve, reject) //defer operation until ready
+    {
+//        this.ready = function(value) { resolve(value); };
+        setTimeout(function() { resolve(0); }, 5000); //kludge: give async files time to load; TODO: pend/unpend
+        this.error = function(value) { reject(value); };
+    }.bind(this));
 
     var m_songs = [];
     Object.defineProperty(this, 'songs', //let caller set it, but not directly
@@ -51,10 +58,11 @@ function Playlist(opts)
         glob.sync(where = pattern || path.join(this.folder, '**', '!(*-bk).js')).forEach(function(filename)
         {
             console.log("adding song[%s] %s", m_songs.length, require.resolve(filename));
-            m_songs.push(require(require.resolve(filename)));
+            var song = require(require.resolve(filename));
 //            console.log("added song", m_songs[m_songs.length - 1]);
-            if (!m_songs.slice(-1)[0]) throw "Song '" + filename + "' failed to load.";
-            if (!m_songs.slice(-1)[0].duration) throw "Song '" + filename + "' has no length.";
+            if (!song) throw "Song '" + filename + "' failed to load.";
+            if (!song.duration) throw "Song '" + filename + "' has no length.";
+            m_songs.push(song);
         }); //.bind(this));
         if (this.songs.length > oldcount + 1) throw "Multiple files found at '" + where + "'";
         if (this.songs.length == oldcount) throw "Can't find sequence at '" + where + "'";
@@ -102,8 +110,8 @@ function Playlist(opts)
     m_que.rcv('cmd', function(data, reply)
     {
 //try{
-//    console.log("cmd: length %d, data %j", data.length, data);
-        switch (!data.length? data + '!': data[0] + ((data.length < 2)? '!': '*'))
+        console.log("cmd: length %s, data %j", Array.isArray(data)? data.length: '-', data);
+        switch (!Array.isArray(data)? data + '!': data[0] + ((data.length < 2)? '!': '*'))
         {
             case 'add*':
                 try
@@ -117,15 +125,18 @@ function Playlist(opts)
                 catch (exc) { reply("failed to load song '%s' failed: %j", data[1], exc); }
                 break;
             case 'play!':
-                if (!this.songs.length) { reply("no songs"); break; }
-                this.started = clock.Now();
-                reply("now playing[%s], was? %s", clock.Now.asString(this.started), !!m_playing);
-                m_pending_stop = false; //cancelled
-                if (m_playing) break;
-                send_frame(); //start playback
+                m_ready.then(function(resval) //defer response until aync files loaded
+                {
+                    if (!this.songs.length) { reply("no songs"); return; } //break;
+//                this.started = clock.Now();
+                    reply("now playing[%s], was? %s", clock.Now.asString(/*this.started*/), !!m_playing);
+                    m_pending_stop = false; //cancelled
+                    if (m_playing) return; //break;
+                    send_frame(); //start playback
 //                if (this.opts.auto_play === false) m_que.unref(); //started manually; allow playlist to close after playback
-                if (this.opts.auto_play === false) setTimeout(function() { m_que.close(); }, 44000);
+//test                if (this.opts.auto_play === false) setTimeout(function() { m_que.close(); }, 44000);
 //                if (this.opts.auto_play === false) setTimeout(function() { console.log("handles", process._getActiveHandles()); }, 45000);
+                }.bind(this));
                 break;
             case 'pause!':
                 reply("now paused, was? %s", !m_playing);
@@ -139,10 +150,24 @@ function Playlist(opts)
                 reply("speed set to %s", this.speed);
                 break;
             case 'rewind!':
-                if (m_playing) { reply("busy playing"); break; }
-//TODO                m_que.broadcast({media: this.songs[this.selected].media[0], playback: false});
-                reply("rewind, was playing? %s", !!m_playing);
-                this.selected = this.frtime = 0;
+                if (!this.songs.length) { reply("no songs"); break; }
+//                if (m_playing) //pause + rewind + play; //{ reply("busy playing"); break; }
+//                {
+//                    if (m_playing) clearTimeout(m_playing);
+//                    m_pending_stop = false; //satisfied
+//                    m_playing = null;
+//                    this.frtime = 0; //rewind current song only; useful if player starts up part way thru a song
+//                    this.started = clock.Now();
+//                    reply("now playing[%s], was? %s", clock.Now.asString(this.started), !!m_playing);
+//                    m_pending_stop = false; //cancelled
+//                    this.need_media = true;
+//                    if (m_playing) break;
+//                    send_frame(); //start playback
+//                }
+//TODO                if (!m_playing) m_que.broadcast({media: this.songs[this.selected].media[0], playback: false});
+                reply("rewind[%s], was playing? %s", clock.Now.asString(), !!m_playing);
+                if (!m_playing) this.selected = 0; //restart current song only; useful if player starts up part way thru a song
+                this.frtime = 0;
                 break;
             case 'status!':
                 reply("song[%s/%s].frame[%s/%s], playing? %s, #subscribers %d", this.selected, this.songs.length, this.frtime, (this.selected < this.songs.length)? this.songs[this.selected].duration: -1, !!m_playing, m_que.subscribers.length);
@@ -152,7 +177,7 @@ function Playlist(opts)
                 process.exit(0);
                 break;
             default:
-                reply("unknown command: %j", data);
+                reply("unknown command: %s %j", typeof data, data);
                 break;
         }
 //}catch(exc){ reply("error: " + exc); }
@@ -167,17 +192,22 @@ function Playlist(opts)
         m_playing = null; //timer satisfied
 //NOTE: prep frame data even if no subscribers; this allows on-demand fx to be pre-rendered and cached for better playback performance
 //NOTE: timing does not need to be precise here because we are doing read-ahead for downstream player; however, we don't want to stray too far off, so use auto-correcting cumulative timing
-        if (!this.frtime) this.elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
+        if (!this.frtime) //start of song
+        {
+            m_que.broadcast({media: this.songs[this.selected].media[0], playback: true}); //load new media in player *before* first frame
+            this.elapsed = new Elapsed(); //used to help maintain cumulative timing accuracy
+        }
         var frdata = this.songs[this.selected].render(this.frtime); //, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
 //frdata.allbuf = this.songs[this.selected].chvals(this.frtime / 50); //debug: entire buf
 //        console.log("rendered frdata: %j", frdata);
-        frdata.song = this.selected;
+        frdata.song = this.selected; //useful for debug
+        frdata.loop = this.opts.loop; //useful for debug
         frdata.frtime = this.frtime;
         if (!frdata.frnext) frdata.frnext = this.songs[this.selected].duration;
         frdata.delay = frdata.frnext / this.speed - this.elapsed.now; //for debug/info only
-        if (m_que.subscribers.length || !this.frtime) console.log("prep[@%s] song[%s/%s].frtime[%s/%s] for %s subscribers (%s good, %s bad), delay next %s", clock.Now.asString(), this.selected, this.songs.length, this.frtime, this.songs.length? this.songs[this.selected].duration: -1, m_que.subscribers.length, m_que.subscribers.numgood, m_que.subscribers.numbad, frdata.delay); //frnext - this.elapsed.now);
+//        if (m_que.subscribers.length || !this.frtime) console.log("prep[@%s] song[%s/%s].frtime[%s/%s] for %s subscribers (%s good, %s bad), delay next %s", clock.Now.asString(), this.selected, this.songs.length, this.frtime, this.songs.length? this.songs[this.selected].duration: -1, m_que.subscribers.length, m_que.subscribers.numgood, m_que.subscribers.numbad, frdata.delay); //frnext - this.elapsed.now);
 //no, do it anyway    if (subscribers.length)
-        if (frdata.bufs) m_que.broadcast(frdata); //TODO: pipe?
+        /*if (frdata.bufs)*/ m_que.broadcast(frdata); //NOTE: send even if no data so bad connections can be cleaned up; TODO: pipe?
 //example messages enqueued for 10 sec song:
 //{media: {filename: ..., duration: 10000, playback: true, latency: 230}}
 //{song: 0, frtime: 0, frnext: 50, bufs: {port1: [...], port2: [...], ...}}
@@ -195,7 +225,8 @@ function Playlist(opts)
             if (++this.selected >= this.songs.length) { this.selected = 0; if (this.opts.loop && (this.opts.loop !== true)) --this.opts.loop; }
 //            console.log("next up: song[%s/%s], stop? %s, loop? %s: ", this.selected, this.songs.length, m_pending_stop, this.loop, this.songs[this.selected]);
             if (!this.selected && (m_pending_stop || !this.opts.loop)) { console.warn("done"); return; } //{ console.log("handles", process._getActiveHandles()); return; } //cmd('pause');
-            m_que.broadcast({media: this.songs[this.selected].media[0], playback: true}); //load new media in player
+//            m_que.broadcast({media: this.songs[this.selected].media[0], playback: true}); //load new media in player
+//            this.need_media = true;
         }
 
 //    console.log("delay next %d", frdata.next - elapsed.now);
