@@ -94,8 +94,11 @@ function IOStats(opts)
             m_inbufs = {};
             m_cmpbufs = {};
         }
+        buffix(data.outbufs);
+        buffix(data.inbufs);
 //        ++m_numfr;
-        var numfr = Math.ceil(data.duration / 50), frnum = Math.floor(data.frtime / 50);
+        var numfr = Math.ceil(data.duration / 50);
+        var frnum = Math.floor(data.frtime / 50);
         var showbuf = {}, buf;
         var delay_bucket = buckets(data.delay, 3);
         m_delays[delay_bucket] = (m_delays[delay_bucket] || 0) + 1;
@@ -105,11 +108,12 @@ function IOStats(opts)
 //        (data.inbufs || {}).forEach(function(key, bufval) { m_inlens[key] = (m_inlens[key] || 0) + 1; });
 //        (data.outbufs || {}).forEach(function(key, bufval) { m_outlens[key] = (m_outlens[key] || 0) + 1; });
         showbuf.position = sprintf('loop[%s], song[%s], frtime[%s] %d%%, fr# %s', isdef(data.loop)? data.loop: '-', isdef(data.song)? data.song: '-', isdef(data.frtime)? data.frtime: '-', Math.round(100 * frnum / numfr), frnum);
+//show % wrt frames that have occurred so far, not total #fr; this gives a better mid-song picture
         buf = '';
-        m_delays.forEach(function(count, key) { buf += ', ' + (key? '..' : '') + key + ': ' + pct(count, numfr); });
+        m_delays.forEach(function(count, key) { buf += ', ' + (key? '..' : '') + key + ': ' + pct(count, frnum); });
         showbuf.delay = buf.substr(2);
         buf = '';
-        m_counts.forEach(function(count, key) { buf += ', ' + key + ': ' + pct(count, numfr); });
+        m_counts.forEach(function(count, key) { buf += ', ' + key + ': ' + pct(count, frnum); });
         showbuf.status = buf.substr(2);
 //        buf = '';
 //        (data.outbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.length || 0); });
@@ -117,23 +121,23 @@ function IOStats(opts)
 //        buf = '';
 //        (data.inbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.length || 0); });
 //        showbuf.inbufs = buf.substr(2);
-        if (m_prevouts)
+//        if (m_prevouts)
         portnames.forEach(function(name)
         {
-            var outbuf = /*data.outbufs*/ m_prevouts[name] || [];
-            outbuf_bucket = name + ':' + buckets(outbuf.length || 0, 10);
+            var outbuf = /*data.outbufs*/ (m_prevouts || {})[name] || [];
+            var outbuf_bucket = name + ':' + buckets(outbuf.length || 0, 10);
             m_outbufs[outbuf_bucket] = (m_outbufs[outbuf_bucket] || 0) + 1;
         });
         buf = '';
         m_outbufs.forEach(function(count, key)
         {
-            buf += ', ' + key + ': ' + pct(count, numfr);
+            buf += ', ' + key + ': ' + pct(count, frnum);
         });
         showbuf.outbufs = buf.substr(2);
         portnames.forEach(function(name)
         {
-            var inbuf = data.inbufs[name] || [];
-            inbuf_bucket = name + ':' + buckets(inbuf.length || 0, 10);
+            var inbuf = (data.inbufs || {})[name] || [];
+            var inbuf_bucket = name + ':' + buckets(inbuf.length || 0, 10);
             m_inbufs[inbuf_bucket] = (m_inbufs[inbuf_bucket] || 0) + 1;
         });
         buf = '';
@@ -142,10 +146,10 @@ function IOStats(opts)
             buf += ', ' + key + ': ' + pct(count, frnum);
         });
         showbuf.inbufs = buf.substr(2);
-        if (m_prevouts)
+//        if (m_prevouts)
         portnames.forEach(function(name)
         {
-            var cmp = name + ':' + (bufdiff(m_prevouts[name], m_inbufs[name])? "NE": "EQ");
+            var cmp = name + ':' + (bufdiff((m_prevouts || {})[name], (m_inbufs || {})[name])? "NE": "EQ");
             m_cmpbufs[cmp] = (m_cmpbufs[cmp] || 0) + 1;
         });
         buf = '';
@@ -168,6 +172,17 @@ function IOStats(opts)
         }
     }.bind(this));
 
+}
+
+function buffix(bufs)
+{
+    if (!bufs) return;
+    for (var port in bufs)
+    {
+        var buf = bufs[port];
+        if (buf && !isdef(buf.length)) { console.log(buf); process.exit(1); }
+        if (buf && !isdef(buf.length)) buf.length = buf.data.length; //kludge: repair buffer (type changed somewhere along the way, maybe during socketio)
+    }
 }
 
 function buckets(val, size)

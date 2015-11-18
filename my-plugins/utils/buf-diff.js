@@ -6,10 +6,12 @@ module.exports = bufdiff;
 
 function bufdiff(buf1, buf2)
 {
-    var cmp = (buf1? buf1.length: 0) - (buf2? buf2.byteLength: 0);
+    if (!/*buf1*/ Buffer.isBuffer(buf1)) buf1 = {length: 0};
+    if (!/*buf2*/ Buffer.isBuffer(buf2)) buf2 = {length: 0};
+    var cmp =  buf1.length - buf2.length;
     if (cmp < 0) return cmp - buf1.length; //force retval > buflen
     if (cmp > 0) return cmp + buf2.length;
-    var taillen = buf1? buf1.length % 4: 0, cmplen = buf1? buf1.length - taillen: 0;
+    var taillen = buf1.length % 4, cmplen = buf1.length - taillen;
     for (var ofs = 0; ofs < /*buf1.length*/ cmplen; ofs += 4)
     {
         cmp = buf1.readUInt32BE(ofs) - buf2.readUInt32BE(ofs);

@@ -202,6 +202,22 @@ function Playlist(opts)
         var frdata = this.songs[this.selected].render(this.frtime); //, buffers[ff ^= 1]); //{frnext, ports}; //alternating buffers; current buffer is still needed until data is actually sent
 //frdata.allbuf = this.songs[this.selected].chvals(this.frtime / 50); //debug: entire buf
 //        console.log("rendered frdata: %j", frdata);
+//if (frdata.outbufs) for (var port in frdata.outbufs)
+//{
+//    if (!frdata.outbufs[port]) continue;
+//    if (isdef(frdata.outbufs[port].length)) continue;
+//    console.log(port, frdata.outbufs);
+//    process.exit(1);
+//}
+//if (frdata.outbufs) for (var port in frdata.outbufs) { if (Buffer.isBuffer(frdata.outbufs[port])) continue;
+//var buf = frdata.outbufs[port];
+//console.log(JSON.stringify(buf));
+//console.log(typeof buf);
+//console.log(buf.constructor.name);
+//console.log(Buffer.isBuffer(buf));
+//console.log(buf.length);
+//process.exit(1);
+//}
         frdata.song = this.selected; //useful for debug
         frdata.loop = this.opts.loop; //useful for debug
         frdata.duration = this.songs[this.selected].duration; //useful for debug

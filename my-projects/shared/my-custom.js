@@ -298,7 +298,6 @@ ic7.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2b
 */
 
 //show_group('ic', [2, +14]);
-/*
 var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 33, h: 10, zinit: false, order: [{from: 33, to: 1}]});
 var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
 var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
@@ -306,54 +305,13 @@ var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 24+8, h: 10, zinit: fals
 var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 34, h: 10, zinit: false, order: [{from: 34, to: 1}]});
 var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 15+33, h:10, zinit: false, order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 var ic_all = noport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, zinit: false, vix2ch: [2, +14]});
-*/
-var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
-var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
-var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
-var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 4, h: 2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
-var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
-var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 4, h:2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
-var ic_all = yport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 16, h: 2, zinit: false, vix2ch: [2, +14]});
-
-ic_all.vix2render = function()
-{
-    if (!this.xmap) //map Vixen2 ic# to ic columns
-    {
-        this.xmap = [];
-//        for (var x = 0; x < this.opts.w; ++x) this.xspread[Math.round(x / this.vix2ch[1])]
-        for (var x = 0; x < this.opts.vix2ch[1]; ++x) this.xmap.push(Math.round(this.opts.w * x / this.opts.vix2ch[1]));
-        this.xmap.push(this.opts.w);
-        console.log("ic xmap:", this.xmap);
-    }
-//    for (var x = this.xmap0, xinc = this.opts.w / this.vix2ch[1]; x < this.opts.w; x += xinc) //207 / 14 ~= 15 pixels wide each Vix2 seg
-//    for (var seg = 0; seg < this.opts.vix2ch[1]; ++seg)
-    this.vix2buf.forEach(function(chval, inx)
-    {
-        var segcolor = this.color(chval * 0x10101); //{red: chval, green: chval, blue: chval}); //set to grayscale
-//        console.log("set [%d..%d] to %s", this.xmap[inx], this.xmap[inx + 1], segcolor);
-        for (var x = this.xmap[inx]; x < this.xmap[inx + 1]; ++x)
-            this.column(x, segcolor);
-    }.bind(this));
-//    console.log("vixbuf", this.vix2buf);
-//    console.log("icbuf", this.json());
-}
-
-//custom node ordering:
-//icbig.xy2node = function(x, y)
-//{
-//    const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 9, 10, 11, 12, 13, 16, 15, 14];
-//    if (x < 15) return (15+33-1 - x) * 10 + 10-1 - y;
-//    if (x < 15 + 33) return (ORDER[x - 15] - 1) * 10 + 10-1 - y;
-//}
-//ic_all.xy2node = function(x, y)
-//{
-//    if (x < 33) return ic1.xy2node(x, y); //(33-1 - x) * 10 + 10-1 - y;
-//    if (x < 33 + 30) return ic2.xy2node(x - 33, y); //(33+30-1 - x) * 10 + 10-1 - y;
-//    if (x < 33 + 30 + 30) return ic3.xy2node(x - 33 - 30, y); //(33+30+30-1 - x) * 10 + 10-1 - y;
-//    if (x < 33 + 30 + 30 + 24+8) return ic4.xy2node(x - 33 - 30 - 30, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
-//    if (x < 33 + 30 + 30 + 24+8 + 34) return ic5.xy2node(x - 33 - 30 - 30 - 24-8, y); //(33+30+30+24+8-1 - x) * 10 + 10-1 - y;
-//    return icbig.xy2node(x - 33 - 30 - 30 - 24-8 - 34, y);
-//}
+//var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+//var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+//var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+//var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 4, h: 2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
+//var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
+//var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 4, h:2, zinit: false, order: [{from: 4, to: 3}, {from: 2, to: 1}]});
+//var ic_all = yport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 16, h: 2, zinit: false, vix2ch: [2, +14]});
 
 
 /*

@@ -41,7 +41,7 @@ var ChannelPool = require('my-projects/models/chpool');
 //ChannelPool.op_start = new Elapsed();
 ChannelPool.all.forEach(function(chpool)
 {
-    chpool.incoming = null;
+    chpool.incoming = []; //null;
     if (!chpool.port) { console.log("no port", chpool.name); return; }
 //handlers:
     chpool.port
@@ -50,8 +50,9 @@ ChannelPool.all.forEach(function(chpool)
         .on('data', function(data)
         {
             console.log("'%s' received %d data @%s: '%s'".blue, chpool.opts.device, data.length, ChannelPool.op_elapsed.scaled(), data.toString('utf8').replace(/\n/g, "\\n"));
-            if (!chpool.incoming) chpool.incoming = [];
+//            if (!chpool.incoming) chpool.incoming = [];
             chpool.incoming.push(data);
+            chpool.inlast = clock.Now();
         })
         .on('error', function(err) { console.log("'%s' ERR @%s: ".red, chpool.opts.device, ChannelPool.op_elapsed.scaled(), err); })
         .on('close', function() { chpool.isopen = false; console.log("'%s' closed @%s".cyan, chpool.opts.device, ChannelPool.op_elapsed.scaled()); });
@@ -199,6 +200,7 @@ function Player(opts)
         }
         if (isdef(data.frtime)) //{song, loop, frtime, frnext, outbufs}
         {
+            buffix(data.outbufs);
             if (!this.audiostart) //player started part way thru a song?
             {
                 console.log("no audio");
@@ -228,6 +230,15 @@ function Player(opts)
     if (this.opts.auto_open !== false) this.port_open();
 }
 
+function buffix(bufs)
+{
+    if (!bufs) return;
+    for (var port in bufs)
+    {
+        var buf = bufs[port];
+        if (buf && !isdef(buf.length)) buf.length = buf.data.length; //kludge: repair buffer (type changed somewhere along the way, maybe during socketio)
+    }
+}
 
 Player.prototype.port_open = function()
 {
@@ -289,20 +300,25 @@ Player.prototype.send_frame = function(frdata, first)
     ChannelPool.all.forEach(function(chpool, inx)
     {
         chpool.insave = chpool.incoming; //save input received so far for analysis/integrity checking
-        chpool.incoming = null;
+        chpool.intime = chpool.inlast - chpool.outlast;
+        chpool.incoming = []; //null;
         if (!chpool.opts.device || !chpool.isopen) return;
         if (!(frdata.outbufs || {})[chpool.name]) return; //no data for this port
 //if (!frdata.outbufs[chpool.name].data.length) { console.log(frdata.outbufs); console.log(JSON.stringify(frdata.outbufs)); process.exit(0); }
 //        console.log("write", typeof frdata.outbufs[chpool.name], frdata.outbufs[chpool.name].length, frdata.outbufs[chpool.name]); process.exit();
+        chpool.outlast = clock.Now();
+        chpool.inlast = undefined;
         chpool.port.write(frdata.outbufs[chpool.name]);
     });
 //second pass: package received input and send with output to I/O monitor
     frdata.inbufs = {};
+    frdata.intimes = {};
     ChannelPool.all.forEach(function(chpool, inx)
     {
         var inlen = 0;
-        (chpool.insave || []).forEach(function(inchunk, inx) { inlen += inchunk.length; }); //add up chunk lengths first to reduce mem alloc overhead
+        chpool.insave.forEach(function(inchunk, inx) { inlen += inchunk.length; }); //add up chunk lengths first to reduce mem alloc overhead
         if (inlen) frdata.inbufs[chpool.name] = Buffer.concat(chpool.insave, inlen); //Uint8Array(inlen);
+        frdata.intimes[chpool.name] = chpool.intime;
     });
     console.log("frame", frdata); //with input
     this.iostats(frdata); //send to I/O monitor for processing
@@ -392,6 +408,6 @@ Player.prototype.pbcancel = function()
 }
 
 
-var player = new Player({auto_open: false});
+var player = new Player({xauto_open: false});
 
 //eof

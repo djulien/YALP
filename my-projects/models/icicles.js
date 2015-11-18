@@ -70,11 +70,31 @@ IcicleSegment2D.all = function(opts)
     opts.startch = all_startch;
     var args = Array.from(arguments); args[0] = opts;
     Rect2D.apply(this, args);
+
+    this.xmap = []; //map 14 Vixen2 ch to range of ic 207 columns (avg 15 each)
+//        for (var x = 0; x < this.opts.w; ++x) this.xspread[Math.round(x / this.vix2ch[1])]
+    for (var x = 0; x < this.opts.vix2ch[1]; ++x) this.xmap.push(Math.round(this.opts.w * x / this.opts.vix2ch[1]));
+    this.xmap.push(this.opts.w);
+    console.log("ic.all xmap:", this.xmap);
 }
 inherits(IcicleSegment2D.all, Rect2D);
 
-
 IcicleSegment2D.all.prototype.xy2node = IcicleSegment2D.prototype.xy2node;
+
+IcicleSegment2D.all.prototype.vix2render = function()
+{
+//    for (var x = this.xmap0, xinc = this.opts.w / this.vix2ch[1]; x < this.opts.w; x += xinc) //207 / 14 ~= 15 pixels wide each Vix2 seg
+//    for (var seg = 0; seg < this.opts.vix2ch[1]; ++seg)
+    this.vix2buf.forEach(function(chval, inx)
+    {
+        var segcolor = this.color(chval * 0x10101); //{red: chval, green: chval, blue: chval}); //mono to grayscale
+//        console.log("set [%d..%d] to %s", this.xmap[inx], this.xmap[inx + 1], segcolor);
+        for (var x = this.xmap[inx]; x < this.xmap[inx + 1]; ++x) //turn on range of columns
+            this.column(x, segcolor);
+    }.bind(this));
+//    console.log("vixbuf", this.vix2buf);
+//    console.log("icbuf", this.json());
+}
 
 
 //custom icicle layout:
