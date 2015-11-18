@@ -44,9 +44,9 @@ function YalpStream(opts)
 //        if (!bytes.copy) console.log("no copy");
 //        if (!bytes.length) console.log("no length");
         ++m_info.frames;
-        m_info.totlen += bytes.byteLength + 2 * 4;
+        m_info.totlen += bytes.length + 2 * 4;
         m_info.latest = timestamp;
-//        return m_stream.write({ time: timestamp, data: bytes, len: bytes.byteLength });
+//        return m_stream.write({ time: timestamp, data: bytes, len: bytes.length });
         return m_stream.write(fmt(timestamp, bytes));
     }
 
@@ -58,7 +58,7 @@ function YalpStream(opts)
 
     function fmt(timestamp, bytes)
     {
-        var retval = Concentrate()./*uint32be(0x57414C50).*/string("YALP", "utf8").uint32be(timestamp).uint32be(bytes.byteLength).buffer(bytes).result();
+        var retval = Concentrate()./*uint32be(0x57414C50).*/string("YALP", "utf8").uint32be(timestamp).uint32be(bytes.length).buffer(bytes).result();
 //        console.log("fmt[%d]: %d", timestamp, retval.length, retval);
         return retval;
     }
@@ -75,7 +75,7 @@ function Fluent(opts)
 //    var m_started = clock.Now(), m_selected = -1 >>> 1, m_dirty = false; //run-time state, assume immediate mode
 //    var m_pending = null;
     var m_started, m_loopstart, m_selected, m_dirty, m_pending = null; //run-time state
-    var m_buffer = m_opts.buffer || new /*Array*/Buffer(m_opts.numch || 16); //CAUTION: assumed to be a multiple of 4 bytes; //, m_count = Math.floor(m_buffer.byteLength / 4);
+    var m_buffer = m_opts.buffer || new /*Array*/Buffer(m_opts.numch || 16); //CAUTION: assumed to be a multiple of 4 bytes; //, m_count = Math.floor(m_buffer.length / 4);
     var m_nodes = new DataView(m_buffer); //new Uint32Array(m_buffer); //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Typed_arrays
     var m_evts = []; //storyboard; delayed exec fx functions
     if (m_opts.immediate) throw "Immediate mode not supported yet.";
@@ -98,8 +98,8 @@ function Fluent(opts)
         return enque(function()
         {
 //            m_nodes.fill(color || 0);
-            console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.byteLength / 4, color.toString(16));
-            for (var n = 0; n < /*m_count m_opts.numch*/ m_buffer.byteLength; /*++n*/ n+= 4) m_nodes.setUint32(n, color); //CAUTION: byte offset, not uint32 offset
+            console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.length / 4, color.toString(16));
+            for (var n = 0; n < /*m_count m_opts.numch*/ m_buffer.length; /*++n*/ n+= 4) m_nodes.setUint32(n, color); //CAUTION: byte offset, not uint32 offset
             m_dirty = true;
             next();
         });

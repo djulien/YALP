@@ -28,7 +28,7 @@ function RenXtBuffer(opts)
     this.port.on('data', function(data) //collect incoming data
     {
         this.latest = this.elapsed.now;
-        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.byteLength; }
+        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
         else { this.buffer.write(data, this.rdlen, data.length); this.rdlen += data.length; }
     }.bind(this));
 }
@@ -49,7 +49,7 @@ RenXtBuffer.prototype.rewind = function()
 
 RenXtBuffer.prototype.hasroom = function(len)
 {
-    return (this.wrlen + len <= this.buffer.byteLength);
+    return (this.wrlen + len <= this.buffer.length);
 }
 
 RenXtBuffer.prototype.isempty = function(len)
@@ -64,8 +64,8 @@ RenXtBuffer.prototype.flush = function(cb)
     this.elapsed = new Elapsed();
     if (!cb) cb = function(err) { return err; }
     if (!this.wrlen) return process.nextTick(function() { cb(); }); //this.port.write_drain(this.buffer, this.wrlen);
-    var outbuf = (this.wrlen < this.buffer.byteLength)? this.buffer.slice(0, this.wrlen): this.buffer; //kludge: no len param to write(), so trim buffer instead
-    if (this.wrlen > this.buffer.byteLength) console.log("out buf overflow: %d (max %d)".red, this.wrlen, this.buffer.byteLength);
+    var outbuf = (this.wrlen < this.buffer.length)? this.buffer.slice(0, this.wrlen): this.buffer; //kludge: no len param to write(), so trim buffer instead
+    if (this.wrlen > this.buffer.length) console.log("out buf overflow: %d (max %d)".red, this.wrlen, this.buffer.byteLength);
 //    for (var ofs = 0; ofs < this.wrlen; ofs += 64)
 //        console.log("write[%d/%d] ", ofs, this.wrlen, this.buffer.slice(ofs, 64));
     console.log("write %d ", this.wrlen, outbuf);
@@ -155,8 +155,8 @@ RenXtBuffer.prototype.emit_buf = function(buf, len)
 RenXtBuffer.prototype.emit_rawbuf = function(buf, len)
 {
 //    for (var ofs = 0; ofs < len; ++ofs) this.emit_raw(values[ofs]); //copy byte-by-byte to handle special chars and padding; caller is responsible for escapes
-    len = len || buf.byteLength || buf.length || 0;
-    /*if (this.wrlen + len <= this.buffer.byteLength)*/ buf.copy(this.buffer, this.wrlen, 0, len);
+    len = len || buf.length || 0;
+    /*if (this.wrlen + len <= this.buffer.length)*/ buf.copy(this.buffer, this.wrlen, 0, len);
     this.wrlen += len;
     return this; //fluent
 }
@@ -199,7 +199,7 @@ RenXtBuffer.prototype.emit_uint16_raw = function(val, count) //ensure correct by
     if (typeof count === 'undefined') count = 1;
     while (count-- > 0)
     {
-        /*if (this.wrlen + 2 <= this.buffer.byteLength)*/ this.buffer.writeUInt16BE(val, this.wrlen);
+        /*if (this.wrlen + 2 <= this.buffer.length)*/ this.buffer.writeUInt16BE(val, this.wrlen);
         this.wrlen += 2;
     }
     return this; //fluent
@@ -241,7 +241,7 @@ RenXtBuffer.prototype.emit_raw = function(value, count)
 //        if (used < frbuf.size()) frbuf[used++] = value;  //track length regardless of overflow
 //        else ++used; //keep track of overflow
 //        ++since_pad;
-        /*if (this.wrlen < this.buffer.byteLength)*/ this.buffer[this.wrlen++] = value;
+        /*if (this.wrlen < this.buffer.length)*/ this.buffer[this.wrlen++] = value;
 //seems okay without        else ++this.wrlen; //keep track of overflow length
 //        PrevByte = ((value != RENARD_ESCAPE) || (PrevByte != RENARD_ESCAPE))? value: 0; //kludge: treat escaped escape as a null for pad check below
 //#ifdef RENARD_PAD //explicit padding
@@ -381,7 +381,7 @@ sport.write_drain = function(outbuf, outlen, cb)
     var elapsed = new Elapsed();
     if (typeof outlen === 'function') { cb = outlen; outlen = undefined; }
     if (!cb) cb = function(err) { return err; }
-    if (/-*(typeof outlen !== 'undefined') &&*-/ (outlen < outbuf.byteLength)) outbuf = outbuf.slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
+    if (/-*(typeof outlen !== 'undefined') &&*-/ (outlen < outbuf.length)) outbuf = outbuf.slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
     return this.write(outbuf, function(err, results)
     {
 //        console.log(typeof outbuf);

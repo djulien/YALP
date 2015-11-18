@@ -368,7 +368,7 @@ text editor:
  https://github.com/ajaxorg/ace
   https://github.com/ajaxorg/ace-builds/
 
-IPC:
+IPC: TODO: use webworkers + transferable objects?
 * http://stackoverflow.com/questions/17866864/inter-process-event-emitter-for-node-js
  http://stackoverflow.com/questions/6463945/whats-the-most-efficient-node-js-inter-process-communication-library-method
   https://github.com/weixiyen/messenger.js

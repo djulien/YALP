@@ -52,7 +52,7 @@ seq.render = function(frtime, buf)
     var frdata = {frnext: frtime + .500}, used = 0;
     for (var i = 0; i < 4; ++i)
     {
-        var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
+        var len = Math.floor((buf.length - used) * Math.random()); //TODO
         var portbuf = buf.slice(used, used + len); used += len;
 //        portbuf.fill(0x11 * (i + 1)); //TODO: port ch remap
         frdata['port' + i] = portbuf;

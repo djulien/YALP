@@ -121,7 +121,7 @@ ChannelPool.all.forEach(function(chpool, inx)
 {
 debugger;
     m_portbufs[chpool.name] = chpool.buf;
-    console.log("chpool %s buf len %d", chpool.name, chpool.buf.byteLength);
+    console.log("chpool %s buf len %d", chpool.name, chpool.buf.length);
     chpool.buf.fill(0); //start with all channels off
 });
 */
@@ -141,7 +141,7 @@ Sequence.prototype.get_duration = function(filename)
 //generic implementation
 Sequence.prototype.render = function(frtime)
 {
-    var portbufs = {}, hasbuf = false;
+    var portbufs = {}, /*portlens = {},*/ hasbuf = false;
     var frnext_min = this.duration; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
 //check each port for pending output and next refresh time:
     ChannelPool.all.forEach(function(chpool, inx, all)
@@ -154,13 +154,14 @@ Sequence.prototype.render = function(frtime)
         var portbuf = chpool.render(frtime); //{frnext, buf}
         if (!portbuf) return; //continue;
         portbufs[chpool.name] = portbuf.buf;
+//        portlens[chpool.name] = portbuf.buf.length; //kludge: buf length gets dropped somewhere, so pass it back explicitly
         if (portbuf.buf) hasbuf = true;
 //        if (portbuf.frnext === false) return; //no further animation wanted
 //        if (portbuf.frnext === true) portbuf.frnext = frtime + ?; //asap; //this.duration; //one more update at end of seq
         if (typeof portbuf.frnext !== 'number') return;
         frnext_min = Math.min(frnext_min, portbuf.frnext); //set next animation frame time
     });
-    return {frnext: frnext_min, outbufs: hasbuf? portbufs: null};
+    return {frnext: frnext_min, outbufs: hasbuf? portbufs: null}; //, outlens: hasbuf? portlens: null};
 }
 
 
@@ -200,7 +201,7 @@ Sequence.prototype.xrender = function(frtime)
 
     for (var i = 0; i < 4; ++i)
     {
-        var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
+        var len = Math.floor((buf.length - used) * Math.random()); //TODO
         var portbuf = buf.slice(used, used + len); used += len;
         portbuf.fill(0x11 * (i + 1)); //TODO
         frdata['port' + i] = portbuf;

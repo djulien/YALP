@@ -193,7 +193,7 @@ Sequence.prototype.render = function(frtime, buf)
 
     for (var i = 0; i < 4; ++i)
     {
-        var len = Math.floor((buf.byteLength - used) * Math.random()); //TODO
+        var len = Math.floor((buf.length - used) * Math.random()); //TODO
         var portbuf = buf.slice(used, used + len - 1); used += len;
         portbuf.fill(0x11 * (i + 1)); //TODO
         frdata['port' + i] = portbuf;

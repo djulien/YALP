@@ -62,7 +62,7 @@ function Vixen2Sequence(opts)
     if (partial)
         console.log("num ch# %d, partial frame? %d", m_numch, !!partial);
 ////    top.decoded = chvals;
-    var pivot = new Buffer(m_chvals.byteLength);
+    var pivot = new Buffer(m_chvals.length);
     for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
         for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
             pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval

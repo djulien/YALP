@@ -29,6 +29,9 @@ function isdef(thing) { return (typeof thing !== 'undefined'); }
 var empty = require('my-projects/playlists/empty'); //force custom models to load
 var ChannelPool = require('my-projects/models/chpool');
 
+var portnames = [];
+ChannelPool.all.forEach(function(chpool) { portnames.push(chpool.name); });
+
 
 function IOStats(opts)
 {
@@ -70,56 +73,106 @@ function IOStats(opts)
 //}catch(exc){ reply("error: " + exc); }
     }.bind(this));
 
-    var m_numfr = 0, m_prevouts = {};
+    var m_numfr = 0;
+    var m_prevouts = null;
     var m_counts = {};
     var m_delays = {};
-    var m_cmpbufs = {};
+    var m_outbufs = {}, m_inbufs = {}, m_cmpbufs = {};
     var m_playlist = ipc.open('player');
     var m_trace = fs.createWriteStream(path.join(__dirname, '../tmp/iostats.log'), {flags: (opts.append === false)? 'w': 'a'});
     m_trace.write("start " + clock.Now.asString() + "\n");
     m_playlist.send('iostats', "hello!", function(data) //subscribe to player iostats
     {
         if (typeof data !== 'object') return true; //ignore ack msg
-        ++m_numfr;
+        if (!data.frtime) //clear stats at start of song
+        {
+            m_numfr = 0;
+            m_prevouts = null;
+            m_counts = {};
+            m_delays = {};
+            m_outbufs = {};
+            m_inbufs = {};
+            m_cmpbufs = {};
+        }
+//        ++m_numfr;
+        var numfr = Math.ceil(data.duration / 50), frnum = Math.floor(data.frtime / 50);
         var showbuf = {}, buf;
-        m_delays[data.delay] = (m_delays[data.delay] || 0) + 1;
+        var delay_bucket = buckets(data.delay, 3);
+        m_delays[delay_bucket] = (m_delays[delay_bucket] || 0) + 1;
+//        var outstatus = (data.delay < -this.opts.tslop)? "overdue": delay? "not-bad": "good";
         m_counts[data.outstatus] = (m_counts[data.outstatus] || 0) + 1;
+        if (data.premature) m_counts.premature = (m_counts.premature || 0) + 1;
 //        (data.inbufs || {}).forEach(function(key, bufval) { m_inlens[key] = (m_inlens[key] || 0) + 1; });
 //        (data.outbufs || {}).forEach(function(key, bufval) { m_outlens[key] = (m_outlens[key] || 0) + 1; });
-        showbuf.position = 'loop[' + (isdef(data.loop)? data.loop: '-') + '], song[' + (isdef(data.song)? data.song: '-') + '], frtime[' + (isdef(data.frtime)? data.frtime: '-') + '], #' + m_numfr;
+        showbuf.position = sprintf('loop[%s], song[%s], frtime[%s] %d%%, fr# %s', isdef(data.loop)? data.loop: '-', isdef(data.song)? data.song: '-', isdef(data.frtime)? data.frtime: '-', Math.round(100 * frnum / numfr), frnum);
         buf = '';
-        m_delays.forEach(function(val, key) { buf += ', ' + key + ' ' + pct(val); });
+        m_delays.forEach(function(count, key) { buf += ', ' + (key? '..' : '') + key + ': ' + pct(count, numfr); });
         showbuf.delay = buf.substr(2);
         buf = '';
-        m_counts.forEach(function(val, key) { buf += ', ' + key + ' ' + pct(val); });
+        m_counts.forEach(function(count, key) { buf += ', ' + key + ': ' + pct(count, numfr); });
         showbuf.status = buf.substr(2);
-        buf = '';
-        (data.outbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.byteLength || bufval.length || 0); });
-        showbuf.outbufs = buf.substr(2);
-        buf = '';
-        (data.inbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.byteLength || bufval.length || 0); });
-        showbuf.inbufs = buf.substr(2);
-        buf = '';
-        (m_prevouts || {}).forEach(function(bufval, key)
+//        buf = '';
+//        (data.outbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.length || 0); });
+//        showbuf.outbufs = buf.substr(2);
+//        buf = '';
+//        (data.inbufs || {}).forEach(function(bufval, key) { buf += ', ' + key + ' ' + (bufval.length || 0); });
+//        showbuf.inbufs = buf.substr(2);
+        if (m_prevouts)
+        portnames.forEach(function(name)
         {
-            var cmp = bufdiff(bufval, (data.inbufs || {})[key])? "NE": "EQ";
-            key += ':' + cmp;
-            m_cmpbufs[key] = (m_cmpbufs[key] || 0) + 1;
-            buf += ', ' + key + ' ' + pct(m_cmpbufs[key]);
+            var outbuf = /*data.outbufs*/ m_prevouts[name] || [];
+            outbuf_bucket = name + ':' + buckets(outbuf.length || 0, 10);
+            m_outbufs[outbuf_bucket] = (m_outbufs[outbuf_bucket] || 0) + 1;
         });
-        m_prevouts = data.outbufs; //inbufs are one frame later
+        buf = '';
+        m_outbufs.forEach(function(count, key)
+        {
+            buf += ', ' + key + ': ' + pct(count, numfr);
+        });
+        showbuf.outbufs = buf.substr(2);
+        portnames.forEach(function(name)
+        {
+            var inbuf = data.inbufs[name] || [];
+            inbuf_bucket = name + ':' + buckets(inbuf.length || 0, 10);
+            m_inbufs[inbuf_bucket] = (m_inbufs[inbuf_bucket] || 0) + 1;
+        });
+        buf = '';
+        m_inbufs.forEach(function(count, key)
+        {
+            buf += ', ' + key + ': ' + pct(count, frnum);
+        });
+        showbuf.inbufs = buf.substr(2);
+        if (m_prevouts)
+        portnames.forEach(function(name)
+        {
+            var cmp = name + ':' + (bufdiff(m_prevouts[name], m_inbufs[name])? "NE": "EQ");
+            m_cmpbufs[cmp] = (m_cmpbufs[cmp] || 0) + 1;
+        });
+        buf = '';
+        m_cmpbufs.forEach(function(count, key)
+        {
+            buf += ', ' + key + ': ' + pct(count, frnum);
+        });
         showbuf.cmpbufs = buf.substr(2);
+        m_prevouts = data.outbufs; //inbufs are one frame later, so delay outbufs to match inbufs
         showbuf.time_debug = data.time_debug || '-';
         m_trace.write(JSON.stringify({data: data, showbuf: showbuf}) + '\n\n'); //showbuf.Concentrate().buffer(showbuf).result());
         console.log("iostats", showbuf);
         console.log();
+//if (data.frtime == 50) { console.log("y out buf", m_prevouts['FTDI-Y'], data.outbufs['FTDI-Y'], m_prevouts['FTDI-Y'].length, data.outbufs['FTDI-Y'].length); process.exit(); }
         return true; //request more data
+
+        function pct(val, denom)
+        {
+            return sprintf("%d (%d%%)", val, denom? Math.round(100 * val / denom): 0);
+        }
     }.bind(this));
 
-    function pct(val)
-    {
-        return sprintf("%d (%d%%)", val, Math.round(100 * val / m_numfr));
-    }
+}
+
+function buckets(val, size)
+{
+    return (val < 0)? -size * Math.floor((size - 1 - val) / size): size * Math.floor((size - 1 + val) / size);
 }
 
 

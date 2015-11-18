@@ -162,9 +162,9 @@ Bicolor.prototype.pixel = function(inx, color) //get/set node color
 Bicolor.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 2)
+    for (var ofs = 0; ofs < this.length /*numch*/; ofs += 2)
     {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 2 + " "; break; }
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.length /*numch*/ - ofs) / 2 + " "; break; }
         buf += " " + ('0000' + this./*nodes.*/readUInt16BE(ofs).toString(16)).slice(-4);
     }
     return "<Bicolor-buf" + buf + ">";
@@ -239,9 +239,9 @@ RGB.prototype.json = function(json)
 RGB.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 3)
+    for (var ofs = 0; ofs < this.length /*numch*/; ofs += 3)
     {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 3 + " "; break; }
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.length /*numch*/ - ofs) / 3 + " "; break; }
         buf += " " + ('000000' + int24.readUInt24BE(this/*.nodes*/, ofs).toString(16)).slice(-6);
     }
     return "<RGB-buf" + buf + ">";
@@ -313,9 +313,9 @@ RGBW.prototype.pixel = function(inx, color) //get/set node color
 RGBW.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";
-    for (var ofs = 0; ofs < this.byteLength /*numch*/; ofs += 4)
+    for (var ofs = 0; ofs < this.length /*numch*/; ofs += 4)
     {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.byteLength /*numch*/ - ofs) / 4 + " "; break; }
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.length /*numch*/ - ofs) / 4 + " "; break; }
         buf += " " + ('00000000' + this./*nodes.*/readUInt32BE(ofs).toString(16)).slice(-8);
     }
     return "<RGBW-buf" + buf + ">";

@@ -197,7 +197,7 @@ function Player(opts)
             if (data.playback) this.playback(data.media);
 //            else this.elapsed = null; //no playback
         }
-        if (isdef(data.frtime)) //{song, loop, frtime, frnext, bufs}
+        if (isdef(data.frtime)) //{song, loop, frtime, frnext, outbufs}
         {
             if (!this.audiostart) //player started part way thru a song?
             {
@@ -212,6 +212,8 @@ function Player(opts)
             data.when = this.audiostart + data.frtime - this.opts.ioahead; //when to send output to hardware; set .ioahead to match USB/serial latency
             this.frame = data; //remember latest one (for status/debug, not critical to playback)
 //??            if (!data.frtime) this.send_frame(data.outbufs); //first frame can go immediately
+//for (var port in data.outbufs)
+//    if (data.outbufs[port] && !data.outbufs[port].data.length) { console.log(data.outbufs); console.log(JSON.stringify(data.outbufs)); process.exit(1); }
             this.send_frame(data, true);
         }
         return true; //request more data
@@ -286,11 +288,12 @@ Player.prototype.send_frame = function(frdata, first)
 //first pass: save input received so far and send time-critical output
     ChannelPool.all.forEach(function(chpool, inx)
     {
-        chpool.insave = chpool.incoming; //save input received so far for analysis
+        chpool.insave = chpool.incoming; //save input received so far for analysis/integrity checking
         chpool.incoming = null;
         if (!chpool.opts.device || !chpool.isopen) return;
         if (!(frdata.outbufs || {})[chpool.name]) return; //no data for this port
-//        console.log("write", typeof frdata.outbufs[chpool.name], frdata.outbufs[chpool.name].byteLength, frdata.outbufs[chpool.name]); process.exit();
+//if (!frdata.outbufs[chpool.name].data.length) { console.log(frdata.outbufs); console.log(JSON.stringify(frdata.outbufs)); process.exit(0); }
+//        console.log("write", typeof frdata.outbufs[chpool.name], frdata.outbufs[chpool.name].length, frdata.outbufs[chpool.name]); process.exit();
         chpool.port.write(frdata.outbufs[chpool.name]);
     });
 //second pass: package received input and send with output to I/O monitor
@@ -306,6 +309,7 @@ Player.prototype.send_frame = function(frdata, first)
 }
 
 
+//streamed audio playback:
 Player.prototype.playback = function(opts) //{filename, duration, latency}
 {
 //    var pool = new PoolStream() //TODO: is pool useful here?
@@ -388,6 +392,6 @@ Player.prototype.pbcancel = function()
 }
 
 
-var player = new Player();
+var player = new Player({auto_open: false});
 
 //eof

@@ -204,6 +204,7 @@ function Playlist(opts)
 //        console.log("rendered frdata: %j", frdata);
         frdata.song = this.selected; //useful for debug
         frdata.loop = this.opts.loop; //useful for debug
+        frdata.duration = this.songs[this.selected].duration; //useful for debug
         frdata.frtime = this.frtime;
         if (!frdata.frnext) frdata.frnext = this.songs[this.selected].duration;
         frdata.delay = frdata.frnext / this.speed - this.elapsed.now; //for debug/info only

@@ -1,3 +1,5 @@
+//IPC: TODO: use webworkers + transferable objects?
+
 //ipc wrappers to hide the plumbing and allow it to be easily changed out in future
 //there are so many npm modules, it's hard to know which one to use so this abstraction allows alternates to be used
 //all YALP messages fall into 3 cases:

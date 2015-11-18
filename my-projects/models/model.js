@@ -53,9 +53,9 @@ function Model(opts)
 //    var chpool = opts.chpool;
     add_prop('adrs', isdef(opts.adrs)? use_adrs(opts.adrs): opts.chpool.getadrs());
     add_prop('numch', isdef(opts.numch)? opts.numch: this.nodelen * (isdef(opts.numpx)? opts.numpx: 16));
-//    Object.defineProperty(this, 'numch', { enumerable: true, get: function() { return m_buf.byteLength; }});
+//    Object.defineProperty(this, 'numch', { enumerable: true, get: function() { return m_buf.length; }});
     add_prop('numpx', Math.floor(this.numch / this.nodelen)); //TODO: allow last partial node to be used?
-//    Object.defineProperty(this, 'numpx', { enumerable: true, get: function() { return Math.floor(m_buf.byteLength / this.nodelen); }});
+//    Object.defineProperty(this, 'numpx', { enumerable: true, get: function() { return Math.floor(m_buf.length / this.nodelen); }});
     add_prop('startch', isdef(opts.startch)? use_channels(opts.startch, this.numch): opts.chpool.getch(this.numch));
     var m_buf = null; //, m_nodes; //CAUTION: don't alloc until all ch assigned on this port
     Object.defineProperty(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }});
@@ -97,7 +97,7 @@ function Model(opts)
 
 Model.prototype.clear = function(color)
 {
-//    console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.byteLength / 4, color.toString(16));
+//    console.log("fill @%s: %d nodes with #%s", clock.asString(this.elapsed_total), m_buffer.length / 4, color.toString(16));
 //    for (var n = 0; n < this.numpx; n+= 4) m_nodes.setUint32(n, color); //CAUTION: byte offset, not uint32 offset
 //    m_dirty = true;
     this.fill(color || 0);

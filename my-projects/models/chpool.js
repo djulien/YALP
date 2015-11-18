@@ -4,6 +4,9 @@
 
 var makenew = require('my-plugins/utils/makenew');
 
+//function isdef(thing) { return (typeof thing !== 'undefined'); }
+
+
 module.exports = ChannelPool;
 
 
@@ -80,6 +83,11 @@ ChannelPool.prototype.render = function(frtime, force)
         if (typeof frnext !== 'number') return;
         frnext_min = (typeof frnext_min === 'number')? Math.min(frnext_min, frnext): frnext;
     });
+//    try{
+//    if (!isdef(this.buf.length)) this.buf.length = this.buf.length;
+//    }catch(exc) { console.log(exc); process.exit(1); }
+//    var retbuf = this.buf; //kludge: don't pass getter directly back to caller
+//    if (!isdef(retbuf.length)) { console.log("buf no len"); process.exit(1); }
     this.dirty = false;
 //TODO: dedup
 //    return this.buf.slice(0, usedlen);
