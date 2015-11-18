@@ -141,7 +141,7 @@ Sequence.prototype.get_duration = function(filename)
 //generic implementation
 Sequence.prototype.render = function(frtime)
 {
-    var portbufs = {}, /*portlens = {},*/ hasbuf = false;
+    var portbufs = {}, rawbufs = {}, hasbuf = false, hasraw = false;
     var frnext_min = this.duration; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
 //check each port for pending output and next refresh time:
     ChannelPool.all.forEach(function(chpool, inx, all)
@@ -153,15 +153,15 @@ Sequence.prototype.render = function(frtime)
 //        });
         var portbuf = chpool.render(frtime); //{frnext, buf}
         if (!portbuf) return; //continue;
-        portbufs[chpool.name] = portbuf.buf;
+        if (portbuf.buf) { portbufs[chpool.name] = portbuf.buf; hasbuf = true; }
+        if (portbuf.rawbuf) { rawbufs[chpool.name] = portbuf.rawbuf; hasraw = true; }
 //        portlens[chpool.name] = portbuf.buf.length; //kludge: buf length gets dropped somewhere, so pass it back explicitly
-        if (portbuf.buf) hasbuf = true;
 //        if (portbuf.frnext === false) return; //no further animation wanted
 //        if (portbuf.frnext === true) portbuf.frnext = frtime + ?; //asap; //this.duration; //one more update at end of seq
         if (typeof portbuf.frnext !== 'number') return;
         frnext_min = Math.min(frnext_min, portbuf.frnext); //set next animation frame time
     });
-    return {frnext: frnext_min, outbufs: hasbuf? portbufs: null}; //, outlens: hasbuf? portlens: null};
+    return {frnext: frnext_min, outbufs: hasbuf? portbufs: null, rawbufs: hasraw? rawbufs: null}; //, outlens: hasbuf? portlens: null};
 }
 
 

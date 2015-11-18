@@ -20,7 +20,10 @@ module.exports.RGBW = RGBW;
 //TODO: different color ordering (need GRB for WS281X)
 
 
+//monochrome pixels:
+//brightness is derived from RGB values and used as a single-byte value for each monochrome pixel
 function Mono() {} //dummy ctor
+
 //pre-convert color into correct node width and format:
 Mono.prototype.color = function(color)
 {
@@ -52,16 +55,19 @@ debugger;
     }
 //    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
 }
+
 Mono.prototype.toRGB = function(color)
 {
     return (color << 16) | (color << 8) | color; //Color('#FFF').lightness(color / 255).rgb24();
 }
+
 Mono.prototype.fill = function(color)
 {
     this.nodes.fill(color); //color2mono(color)); //TODO: this.nodes.?
     this.dirty = true;
     return this; //fluent
 }
+
 Mono.prototype.json = function(json)
 {
 //    if (!isdef(json)) return JSON.stringify(this.nodes, null, ' ');
@@ -86,6 +92,7 @@ Mono.prototype.json = function(json)
     this.dirty = true;
     return this; //fluent
 }
+
 Mono.prototype.pixel = function(inx, color) //get/set node color
 {
     if (!isdef(color)) return this.nodes[this.nodeofs(inx)]; //.readUInt8(this.nodeofs(i));
@@ -96,7 +103,11 @@ Mono.prototype.pixel = function(inx, color) //get/set node color
 //Mono.prototype.inspect_nodes = function(depth, opts) {}
 
 
+
+//bi-color pixels:
+//could be used for red/green LEDs, not tested
 function Bicolor() {} //dummy ctor
+
 //pre-convert color into correct node width and format:
 Bicolor.prototype.color = function(color)
 {
@@ -119,10 +130,12 @@ Bicolor.prototype.color = function(color)
     }
 //    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
 }
+
 Bicolor.prototype.toRGB = function(color)
 {
     return color << 8; //Color({red: color >>> 8, green: color & 0xFF}).rgb24();
 }
+
 Bicolor.prototype.fill = function(color)
 {
 //    color = color2rg(color);
@@ -130,6 +143,7 @@ Bicolor.prototype.fill = function(color)
     this.dirty = true;
     return this; //fluent
 }
+
 Bicolor.prototype.json = function(json)
 {
     if (!isdef(json)) //stringify //return JSON.stringify(this.nodes, function(key, val) { return key? '#' + val: val; /*+ val.toString(16)*/; }, ' ');
@@ -152,6 +166,7 @@ Bicolor.prototype.json = function(json)
     this.dirty = true;
     return this; //fluent
 }
+
 Bicolor.prototype.pixel = function(inx, color) //get/set node color
 {
     if (!isdef(color)) return this.nodes.readUInt16BE(this.nodeofs(inx));
@@ -159,6 +174,7 @@ Bicolor.prototype.pixel = function(inx, color) //get/set node color
     this.dirty = true;
     return this; //fluent
 }
+
 Bicolor.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";
@@ -171,7 +187,11 @@ Bicolor.prototype.inspect_nodes = function(depth, opts)
 }
 
 
+
+//RGB pixels:
+//most common case; 24-bit value used for R, G, B
 function RGB() {} //dummy ctor
+
 //pre-convert color into correct node width and format:
 RGB.prototype.color = function(color)
 {
@@ -193,16 +213,19 @@ RGB.prototype.color = function(color)
     }
 //    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
 }
+
 RGB.prototype.toRGB = function(color)
 {
     return color; //.rgb24();
 }
+
 RGB.prototype.fill = function(color)
 {
     for (var ofs = 0; ofs < this.numch; ofs += 3) int24.writeUInt24BE(this.nodes, ofs, color);
     this.dirty = true;
     return this; //fluent
 }
+
 RGB.prototype.pixel = function(inx, color) //get/set node color
 {
     if (!isdef(color)) return int24.readUInt24BE(this.nodes, this.nodeofs(inx)); //this.nodes.readUInt24BE(this.nodeofs(i));
@@ -210,6 +233,7 @@ RGB.prototype.pixel = function(inx, color) //get/set node color
     this.dirty = true;
     return this; //fluent
 }
+
 RGB.prototype.json = function(json)
 {
     if (!isdef(json)) //stringify //return JSON.stringify(this.nodes, function(key, val) { return key? '#' + val: val; /*+ val.toString(16)*/; }, ' ');
@@ -236,6 +260,7 @@ RGB.prototype.json = function(json)
     this.dirty = true;
     return this; //fluent
 }
+
 RGB.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";
@@ -248,7 +273,11 @@ RGB.prototype.inspect_nodes = function(depth, opts)
 }
 
 
+
+//4-channel pixels:
+//typically used for floods which have a separate W channel in addition to R, G, B; unclear when to use W vs. R/G/B combined
 function RGBW() {} //dummy ctor
+
 //pre-convert color into correct node width and format:
 RGBW.prototype.color = function(color)
 {
@@ -270,17 +299,20 @@ RGBW.prototype.color = function(color)
             throw "Unhandled: convert " + typeof color + " to monochrome";
     }
 }
+
 RGBW.prototype.toRGB = function(color)
 {
     if (color & 0xFFFFFF00) return color >>> 8; //RGB
     return (color << 16) | (color << 8) | color; //grayscale
 }
+
 RGBW.prototype.fill = function(color)
 {
     for (var ofs = 0; ofs < this.numch; ofs += 4) this.nodes.writeUInt32BE(ofs, color); //color2rgbw(color));
     this.dirty = true;
     return this; //fluent
 }
+
 RGBW.prototype.json = function(json)
 {
     if (!isdef(json)) //stringify //return JSON.stringify(this.nodes, function(key, val) { return key? '#' + val: val; /*+ val.toString(16)*/; }, ' ');
@@ -303,6 +335,7 @@ RGBW.prototype.json = function(json)
     this.dirty = true;
     return this; //fluent
 }
+
 RGBW.prototype.pixel = function(inx, color) //get/set node color
 {
     if (!isdef(color)) return this.nodes.readUInt32BE(this.nodeofs(inx));
@@ -310,6 +343,7 @@ RGBW.prototype.pixel = function(inx, color) //get/set node color
     this.dirty = true;
     return this; //fluent
 }
+
 RGBW.prototype.inspect_nodes = function(depth, opts)
 {
     var buf = "";

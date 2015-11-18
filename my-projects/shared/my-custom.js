@@ -216,9 +216,21 @@ ChannelPool.all.forEach(function(chpool, inx)
 {
     if (!chpool.opts.device) return;
     console.log("port ", chpool.name, chpool.opts.device);
-    chpool.port = new serial.SerialPort(chpool.opts.device, { baudrate: 242500, dataBits: 8, parity: 'none', stopBits: 1, buffersize: Math.floor(242500 / (1 + 8 + 2) / FPS) /*2048*10*/ }, false), //false => don't open immediately (default = true)
+    chpool.port = new serial.SerialPort(chpool.opts.device, config(242500, '8N1', FPS), false), //false => don't open immediately (default = true)
     RenXt.AddProtocol(chpool); //protocol handler
 });
+var CONFIG =
+{
+    '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
+};
+function config(baud, bits, fps)
+{
+    var cfg = CONFIG[bits];
+    if (!cfg) throw "Unhandled serial config: '" + bits + "'";
+    cfg.baudrate = baud;
+//    cfg.buffersize = Math.floor(baud / (1 + cfg.dataBits + cfg.stopBits + 1) / fps); //2048
+    cfg.buffersize = 4096; //NOTE: ignore FPS restrictions to simplify special cases such as RenXt enum
+}
 
 
 //show list of available ports:

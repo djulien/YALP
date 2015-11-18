@@ -72,10 +72,10 @@ function Model(opts)
         if (this.allocbuf) this.allocbuf(m_buf); //allow custom slicing/mapping
     }.bind(this);
 
-    this.nodeofs = function(inx) { return this.nodelen * inx; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
     var subclass = [null, pixelwidths.Mono, pixelwidths.Bicolor, pixelwidths.RGB, pixelwidths.RGBW][this.nodelen];
     if (!subclass) throw "Unhandled node size: " + this.nodelen;
     subclass.prototype.forEach(function(func, name) { if (func) this[name] = func; }.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
+    this.nodeofs = function(inx) { return this.nodelen * inx; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
 
 //no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
 //    Model.all.push(this);
