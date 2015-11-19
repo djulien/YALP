@@ -41,7 +41,9 @@ var myImageData = ctx.getImageData(0, 0, 10, 10); //left, top, width, height);
 var buf = myImageData.data; //Uint8ClampedArray of RGBA values
 console.log("w %d, h %d, len %d:", myImageData.width, myImageData.height, buf.length, buf);
 
-//var buf = canvas.toBuffer();
+ctx.putImageData(myImageData, x, y); //paint image data back into context
+
+//no worky var buf = canvas.toBuffer();
 //console.log(buf);
 
 
