@@ -56,6 +56,8 @@ NO-1. install io.js, npm, overlay iojs binaries onto node
    mkdir  ~/local-npm
    CAUTION: "npm install -g" will go there, so add "export PATH=~/npm/bin:$PATH" to ~/.bashrc
    mv  ~/.npm  ~/old-npm
+2.9 install cairo:
+   sudo apt-get install libcairo2-dev libjpeg8-dev libpango1.0-dev libgif-dev build-essential g++
 3. create new git repo at github: add readme, add node to .gitignore
    https://www.maketecheasier.com/6-useful-graphical-git-client-for-linux/
    http://stackoverflow.com/questions/1516720/git-gui-client-for-linux
@@ -389,7 +391,7 @@ async code patterns/mechanisms:
 
 interactive art:
  http://palebluepixel.org/projects/kimotion/
- 
+
 perf:
  http://www.html5rocks.com/en/tutorials/speed/v8/
  https://developers.google.com/speed/pagespeed/

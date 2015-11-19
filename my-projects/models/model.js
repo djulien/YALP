@@ -58,8 +58,7 @@ function Model(opts)
 //    Object.defineProperty(this, 'numpx', { enumerable: true, get: function() { return Math.floor(m_buf.length / this.nodelen); }});
     add_prop('startch', isdef(opts.startch)? use_channels(opts.startch, this.numch): opts.chpool.getch(this.numch));
     var m_buf = null; //, m_nodes; //CAUTION: don't alloc until all ch assigned on this port
-    Object.defineProperty(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }});
-//    Object.defineProperty(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_nodes; }});
+//    Object.defineProperty(this, 'nodes', { enumerable: true, get: function() { if (!m_buf) alloc(); return m_buf; }}); //m_nodes; }});
 //    this.getbuf = function opts.getbuf;
     var alloc = function()
     {

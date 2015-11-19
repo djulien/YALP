@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- from https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Basic_usage -->
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Canvas tutorial</title>
+    <style type="text/css">
+      canvas { border: 1px dashed #aaa; }
+    </style>
+    <script type="text/javascript">
+      function draw()
+      {
+        var canvas = document.getElementById('tutorial');
+//        if (canvas.getContext){
+        var ctx = canvas.getContext('2d');
+
+/*
+        ctx.fillStyle = "rgb(200, 0, 0)";
+        ctx.fillRect (10, 10, 55, 50);
+        ctx.fillStyle = "rgba(0, 0, 200, 0.5)";
+        ctx.fillRect (30, 30, 55, 50);
+
+        ctx.fillRect(25,25,100,100);
+        ctx.clearRect(45,45,60,60); //xparent
+        ctx.strokeRect(50,50,50,50);
+
+    ctx.beginPath();
+    ctx.moveTo(75,50); //must be first command after beginPath
+    ctx.lineTo(100,75);
+    ctx.lineTo(100,25);
+    ctx.fill();
+
+   // Filled triangle
+    ctx.beginPath();
+    ctx.moveTo(125,25);
+    ctx.lineTo(205,25);
+    ctx.lineTo(125,105);
+    ctx.fill();
+
+    // Stroked triangle
+    ctx.beginPath();
+    ctx.moveTo(225,125);
+    ctx.lineTo(225,45);
+    ctx.lineTo(145,125);
+    ctx.closePath();
+    ctx.stroke();
+*/
+
+    ctx.strokeStyle = "rgb(200, 100, 50)";
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 100);
+    ctx.stroke();
+
+//var myImageData = ctx.createImageData(10, 10); //w, h
+var myImageData = ctx.getImageData(0, 0, 10, 10); //left, top, width, height);
+var buf = myImageData.data; //Uint8ClampedArray of RGBA values
+console.log("w %d, h %d, len %d:", myImageData.width, myImageData.height, buf.length, buf);
+
+      }
+    </script>
+  </head>
+  <body onload="draw();">
+    <canvas id="tutorial" width="200" height="200"></canvas>
+  </body>
+</html>

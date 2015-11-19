@@ -187,6 +187,8 @@
 		<Unit filename="scripts/symlinks.js" />
 		<Unit filename="scripts/ui-builder.js" />
 		<Unit filename="scripts/ui-entry.js" />
+		<Unit filename="tests/canvas-test.html" />
+		<Unit filename="tests/canvas-test.js" />
 		<Unit filename="tests/createjs.html" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />

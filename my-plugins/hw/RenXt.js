@@ -224,7 +224,7 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-var rgbquant = require('rgbquant');
+var RgbQuant = require('rgbquant');
 
 
 module.exports.AddProtocol = function(chpool)
@@ -272,13 +272,16 @@ function encode(chpool, rendered, first)
     chpool.models.forEach(function(model, inx, all)
     {
         if (!model.was_dirty) return; //no need to re-encode
+        var img = Uint32Array(model.numpx);
+        for (var i = 0; i < model.numpx; ++i) img[i] = model.buf; //abgr format
         quant.sample(imgA); //analyze histogram
         var pal = quant.palette(); //build palette
-        var outA = q.reduce(imgA); //reduce image
+        console.log("pal", pal);
+        var reduced = quant.reduce(imgA); //reduce image
 
 
 
-        
+        port
         .SetPal(adrs, 0x100010)
         .SetAll(adrs, 0)
         .NodeFlush(adrs)
@@ -302,7 +305,7 @@ function verify(outbuf, inbuf)
     return 0;
 }
 
-function enum()
+function enumm()
 {
 //CAUTION: must match firmware manifest; 14-bit words => uint16
     var manif = Struct()
@@ -455,7 +458,7 @@ function RenXtBuffer(opts)
 {
     if (!(this instanceof RenXtBuffer)) return makenew(RenXtBuffer, arguments); //{port, buflen}
 //    this.port = opts.port;
-    opts = (typeof opts !== 'object') {buflen: opts}: opts || {};
+    opts = (typeof opts !== 'object')? {buflen: opts}: opts || {};
     this.buffer = new Buffer(opts.buflen || 4000); //NOTE: ignore FPS restrictions to simplify special cases such as initial enum
     this.dataview = new DataView(this.buffer);
     this.stats_opc = new Uint16Array(256);

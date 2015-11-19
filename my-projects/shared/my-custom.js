@@ -209,20 +209,22 @@ var wport = /*xmas.ports.FTDI_w =*/ new ChannelPool({name: 'FTDI-W', device: '/d
 
 //then add hardware drivers and protocol handlers:
 var serial = require('serialport'); //https://github.com/voodootikigod/node-serialport
-var RenXt = require('my-plugins/hw/RenXt');
+var RenXt = null; require('my-plugins/hw/RenXt');
 
+//supported bit configs (chosen arbitrarily):
+var CONFIG =
+{
+    '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
+};
 const FPS = 20; //target 50 msec frame rate
 ChannelPool.all.forEach(function(chpool, inx)
 {
     if (!chpool.opts.device) return;
     console.log("port ", chpool.name, chpool.opts.device);
-    chpool.port = new serial.SerialPort(chpool.opts.device, config(242500, '8N1', FPS), false), //false => don't open immediately (default = true)
-    RenXt.AddProtocol(chpool); //protocol handler
+    chpool.port = new serial.SerialPort(chpool.opts.device, config(242500, '8N1', FPS), false); //false => don't open immediately (default = true)
+//    RenXt.AddProtocol(chpool); //protocol handler
 });
-var CONFIG =
-{
-    '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
-};
+
 function config(baud, bits, fps)
 {
     var cfg = CONFIG[bits];
@@ -243,6 +245,38 @@ serial.list(function(err, ports)
         console.log("  serial[%s/%s]: '%s' '%s' '%s'".cyan, inx, ports.length, port.comName, port.manufacturer, port.pnpId);
     });
 });
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// Canvas:
+
+var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
+var Image = Canvas.Image;
+
+//all fx and images are rendered onto master canvas, and models rendered from that canvas
+//models can overlap
+//for now, use a 2D canvas
+//TODO: use a 3D canvas + fx
+var canvas = new Canvas(200, 200); //, 'pdf'); //40K pixels (120K channels)
+//var ctx = canvas.getContext('2d');
+module.exports.canvas = canvas;
+
+function frame_load(filename)
+{
+    if (!filename) filename = path.join(__dirname, '/images/squid.png'); //demo image
+    fs.readFile(filename, function(err, squid)
+    {
+        if (err) throw err;
+        var img = new Image;
+        img.src = squid;
+        ctx.drawImage(img, 0, 0, img.width / 4, img.height / 4);
+    });
+}
+
+function frame_data()
+{
+    return canvas.toBuffer();
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
