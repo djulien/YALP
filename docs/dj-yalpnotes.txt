@@ -387,6 +387,9 @@ reconnect pipes:
 async code patterns/mechanisms:
  https://strongloop.com/strongblog/node-js-callback-hell-promises-generators/
 
+interactive art:
+ http://palebluepixel.org/projects/kimotion/
+ 
 perf:
  http://www.html5rocks.com/en/tutorials/speed/v8/
  https://developers.google.com/speed/pagespeed/

@@ -188,6 +188,22 @@ function Rect2D(opts) //w, h, more_args)
 }
 inherits(Rect2D, Model);
 
+//additional methods for 2D node access:
+
+/*
+//override with custom node order
+Rect2D.prototype.xy2node = function(x, y)
+{
+    return (x < 0)? -1: (x >= opts.w)? opts.numpx: y * opts.w + x; //if x out of range force result to be as well
+}
+
+//override with custom logic
+Rect2D.prototype.pixel2D = function(x, y, color)
+{
+    return this.pixel(this.xy2node(x, y), color);
+}
+*/
+
 
 Rect2D.prototype.row = function(y, color)
 {

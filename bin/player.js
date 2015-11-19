@@ -39,6 +39,7 @@ var ChannelPool = require('my-projects/models/chpool');
 
 //set up event handlers for all ports:
 //ChannelPool.op_start = new Elapsed();
+console.log("TODO: move to chpool?");
 ChannelPool.all.forEach(function(chpool)
 {
     chpool.incoming = []; //null;
@@ -74,6 +75,7 @@ ChannelPool.all.forEach(function(chpool)
 
 
 //TODO: allow player to start before playlist (ipc problem)
+console.log("TODO: mem leak when playlist is not running");
 function Player(opts)
 {
 //    console.log("player args", arguments);

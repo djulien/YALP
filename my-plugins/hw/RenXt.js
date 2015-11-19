@@ -224,12 +224,17 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+var rgbquant = require('rgbquant');
+
+
 module.exports.AddProtocol = function(chpool)
 {
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) chpool[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
 //    var svrender = chpool.render;
     chpool.render = function(frtime, force)
     {
+debugger;
+        chpool.models.forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
         var revtal = chpool.prototype.render.call(chpool, frtime, force); //svrender(frtime, force); //ChannelPool.prototype.render.call(chpool, frtime, force);
         var encbuf = encode(chpool, retval, !frtime);
         if (encbuf) { retval.rawbuf = retval.buf; retval.buf = encbuf; } //swap in encoded buf but preserve original (mainly for debug)
@@ -238,6 +243,7 @@ module.exports.AddProtocol = function(chpool)
 //    var svverify = chpool.validate;
     chpool.verify = function(outbuf, inbuf)
     {
+debugger;
         var cmp = chpool.prototype.verify? chpool.prototype.verify.call(chpool, outbuf, inbuf): null; //svverify(outbuf, inbuf);
         if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
@@ -249,21 +255,51 @@ module.exports.AddProtocol = function(chpool)
 //RenXtProtocol.prototype.encode = encode;
 //RenXtProtocol.prototype.validate = validate;
 
-function encode(chpool, rendered, seqstart)
+var quant = new RgbQuant({colors: 16});
+
+function encode(chpool, rendered, first)
 {
-    if (!chpool.encbuf) chpool.encbuf = new Buffer(chpool.buf.length); //NOTE: don't do this until after all channels assigned
-    var used = 0;
+    if (!chpool.encbuf) chpool.encbuf = new RenXtBuffer(chpool.buf.length); //NOTE: don't do this until after all channels assigned
+    chpool.rewind();
+    if (first || !chpool.RenXtInit) //config all controllers
+    {
+        chpool.models.forEach(function(model, inx, all)
+        {
+            chpool.encbuf.SetConfig(model.adrs, model.nodetype || RenXt.WS2811(RenXt.SERIES), Math.ceil(model.numpx / 4 / 2)) //quad bytes, 2 bpp
+        });
+        chpool.RenXtInit = true;
+    }
     chpool.models.forEach(function(model, inx, all)
     {
-        var frnext = model.render(frtime); //tell model to render new output
-        if (typeof frnext !== 'number') return;
-        frnext_min = (typeof frnext_min === 'number')? Math.min(frnext_min, frnext): frnext;
+        if (!model.was_dirty) return; //no need to re-encode
+        quant.sample(imgA); //analyze histogram
+        var pal = quant.palette(); //build palette
+        var outA = q.reduce(imgA); //reduce image
+
+
+
+        
+        .SetPal(adrs, 0x100010)
+        .SetAll(adrs, 0)
+        .NodeFlush(adrs)
+        .emit_raw(RenXt.RENARD_SYNC) //send out a final sync to mark end of last packet
+        .flush(function(err)
+        {
+            if (err) { console.log("error: " + err); return; }
+            console.log("write+drain+delay done: %d bytes available", port.RenXt.rdlen);
+        });
+    });
+
+    chpool.models.forEach(function(model, inx, all)
+    {
+        if (model.was_dirty) return; //no need to re-encode
     });
 }
 
+console.log("TODO: compare RenXt outbuf + inbuf");
 function verify(outbuf, inbuf)
 {
-    console.log("TODO: compare RenXt outbuf + inbuf");
+    return 0;
 }
 
 function enum()
@@ -413,21 +449,22 @@ function enum()
 var RenXt = require('my-plugins/hw/RenXt');
 var Struct = require('struct'); //https://github.com/xdenser/node-struct
 var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
+var makenew = require('my-plugins/utils/makenew');
 
 function RenXtBuffer(opts)
 {
-    if (!(this instanceof RenXtBuffer)) return new RenXtBuffer(opts); //{port, buflen}
-
-    this.port = opts.port;
+    if (!(this instanceof RenXtBuffer)) return makenew(RenXtBuffer, arguments); //{port, buflen}
+//    this.port = opts.port;
+    opts = (typeof opts !== 'object') {buflen: opts}: opts || {};
     this.buffer = new Buffer(opts.buflen || 4000); //NOTE: ignore FPS restrictions to simplify special cases such as initial enum
     this.dataview = new DataView(this.buffer);
     this.stats_opc = new Uint16Array(256);
-    this.port.on('data', function(data) //collect incoming data
-    {
-        this.latest = this.elapsed.now;
-        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
-        else { this.buffer.write(data, this.rdlen, data.length); this.rdlen += data.length; }
-    }.bind(this));
+//    this.port.on('data', function(data) //collect incoming data
+//    {
+//        this.latest = this.elapsed.now;
+//        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
+//        else { this.buffer.write(data, this.rdlen, data.length); this.rdlen += data.length; }
+//    }.bind(this));
 }
 
 

@@ -76,6 +76,8 @@ IcicleSegment2D.all = function(opts)
     for (var x = 0; x < this.opts.vix2ch[1]; ++x) this.xmap.push(Math.round(this.opts.w * x / this.opts.vix2ch[1]));
     this.xmap.push(this.opts.w);
     console.log("ic.all xmap:", this.xmap);
+//    this.pixel2D = function(x, y, color) { return this.pixel(this.xy2node(x, y), color); } //override with custom logic
+    this.render = function() { return null; } //render each segment, not composite model
 }
 inherits(IcicleSegment2D.all, Rect2D);
 
