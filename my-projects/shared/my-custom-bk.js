@@ -257,40 +257,11 @@ var Image = Canvas.Image;
 //models can overlap
 //for now, use a 2D canvas
 //TODO: use a 3D canvas + fx
-//var canvas_shared = new Canvas(200, 200); //, 'pdf'); //shared canvas (all models); defines global channel pool; 40K pixels (120K channels)
-function SubCanvas(canvas, x, y, w, h)
-{
-    if (!(this instanceof SubCanvas)) return makenew(SubCanvas, arguments);
-    this.canvas = canvas;
-    this.rect = {x: x, y: y, w: w, h: h};
-    this.
-}
-var dynamic_canvas =
-{
-    width: 0,
-    height: 0,
-    addrect: function(x, y, w, h)
-    {
-        this.width = Math.max(this.width, x + w);
-        this.height = Math.max(this.height, y + h);
-    },
-    getrect: function
-    alloc: function()
-    {
-        this.canvas = new Canvas(this.width, this.height);
-        this.ctx = this.canvas.getContext('2d');
-    },
-====
-var myImageData = ctx.getImageData(0, 0, 10, 10); //left, top, width, height);
-var buf = myImageData.data; //Uint8ClampedArray of RGBA values
-console.log("w %d, h %d, len %d:", myImageData.width, myImageData.height, buf.length, buf);
-
-    }
-};
+var canvas = new Canvas(200, 200); //, 'pdf'); //40K pixels (120K channels)
 //var ctx = canvas.getContext('2d');
-//module.exports.canvas = canvas;
+module.exports.canvas = canvas;
 
-function load_frame(filename)
+function frame_load(filename)
 {
     if (!filename) filename = path.join(__dirname, '/images/squid.png'); //demo image
     fs.readFile(filename, function(err, squid)
@@ -301,6 +272,7 @@ function load_frame(filename)
         ctx.drawImage(img, 0, 0, img.width / 4, img.height / 4);
     });
 }
+
 function frame_data()
 {
     return canvas.toBuffer();
@@ -372,15 +344,13 @@ ic7.vix2render = function() { this.pixel(0, this.vix2buf[0]).pixel(1, this.vix2b
 */
 
 //show_group('ic', [2, +14]);
-  for (var x = 33-1; x >= 0; --x) for (var y = 10-1; y >= 0; --y) nodes.push([x, y]); //nodes[x][y] = node++;
-  [
-var ic1 = Rect2D({name: 'ic1', x: 0, y: 0, w: 33, h: 10, zinit: false, order: R2L(T2B()), port: yport}); //{from: 32, to: 0}, vorder: {from: 9: to: 0}});
-var ic2 = Rect2D({name: 'ic2', /*x: 33,*/ y: 0, w: 30, h: 10, zinit: false, order: R2L(T2B()), port: yport}); //[{from: 30, to: 1}]});
-var ic3 = Rect2D({name: 'ic3', /*x: 63,*/ y: 0, w: 30, h: 10, zinit: false, order: R2L(T2B()), port: yport}); //[{from: 30, to: 1}]});
-var ic4 = Rect2D({name: 'ic4', /*x: 93,*/ y: 0, w: 24+8, h: 10, zinit: false, order: R2L(T2B()), port: yport}); //[{from: 24+8, to: 1+8}, {from: 8, to: 1}]});
-var ic5 = Rect2D({name: 'ic5', /*x: 125,*/ y: 0, w: 34, h: 10, zinit: false, order: R2L(T2B()), port: yport}); //[{from: 34, to: 1}]});
-var icbig = Rect2D({name: 'icbig', /*x: 159,*/ y: 0, w: 15+33, h:10, zinit: false, order: X([15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14])(T2B())}; //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
-var ic_all = [ic1, ic2, ic3, ic4, ic5, icbig]; //yport.alloc(IcicleSegment2D.all, {name: 'ic-all', x: 0, y: 0, w: 207, h: 10, zinit: false, vix2ch: [2, +14]}); //CAUTION: must use same port as segments
+var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 33, h: 10, zinit: false, order: [{from: 33, to: 1}]});
+var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
+var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 30, h: 10, zinit: false, order: [{from: 30, to: 1}]});
+var ic4 = yport.alloc(IcicleSegment2D, {name: 'ic4', w: 24+8, h: 10, zinit: false, order: [{from: 24+8, to: 1+8}, {from: 8, to: 1}]});
+var ic5 = yport.alloc(IcicleSegment2D, {name: 'ic5', w: 34, h: 10, zinit: false, order: [{from: 34, to: 1}]});
+var icbig = yport.alloc(IcicleSegment2D, {name: 'icbig', w: 15+33, h:10, zinit: false, order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
+var ic_all = yport.alloc(IcicleSegment2D.all, {name: 'ic-all', w: 207, h: 10, zinit: false, vix2ch: [2, +14]}); //CAUTION: must use same port as segments
 //var ic1 = yport.alloc(IcicleSegment2D, {name: 'ic1', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
 //var ic2 = yport.alloc(IcicleSegment2D, {name: 'ic2', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
 //var ic3 = yport.alloc(IcicleSegment2D, {name: 'ic3', w: 2, h: 2, zinit: false, order: [{from: 2, to: 1}]});
