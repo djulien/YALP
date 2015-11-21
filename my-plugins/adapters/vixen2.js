@@ -6,6 +6,8 @@ require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.co
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
 var inherits = require('inherits');
+var Color = require('tinycolor2'); //'onecolor').color;
+var color_cache = require('color-cache').cache;
 var makenew = require('my-plugins/utils/makenew');
 var bufdiff = require('my-plugins/utils/buf-diff');
 var timescale = require('my-plugins/utils/time-scale');
@@ -25,6 +27,8 @@ module.exports.Sequence = Vixen2Sequence;
 module.exports.Profile = Vixen2Profile;
 module.exports.ExtendModel = ExtendModel;
 
+
+var rgba_splitter = new Buffer([255, 255, 255, 255]);
 
 var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
@@ -62,16 +66,53 @@ function Vixen2Sequence(opts)
     if (partial)
         console.log("num ch# %d, partial frame? %d", m_numch, !!partial);
 ////    top.decoded = chvals;
-    var pivot = new Buffer(m_chvals.length);
+
+//    this.getChannels(m_top.bynme.Channels, m_numch);
+    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    var m_chcolors = [];
+    if ((m_top.byname.Channels || {}).children) //get channels before chvals so colors can be applied
+    {
+        if (m_top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top.byname.Channels.children.length, m_numch);
+        var wrstream = this.opts.dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
+        wrstream.write(sprintf("#%d channels:\n", m_top.byname.Channels.children.length));
+        m_top.byname.Channels.children.forEach(function(child, inx) //NOTE: ignore output order
+        {
+//            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
+            var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
+            wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
+            m_chcolors.push((child.attr.color || 0xFFFFFF) << 8 | 0xFF); //full alpha; //Color(line.color));
+        }.bind(this));
+        wrstream.end('#eof\n');
+    }
+
+    var pivot = new Buffer(4 * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
+//    var rgba = new DataView(pivot);
+    var m_color_cache = {};
     for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
         for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
-            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
+        {
+//            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
+            var rgba = m_chcolors[chinx], brightness = m_chvals[chofs + frinx];
+            rgba = color_cache(rgba + '^' + brightness, function()
+            {
+                if (brightness != 255)
+                {
+                    rgba_split.writeUint32BE(rgba, 0);
+                    var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+                    c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
+                    rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a;
+                    rgba = rgba_split.readUint32BE(0);
+                }
+                return rgba;
+            });
+            pivot.writeUint32BE(rgba, 4 * (chofs + frinx));
+        }
     m_chvals = pivot; pivot = null;
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
-        if (!isdef(chinx)) return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
-        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[chinx * m_numfr + frinx]: 0; //single ch val
+        if (!isdef(chinx)) return m_chvals.slice(4 * frinx * m_numch, 4 * (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
+        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals.readUint32BE(4 * (chinx * m_numfr + frinx)); //[chinx * m_numfr + frinx]: 0; //single ch val
 //no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
 //        typeof chinx === 'undefined') //return all ch vals for a frame
 //        {
@@ -126,22 +167,7 @@ function Vixen2Sequence(opts)
 //        return {frnext: frtime + this.FixedFrameInterval, bufs: portbufs};
     }
 
-//    this.getChannels(m_top.bynme.Channels, m_numch);
-    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
-    if ((m_top.byname.Channels || {}).children)
-    {
-        if (m_top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top.byname.Channels.children.length, m_numch);
-        var wrstream = this.opts.dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
-        wrstream.write(sprintf("#%d channels:\n", m_top.byname.Channels.children.length));
-        m_top.byname.Channels.children.forEach(function(child, inx)
-        {
-//            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
-            var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
-            wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
-        }.bind(this));
-        wrstream.end('#eof\n');
-    }
-    if (m_top.byname.Audio)
+    if (m_top.byname.Audio) //set audio after channel vals in case we are overriding duration
     {
         var m_audio = path.join(this.vix2filename, '..', m_top.byname.Audio.value);
         var m_audiolen = m_top.byname.Audio.attr.duration;

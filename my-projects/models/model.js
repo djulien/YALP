@@ -9,7 +9,7 @@ var inherits = require('inherits');
 var caller = require('my-plugins/utils/caller').caller;
 var shortname = require('my-plugins/utils/shortname');
 var makenew = require('my-plugins/utils/makenew');
-var pixelwidths = require('my-projects/models/pixel-widths');
+//var pixelwidths = require('my-projects/models/pixel-widths');
 
 var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
 require('my-plugins/my-extensions/object-enum'); //allow object.forEach()
@@ -71,10 +71,10 @@ function Model(opts)
         if (this.allocbuf) this.allocbuf(m_buf); //allow custom slicing/mapping
     }.bind(this);
 
-    var subclass = [null, pixelwidths.Mono, pixelwidths.Bicolor, pixelwidths.RGB, pixelwidths.RGBW][this.nodelen];
-    if (!subclass) throw "Unhandled node size: " + this.nodelen;
-    subclass.prototype.forEach(function(func, name) { if (func) this[name] = func; }.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
-    this.nodeofs = function(inx) { return this.nodelen * inx; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
+//    var subclass = [null, pixelwidths.Mono, pixelwidths.Bicolor, pixelwidths.RGB, pixelwidths.RGBW][this.nodelen];
+//    if (!subclass) throw "Unhandled node size: " + this.nodelen;
+//    subclass.prototype.forEach(function(func, name) { if (func) this[name] = func; }.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
+//    this.nodeofs = function(inx) { return this.nodelen * inx; } //overridable with custom node order; nodejs seems to quietly ignore out-of-bounds errors, so explicit checking is not needed
 
 //no    if (!Model.all) Model.all = []; //parent Chpool has a list of models
 //    Model.all.push(this);
@@ -91,6 +91,91 @@ function Model(opts)
         if (gap > 0) opts.chpool.getch(gap); //make sure all channels are allocated
         return startch;
     }
+}
+
+
+/*
+//pre-convert color into correct node width and format:
+Model.prototype.tocolor = function(color)
+{
+    switch (typeof color)
+    {
+        case 'boolean': return color? 0xFFFFFF: 0;
+        case 'null': return 0;
+//        case 'undefined': throw "Color is undefined";
+        case 'object':
+            if (color instanceof Color) return color.rgb24();
+            //fall thru
+        case 'string':
+            return Color(color).rgb24();
+//            //fall thru
+        case 'number': //RGB
+            return color & 0xFFFFFF; // >>> 8; //drop alpha
+        default:
+            throw "Unhandled: convert " + typeof color + " to monochrome";
+    }
+//    return ((typeof color !== 'object')? Color('#' + color.toString(16)): color).lightness();
+}
+*/
+
+//Model.prototype.toRGB = function(color)
+//{
+//    return color; //.rgb24();
+//}
+
+Model.prototype.fill = function(color)
+{
+    for (var ofs = 0; ofs < this.nodes.length; ofs += 4) this.nodes.writeUInt32BE(ofs, color); //don't need nodeofs() here since all nodes will be getting same value
+    this.dirty = true;
+    return this; //fluent
+}
+
+Model.prototype.node = function(inx, color) //get/set node color
+{
+    if (!isdef(color)) return this.nodes.readUInt32BE(this.nodeofs(inx)); //this.nodes.readUInt24BE(this.nodeofs(i));
+    this.nodes.writeUInt32BE(this.nodeofs(inx), color); //this.nodes.writeUInt24BE(this.nodeofs(i), color);
+    this.dirty = true;
+    return this; //fluent
+}
+
+function tohex(color)
+{
+    var hex = ('00000000' + color.toString(16)).slice(-8);
+//    hex = hex.replace(/^(.)\1(.)\2(.)\3$/, "$1$2$3"); //abbreviated hex format
+    buf += '", "#' + hex;
+}
+
+RGB.prototype.json = function(json)
+{
+    if (!isdef(json)) //stringify //return JSON.stringify(this.nodes, function(key, val) { return key? '#' + val: val; /*+ val.toString(16)*/; }, ' ');
+    {
+        var buf = '';
+        for (var ofs = 0; ofs < this.nodes.length; ofs += 4) buf += '", "#' + tohex(this.nodes.readUInt32BE(ofs));
+        return '[' + buf.substr(3) + '"]';
+    }
+//    var vals = JSON.parse(json.replace(/ /g, ''));
+    if (typeof json === 'string') json = JSON.parse(json);
+    if (!Array.isArray(json)) throw "Expected a JSON array";
+//    debugger;
+    for (var ofs = 0, inx = 0; ofs < this.nodes.length; ofs += 4, ++inx)
+    {
+//        if (inx < json.length) console.log(json[inx] + ' => ' + this.color(json[inx]));
+        var color = (inx < json.length)? json[inx]: 0; //this.color(json[inx]): 0;
+        this.nodes.writeUInt32BE(ofs, color); //this.nodes.writeUInt24BE(this.nodeofs(i), color);
+    }
+    this.dirty = true;
+    return this; //fluent
+}
+
+Model.prototype.inspect_nodes = function(depth, opts)
+{
+    var buf = "";
+    for (var ofs = 0; ofs < this.nodes.length /*numch*/; ofs += 4)
+    {
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += " ... " + (this.nodes.length /*numch*/ - ofs) / 4 + " "; break; }
+        buf += ' ' + tohex(this.nodes.readUInt32BE(ofs));
+    }
+    return "<RGB-buf" + buf + ">";
 }
 
 

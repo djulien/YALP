@@ -4,7 +4,7 @@
 var int24 = require('int24');
 var buffer = require('buffer');
 
-var Color = require('onecolor');
+var Color = require('onecolor').color; //'tinycolor');
 Color.RGB.prototype.isGray = function() { return (Math.floor(255 * this.red()) == Math.floor(255 * this.green())) && (Math.floor(255 * this.green()) == Math.floor(255 * this.blue())); }
 Color.RGB.prototype.rgb24 = function() { return (Math.floor(255 * this.red()) << 16) | (Math.floor(255 * this.green()) << 8) | Math.floor(255 * this.blue()); }
 Color.RGB.prototype.lightness = function() { return Math.floor(255 * Math.max(this.red(), this.green(), this.blue())); }

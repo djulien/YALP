@@ -126,10 +126,12 @@
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool.js" />
+		<Unit filename="my-projects/models/color-cache.js" />
 		<Unit filename="my-projects/models/columns.js" />
+		<Unit filename="my-projects/models/growable-canvas.js" />
 		<Unit filename="my-projects/models/icicles.js" />
 		<Unit filename="my-projects/models/model.js" />
-		<Unit filename="my-projects/models/pixel-widths.js" />
+		<Unit filename="my-projects/models/pixel-widths-bk.js" />
 		<Unit filename="my-projects/package.json" />
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012RGB.pro" />
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012a.pro" />
