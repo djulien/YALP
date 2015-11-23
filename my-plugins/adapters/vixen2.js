@@ -7,7 +7,8 @@ var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
 var inherits = require('inherits');
 var Color = require('tinycolor2'); //'onecolor').color;
-var color_cache = require('color-cache').cache;
+var color_cache = require('my-projects/models/color-cache').cache;
+var color_cache_stats = require('my-projects/models/color-cache').stats;
 var makenew = require('my-plugins/utils/makenew');
 var bufdiff = require('my-plugins/utils/buf-diff');
 var timescale = require('my-plugins/utils/time-scale');
@@ -19,16 +20,29 @@ var xmldoc = require('xmldoc'); //https://github.com/nfarina/xmldoc
 var glob = require('glob');
 var shortname = require('my-plugins/utils/shortname');
 //var models = require('my-projects/models/model'); //generic models
-var ChannelPool = require('my-projects/models/chpool'); //generic ports
+//var ChannelPool = require('my-projects/models/chpool'); //generic ports
+//var models = require('my-projects/shared/my-models').models;
+var Model2D = require('my-projects/models/model-2d');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 module.exports.Sequence = Vixen2Sequence;
 module.exports.Profile = Vixen2Profile;
-module.exports.ExtendModel = ExtendModel;
+//module.exports.ExtendModel = ExtendModel;
 
 
-var rgba_splitter = new Buffer([255, 255, 255, 255]);
+var rgba_split = new Buffer([255, 255, 255, 255]);
+
+//convert rgba color to hsv and then dim it:
+function dim(rgba, brightness)
+{
+    rgba_split.writeUInt32BE(rgba, 0);
+    var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+    c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
+    rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a;
+    return rgba_split.readUInt32BE(0);
+}
+
 
 var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
@@ -55,7 +69,7 @@ function Vixen2Sequence(opts)
     var m_numfr = Math.ceil(m_duration / this.FixedFrameInterval);
     var partial = (m_numfr * this.FixedFrameInterval != m_duration);
     if (partial)
-        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #channels %d", shortname(this.vix2filename), m_duration, this.FixedFrameInterval, m_numfr, !!partial, (m_top.byname.Channels.children || []).length);
+        console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #seq channels %d", shortname(this.vix2filename), m_duration, this.FixedFrameInterval, m_numfr, !!partial, (m_top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
     var m_chvals = m_top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
@@ -95,24 +109,18 @@ function Vixen2Sequence(opts)
             var rgba = m_chcolors[chinx], brightness = m_chvals[chofs + frinx];
             rgba = color_cache(rgba + '^' + brightness, function()
             {
-                if (brightness != 255)
-                {
-                    rgba_split.writeUint32BE(rgba, 0);
-                    var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
-                    c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
-                    rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a;
-                    rgba = rgba_split.readUint32BE(0);
-                }
+                if (brightness != 255) rgba = dim(rgba, brightness);
                 return rgba;
             });
-            pivot.writeUint32BE(rgba, 4 * (chofs + frinx));
+            pivot.writeUInt32BE(rgba, 4 * (chofs + frinx));
         }
     m_chvals = pivot; pivot = null;
+    console.log("pivot color cache vix2 '%s': hits %d, misses %d", this.name, color_cache_stats.hits, color_cache_stats.misses);
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
         if (!isdef(chinx)) return m_chvals.slice(4 * frinx * m_numch, 4 * (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
-        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals.readUint32BE(4 * (chinx * m_numfr + frinx)); //[chinx * m_numfr + frinx]: 0; //single ch val
+        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals.readUInt32BE(4 * (chinx * m_numfr + frinx)): 0; //[chinx * m_numfr + frinx]: 0; //single ch val
 //no        return this.chvals.charCodeAt(frinx * numch + chinx); //chinx * this.numfr + frinx);
 //        typeof chinx === 'undefined') //return all ch vals for a frame
 //        {
@@ -130,11 +138,19 @@ function Vixen2Sequence(opts)
 //        return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch);
 //    }
 //    debugger;
+
+    if (ExtendModel)
+        Model2D.all.forEach(function(model) //add behavior to models tagged for Vixen behavior
+        {
+            ExtendModel(model);
+        });
+    ExtendModel = null; //only need to extend models once
+
     var m_prevbuf;
     this.render = function(frtime) //pseudo-animation by pushing de-duped Vixen2 ch vals to models
     {
         debugger;
-        var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval));
+        var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval)); //rgba values for this frame
         var ic_debug = chvals.slice(2, 2+14);
 //        if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
         if (!m_prevbuf || (this.opts.dedup === false) || bufdiff(chvals, m_prevbuf)) //no dedup or chvals changed
@@ -142,10 +158,10 @@ function Vixen2Sequence(opts)
             if (this.opts.dedup !== false) m_prevbuf = chvals;
 //        return m_prevbuf = chvals;
 //        console.log("TODO: below is generic");
-            ChannelPool.all.forEach(function(chpool)
-            {
+//            ChannelPool.all.forEach(function(chpool)
+//            {
 //                if (chpool.dirty) console.log("chpool buf",
-                chpool.models.forEach(function(model, inx, all) //update Vixen-aware models
+                Model2D.all.forEach(function(model, inx, all) //update Vixen-aware models
                 {
 //                if (!model.opts.vix2ch /*vix2buf*/) { console.log("model %s is not mapped for vix2", model.name); return; }
 //                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
@@ -153,7 +169,7 @@ function Vixen2Sequence(opts)
                     model.vix2buf = chvals; //send all channels so models can influence each other; not really - model will slice it down
 //            model.render(); //tell model to render new output
                 });
-            });
+//            });
         }
         var retval = Sequence.prototype.render.call(this, frtime);
         var frnext = frtime + this.FixedFrameInterval;

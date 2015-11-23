@@ -168,6 +168,7 @@
     "sprintf.js": "^0.1.4",
     "stack-trace": "0.0.9",
     "stream": "^0.0.2",
+    "stream-buffers": "^3.0.0",
     "struct": "0.0.8",
     "term-canvas": "0.0.5",
     "tinycolor2": "^1.1.2",

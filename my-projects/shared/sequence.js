@@ -14,7 +14,8 @@ var shortname = require('my-plugins/utils/shortname');
 var add_method = require('my-plugins/my-extensions/object-enum').add_method;
 var CueListMixin = require('my-projects/shared/cuelist').CueListMixin;
 var Cue = require('my-projects/shared/cuelist').Cue;
-var ChannelPool = require('my-projects/models/chpool');
+//var ChannelPool = require('my-projects/models/chpool');
+var ports = require('my-projects/shared/my-models').Ports;
 //var SequenceExtend = require('my-projects/shared/my-custom').SequenceExtend; //my-models');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
@@ -66,7 +67,7 @@ function Sequence(opts)
         {
             filename = require.resolve(filename);
             var info = this.get_duration(filename);
-            console.log("adding media[%s] %s", m_media.length, filename, "media info", info, "seq already has? %s", isdef(this.latency));
+            console.log("adding media[%s] %s", m_media.length, filename, "media info", info, "seq already has latency?", isdef(this.latency));
             if (!isdef(this.latency) /*m_media.length*/) this.latency = info.latency; //isdef(this.opts.latency)? this.opts.latency: info.latency;
             m_media.push({filename: filename, duration: 1000 * info.audiolen, latency: info.latency});
             if (opts.use_media_len /*!== false*/) m_duration += medialen;
@@ -144,17 +145,18 @@ Sequence.prototype.render = function(frtime)
     var portbufs = {}, rawbufs = {}, hasbuf = false, hasraw = false;
     var frnext_min = this.duration; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
 //check each port for pending output and next refresh time:
-    ChannelPool.all.forEach(function(chpool, inx, all)
+    ports.all.forEach(function(port, inx, all)
     {
 //        chpool.models.forEach(function(model, inx, all)
 //        {
 //            var frnext = model.render(frtime); //tell model to render new output
 //            if (frnext < frnext_min) frnext_min = frnext;
 //        });
-        var portbuf = chpool.render(frtime); //{frnext, buf}
+        var portbuf = port.render(frtime); //{frnext, buf, rawbuf}
+        console.log("seq: rend port '%s' =>", port.name, portbuf);
         if (!portbuf) return; //continue;
-        if (portbuf.buf) { portbufs[chpool.name] = portbuf.buf; hasbuf = true; }
-        if (portbuf.rawbuf) { rawbufs[chpool.name] = portbuf.rawbuf; hasraw = true; }
+        if (portbuf.buf) { portbufs[port.name] = portbuf.buf; hasbuf = true; }
+        if (portbuf.rawbuf) { rawbufs[port.name] = portbuf.rawbuf; hasraw = true; }
 //        portlens[chpool.name] = portbuf.buf.length; //kludge: buf length gets dropped somewhere, so pass it back explicitly
 //        if (portbuf.frnext === false) return; //no further animation wanted
 //        if (portbuf.frnext === true) portbuf.frnext = frtime + ?; //asap; //this.duration; //one more update at end of seq

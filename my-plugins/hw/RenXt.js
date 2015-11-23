@@ -227,28 +227,32 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 var RgbQuant = require('rgbquant');
 
 
-module.exports.AddProtocol = function(chpool)
+module.exports.AddProtocol = function(port)
 {
-//    RenXtProtocol.prototype.forEach(function(func, name) { if (func) chpool[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
-//    var svrender = chpool.render;
-    chpool.render = function(frtime, force)
+//    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
+    var svport = {render: port.render, verify: port.verify, assign: port.assign};
+    port.render = function(frtime, force)
     {
 debugger;
-        chpool.models.forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
-        var revtal = chpool.prototype.render.call(chpool, frtime, force); //svrender(frtime, force); //ChannelPool.prototype.render.call(chpool, frtime, force);
-        var encbuf = encode(chpool, retval, !frtime);
+        (port.models || []).forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
+        var retval = svport.render.call(port, frtime, force); //svrender(frtime, force); //ChannelPool.prototype.render.call(port, frtime, force);
+        var encbuf = encode(port, retval, !frtime);
         if (encbuf) { retval.rawbuf = retval.buf; retval.buf = encbuf; } //swap in encoded buf but preserve original (mainly for debug)
         return retval;
     }
-//    var svverify = chpool.validate;
-    chpool.verify = function(outbuf, inbuf)
+    port.verify = function(outbuf, inbuf)
     {
 debugger;
-        var cmp = chpool.prototype.verify? chpool.prototype.verify.call(chpool, outbuf, inbuf): null; //svverify(outbuf, inbuf);
+        var cmp = svport.verify? svport.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
         if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
     }
-    console.log("RenXt protocol added to %s".yellow, chpool.name);
+    port.assign = function(model)
+    {
+        svport.assign.call(port, model);
+        model.adrs = port.models.length; //assign unique adrs for each prop on this port
+    }
+    console.log("RenXt protocol added to %s".yellow, port.name);
 }
 
 //function RenXtProtocol() {} //dummy ctor
@@ -257,30 +261,29 @@ debugger;
 
 var quant = new RgbQuant({colors: 16});
 
-function encode(chpool, rendered, first)
+function encode(port, rendered, first)
 {
-    if (!chpool.encbuf) chpool.encbuf = new RenXtBuffer(chpool.buf.length); //NOTE: don't do this until after all channels assigned
-    chpool.rewind();
-    if (first || !chpool.RenXtInit) //config all controllers
+    if (!port.encbuf) port.encbuf = new RenXtBuffer(4000); //port.buf.length); //NOTE: don't do this until after all channels assigned
+    port.encbuf.rewind();
+    if (first || !port.RenXtInit) //config all controllers
     {
-        chpool.models.forEach(function(model, inx, all)
+        port.models.forEach(function(model, inx, all)
         {
-            chpool.encbuf.SetConfig(model.adrs, model.nodetype || RenXt.WS2811(RenXt.SERIES), Math.ceil(model.numpx / 4 / 2)) //quad bytes, 2 bpp
+            port.encbuf.SetConfig(model.adrs, model.nodetype || RenXt.WS2811(RenXt.SERIES), Math.ceil(model.numpx / 4 / 2)) //quad bytes, 2 bpp
         });
-        chpool.RenXtInit = true;
+        port.RenXtInit = true;
     }
-    chpool.models.forEach(function(model, inx, all)
+    port.models.forEach(function(model, inx, all)
     {
         if (!model.was_dirty) return; //no need to re-encode
+/*
         var img = Uint32Array(model.numpx);
         for (var i = 0; i < model.numpx; ++i) img[i] = model.buf; //abgr format
         quant.sample(imgA); //analyze histogram
         var pal = quant.palette(); //build palette
         console.log("pal", pal);
         var reduced = quant.reduce(imgA); //reduce image
-
-
-
+*/
         port
         .SetPal(adrs, 0x100010)
         .SetAll(adrs, 0)
@@ -291,11 +294,6 @@ function encode(chpool, rendered, first)
             if (err) { console.log("error: " + err); return; }
             console.log("write+drain+delay done: %d bytes available", port.RenXt.rdlen);
         });
-    });
-
-    chpool.models.forEach(function(model, inx, all)
-    {
-        if (model.was_dirty) return; //no need to re-encode
     });
 }
 

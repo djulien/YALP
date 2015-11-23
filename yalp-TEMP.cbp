@@ -128,9 +128,10 @@
 		<Unit filename="my-projects/models/chpool.js" />
 		<Unit filename="my-projects/models/color-cache.js" />
 		<Unit filename="my-projects/models/columns.js" />
-		<Unit filename="my-projects/models/growable-canvas.js" />
+		<Unit filename="my-projects/models/growable-canvas-bk.js" />
 		<Unit filename="my-projects/models/icicles.js" />
-		<Unit filename="my-projects/models/model.js" />
+		<Unit filename="my-projects/models/model-2d.js" />
+		<Unit filename="my-projects/models/model-bk.js" />
 		<Unit filename="my-projects/models/pixel-widths-bk.js" />
 		<Unit filename="my-projects/package.json" />
 		<Unit filename="my-projects/playlists/ESOL-Xmas2012RGB.pro" />
@@ -146,7 +147,8 @@
 		<Unit filename="my-projects/shared/mixins/promise-keepers.js" />
 		<Unit filename="my-projects/shared/mixins/speed.js" />
 		<Unit filename="my-projects/shared/mixins/volume.js" />
-		<Unit filename="my-projects/shared/my-custom.js" />
+		<Unit filename="my-projects/shared/my-custom-bk2.js" />
+		<Unit filename="my-projects/shared/my-models.js" />
 		<Unit filename="my-projects/shared/playlist-bk.js" />
 		<Unit filename="my-projects/shared/playlist.js" />
 		<Unit filename="my-projects/shared/scheduler.js" />
@@ -216,6 +218,7 @@
 		<Unit filename="tests/shell-repl-bk.js" />
 		<Unit filename="tests/streams-main.js" />
 		<Unit filename="tests/test-canvas.js" />
+		<Unit filename="tests/test-layout.js" />
 		<Unit filename="tests/vix2test.js" />
 		<Unit filename="tests/yalpstream.js" />
 		<Unit filename="tests/yalpstream2.js" />
