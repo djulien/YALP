@@ -17,8 +17,6 @@ var shortname = require('my-plugins/utils/shortname');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
-module.exports.Sequence = xLights3Sequence;
-
 
 //console.log("TODO: move to mixin");
 var Sequence = require('my-projects/shared/sequence'); //base class
@@ -117,5 +115,6 @@ function xLights3Sequence(opts)
 
 }
 inherits(xLights3Sequence, Sequence);
+module.exports.Sequence = xLights3Sequence;
 
 //eof

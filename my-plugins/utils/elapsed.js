@@ -26,7 +26,7 @@ function Elapsed(reset) //factory/ctor
 //    {
 //        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
 //    }
-    this.started = reset || 0; //#msec elapsed already (caller can back-date)
+    this.started = reset || 0; //#msec elapsed already; caller can back-date using < 0, or skip ahead using > 0
     Object.defineProperty(this, "now", //relative to start time
     {
         get: function() { return (new Date()).getTime() - this.started; }, //(m_start || reset || 0); }, //TODO: use process.hrtime (nsec)?

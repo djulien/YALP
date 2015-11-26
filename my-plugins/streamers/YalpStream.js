@@ -38,6 +38,7 @@ function YalpStream(opts)
             return m_stream.end(fmt(-1 >>> 0, bytes));
         }
         if (!m_stream) m_stream = fs.createWriteStream(abspath(opts.filename), {flags: 'w'});
+//var log = fs.createWriteStream('nodelogger.txt', {flags: 'a', encoding: 'utf-8',mode: 0666});
         if (typeof timestamp === 'undefined') timestamp = m_info.frames? m_info.latest + (opts.interval || 50): opts.start || 0;
         if (bytes instanceof UInt32BEBuffer) bytes = bytes.buf; //temp kludge for Buffer not inheritable
 //        console.log("bytes type ", bytes);

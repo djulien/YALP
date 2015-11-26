@@ -1,14 +1,37 @@
 
 'use strict';
 
+var fs = require('fs');
+var glob = require('glob');
+var path = require('path');
+//var BISON = require('bison');
+//var Concentrate = require('concentrate'); //https://github.com/deoxxa/concentrate
 //var empty = require('my-projects/playlists/empty');
 //var Canvas = require('my-projects/models/growable-canvas');
 var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
 var makenew = require('my-plugins/utils/makenew');
 var inherits = require('inherits');
+//var Q = require('q'); //https://github.com/kriskowal/q
 require('sprintf.js');
+var int24 = require('int24');
 var buffer = require('buffer');
 buffer.INSPECT_MAX_BYTES = 800;
+Buffer.prototype.readUInt24BE = function(ofs) { return int24.readUInt24BE(this, ofs); };
+Buffer.prototype.writeUInt24BE = function(val, ofs) { return int24.writeUInt24BE(this, val, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
+
+['readUInt32BE', 'readUInt32LE'].forEach(function(ignored, inx, both)
+{
+    if (require('is-little-endian')) inx = 1 - inx; //https://github.com/mikolalysenko/is-little-endian
+    Uint8ClampedArray.prototype[both[inx]] = function(ofs) { return (this[ofs + 0] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+    Uint8ClampedArray.prototype[both[1 - inx]] = function(ofs) { return (this[ofs + 3] << 24) | (this[ofs + 2] << 16) | (this[ofs + 1] << 8) | this[ofs + 0]; }
+//    if (!this.uint32view) this.uint32view = new Uint32Array(this);
+//    rgba_split.writeUInt32BE(this.
+});
+//Uint8ClampedArray.prototype.readUInt32Native = require('is-little-endian')? Uint8ClampedArray.prototype.readUInt32LE: Uint8ClampedArray.prototype.readUInt32BE;
+
+
+var rgba_split = new Buffer([255, 255, 255, 255]);
+
 
 /*
 var mm_canvas = new Canvas(1, 1);
@@ -50,22 +73,20 @@ function isRect(thing)
 //    ? false: isdef(thing.x)
 }
 
-function toRGBA(r, g, b, a)
-{
-    return ((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (isdef(a)? a & 0xFF: 0xFF);
-}
-
-function fromRGBA(color)
-{
-    return {r: (color >> 24) & 0xFF, g: (color >> 16) & 0xFF, b: (color >> 8) & 0xFF, a: color & 0xFF};
-}
+//just use UInt32 readers
+//function toRGBA(r, g, b, a)
+//{
+//    return ((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (isdef(a)? a & 0xFF: 0xFF);
+//}
+//function fromRGBA(color)
+//{
+//    return {r: (color >> 24) & 0xFF, g: (color >> 16) & 0xFF, b: (color >> 8) & 0xFF, a: color & 0xFF};
+//}
 
 function hex8(val)
 {
     return ('00000000' + (val >>> 0).toString(16)).slice(-8);
 }
-
-var rgba_split = new Buffer([255, 255, 255, 255]);
 
 
 module.exports = Model2D;
@@ -76,6 +97,7 @@ module.exports = Model2D;
 //Model is a wrapper around HTML5 Canvas, so all the HTML5 graphics functions and libraries can be used.
 //Pixels on the canvas are then rendered by the protocol handler into control bytes to send to the hardware.
 //Models can be nested or overlapped for composite or whole-house models, etc.
+//Any methods that do not require access to private data are put in prototype rather than object for better code space usage
 function Model2D(opts)
 {
     if (!(this instanceof Model2D)) return makenew(Model2D, arguments);
@@ -97,30 +119,49 @@ function Model2D(opts)
     this.top = this.bottom + this.height; //CAUTION: y coordinate is inverted; try to turn it right side here (origin is lower left corner)
 
 //canvas access:
+//canvas is shared, access is delegated thru parent
 //lazy instantiation, don't allow caller to change (property default is read-only)
-    var m_ctx, m_pixelbuf, m_dirty = true; //mark dirty to trigger first render
+    var m_ctx, /*m_pixelbuf,*/ m_dirty = true; //mark dirty to trigger first render
+//    var m_promise = this.parent? null: Q.Promise(function(resolve, reject, notify)
+//    {
+//        this.canvas_ready = function(val) { resolve(val); }
+////        this.error = function(val) { reject(val); }
+//    }.bind(this));
+//    var m_oninit = !this.parent? []: null;
     Object.defineProperties(this,
     {
         canvas: this.parent? //delegate to top-level model to minimize contexts; unwind parent nesting at ctor time instead of run-time
-            Object.getOwnPropertyDescriptor(this.parent, 'canvas'):
+//broken            this.parent.canvas: //Object.getOwnPropertyDescriptor(this.parent, 'canvas'):
+            { get() { return this.parent.canvas; }, set(newval) { this.parent.canvas = newval; }, enumerable: true, }:
             {
                 get()
                 {
 //                    if (this.parent) return this.parent.canvas;
-                    if (!m_canvas) { console.log("alloc '%s' %s x %s", this.name, this.width, this.height); m_canvas = new Canvas(this.width, this.height); }
+                    if (!m_canvas)
+                    {
+                        console.log("alloc '%s' %s x %s", this.name, this.width, this.height);
+                        m_canvas = new Canvas(this.width, this.height);
+//                        require('callsite')().forEach(function(stack, inx) { console.log("stack[%d]", inx, stack.getFunctionName() || '(anonymous)', require('my-plugins/utils/relpath')(stack.getFileName()) + ':' + stack.getLineNumber()); });
+//                        this.clear(); //it's only safe to do this automatically when canvas is first created; caller can restore previous contents (during a resize) if desired
+//                        this.canvas_ready(); //tell children to clear pixels
+//                        m_oninit.forEach(function(init) { init(); }); //allow children to clear their pixels now
+                        Model2D.all.forEach(function(child) { child.clear(); }); //do this when canvas is instantiated
+                    }
                     return m_canvas;
                 },
                 set(newval)
                 {
-                    if (newval) throw "Don't set canvas manually.  Let Model do it.";
+                    if (newval) throw "Don't set canvas manually.  Let Model do it."; //only let caller set it to null
+//    this.drop = this.parent? this.parent.drop: function(force) { m_ctx = null; if (!hasdom || force) m_canvas = null; return this; } //force Canvas re-create/resize; fluent
                     if (!hasdom /*|| force*/) m_canvas = newval; //null; //force Canvas re-create/resize next time
-                    m_pixelbuf = null;
+//                    m_pixelbuf = null;
                     m_ctx = null;
                 },
                 enumerable: true,
             },
         ctx: this.parent?
-            Object.getOwnPropertyDescriptor(this.parent, 'ctx'):
+//broken            this.parent.ctx: //Object.getOwnPropertyDescriptor(this.parent, 'ctx'):
+            { get() { return this.parent.ctx; }, set(newval) { this.parent.ctx = newval; }, enumerable: true, }:
             {
                 get()
                 {
@@ -132,18 +173,24 @@ function Model2D(opts)
                 {
                     if (newval) throw "Don't set context manually.  Let Model do it.";
                     m_ctx = newval; //null; //leave canvas intact
-                    m_pixelbuf = null;
+//                    m_pixelbuf = null;
                 },
                 enumerable: true,
             },
         has_ctx: this.parent?
-            Object.getOwnPropertyDescriptor(this.parent, 'has_ctx'):
+//broken            this.parent.has_ctx: //Object.getOwnPropertyDescriptor(this.parent, 'has_ctx'):
+            { get() { return this.parent.has_ctx; }, enumerable: true, }:
             {
-                get() { return /*this.parent? this.parent.has_ctx:*/ m_ctx; },
+                get() { return /*this.parent? this.parent.has_ctx:*/ !!m_ctx; },
                 enumerable: true,
             },
-        pixelbuf: this.parent?
-            Object.getOwnPropertyDescriptor(this.parent, 'pixelbuf'):
+//        oninit: this.parent?
+//            { get() { return this.parent.oninit; }, enumerable: true, }:
+//            { get() { return /*this.parent? this.parent.oninit:*/ m_oninit; }, enumerable: true, },
+/*
+        pixelbuf: this.parent? //holds one canvas pixel
+//broken            this.parent.pixelbuf: //Object.getOwnPropertyDescriptor(this.parent, 'pixelbuf'):
+            { get() { return this.parent.pixelbuf; }, set(newval) { this.parent.pixelbuf = newval; }, enumerable: true, }:
             {
                 get()
                 {
@@ -158,79 +205,20 @@ function Model2D(opts)
                 },
                 enumerable: true,
             },
+*/
         dirty:
         {
-            get() { return m_dirty || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
-            set(newval) { m_dirty = newval; if (newval && this.parent) this.parent.dirty = true; }, //child makes parent dirty but not un-dirty
+//TODO: hit/overlap test to reduce unnecessary re-rendering
+            get() { return m_dirty; }, // || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
+            set(newval)
+            {
+                m_dirty = newval;
+                if (newval && this.port) this.port.dirty = true;
+                if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
+            },
             enumerable: true,
         },
     });
-//    this.drop = this.parent? this.parent.drop: function(force) { m_ctx = null; if (!hasdom || force) m_canvas = null; return this; } //force Canvas re-create/resize; fluent
-    this.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord is reversed)
-    {
-        switch (arguments.length) //shuffle optional params
-        {
-            case 1: if (!isRect(x)) { data = x; x = undefined; }; break;
-            case 2: data = y; y = undefined; break;
-        }
-        if (isRect(x)) { h = x.h || x.height; w = x.w || x.width; y = x.y || x.bottom; x = x.x || x.left; } //unpack params
-        if (!isdef(x)) x = this.left;
-        if (!isdef(y)) y = this.bottom;
-        if (!isdef(w)) w = this.width - x;
-        if (!isdef(h)) h = this.height - y;
-        if (this.parent) { x += this.parent.left; y += this.parent.bottom; } //TODO: check if this is in the right place
-//TODO: clip?
-//        x = Math.max(0, Math.min(this.width - 1, x)); //CAUTION: getImageData will throw exception if x, y out of range
-//        y = Math.max(0, Math.min(this.height - 1, y));
-//        w = Math.max(0, Math.min(this.width - x - 1, w));
-//        h = Math.max(0, Math.min(this.height - y - 1, h));
-        if (typeof data == 'undefined') //get
-        {
-            var retval = this.has_ctx? this.ctx.getImageData(x, y, w, h): null;
-//            var uint32view = new Uint32Array(retval.data);
-//            console.log("u8 len %s, u32 len %s", retval.data.length, uint32view.length);
-            if (retval) retval.inspect = function(depth, opts) //make debug easier
-            {
-                var buf = '';
-                for (var ofs = 0, limit = /*retval*/ this.data.length /*numch*/; ofs < limit; ofs += 4)
-                {
-                    if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-                    buf += ' ' + hex8(toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
-                }
-                return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
-            }
-//            console.log("imgdata(%s, %s, %s, %s), parent? %s :", x, y, w, h, !!this.parent, retval);
-            return retval;
-        }
-//        console.log("put img", w || this.width || 1, h || this.height || 1, data);
-        if (data) { this.ctx.putImageData(data, x, y, x, y, w, h); this.dirty = true; }
-        return this; //fluent
-    }
-
-//node/pixel access:
-    if (this.opts.order) (this.opts.order.bind(this))(); //call(this); //generate ordered node list
-    if (this.opts.order && !(this.nodelist || []).length) throw "Model '" + this.name + "' no nodelist generated";
-//    console.log("model '%s': node order? %s, #nodes %s", this.name, !!this.opts.order, this.nodelist? this.nodelist.length: '-');
-//    var m_pixelbuf;
-    this.pixel = function(x, y, color)
-    {
-        if (this.parent) { x += this.parent.left; y += this.parent.bottom; } //TODO: should this be here?
-        if (!isdef(color)) //get
-        {
-            var retval = this.has_ctx? this.ctx.getImageData(x, this.T2B(y), 1, 1): null;
-            if (retval) retval = toRGBA(retval.data[0], retval.data[1], retval.data[2], retval.data[3]);
-            return retval;
-        }
-        color = fromRGBA(color);
-//        if (!this.pixelbuf) this.pixelbuf = this.ctx.createImageData(1, 1);
-//        var imgdata = {data: new Uint8ClampedArray([color.r, color.g, color.b, color.a])};
-        this.pixelbuf.data[0] = color.r; this.pixelbuf.data[1] = color.g; this.pixelbuf.data[2] = color.b; this.pixelbuf.data[3] = color.a;
-        this.ctx.putImageData(this.pixelbuf, x, this.T2B(y)); //, x, this.T2B(y), 1, 1);
-        return this; //fluent
-    }
-//    if (this.opts.output)
-    if (!(this.renderNode = Model2D.prototype['renderNode_' + (this.opts.output || 'RGB')])) //set once based on node output type
-        throw "Unhandled node output type: '" + (this.opts.output || 'RGB') + "'";
 
 //link to port:
 //tells protocol handler to allocate resources
@@ -241,14 +229,16 @@ function Model2D(opts)
         set(newval) { if (m_port = newval) m_port.assign(this); },
         enumerable: true,
     });
-    if (this.opts.port) this.port = this.opts.port;
 
+//finalize model setup:
+    if (this.opts.port) this.port = this.opts.port;
 //    var m_parent = this; //preserve "this" for nested ctor
     this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
-
-    this.clear();
+    this.generateNodelist();
+//defer    if (this.opts.zinit !== false) this.oninit.push(function() { this.clear(); }.bind(this)); //do this when canvas is instantiated
 }
 //Model2D.all = [];
+
 
 //sub-model ctor; adds parent/child links
 Model2D.prototype.SubModel2D = function(opts)
@@ -274,7 +264,7 @@ Model2D.prototype.enlarge = function(x, y, w, h)
 //debugger;
     if (this.parent) throw "Don't resize non-top model '" + this.name + "'";
     if (isRect(x)) { h = x.h || x.height; w = x.w || x.width; y = x.y || x.bottom; x = x.x || x.left; } //unpack params
-    var svdata = this.imgdata(), savew = this.width, saveh = this.height; //0, 0, savew, saveh);
+    var savew = this.width, saveh = this.height; //svdata = this.imgdata(), 0, 0, savew, saveh);
     this.width = Math.max(this.width, (x || 0) + (w || 1));
     this.height = Math.max(this.height, (y || 0) + (h || 1));
     this.right = Math.max(this.right, this.left + this.width);
@@ -297,17 +287,65 @@ Model2D.prototype.enlarge = function(x, y, w, h)
     return this; //fluent
 }
 
+
+//graphics:
+Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord is reversed)
+{
+    switch (arguments.length) //shuffle optional params
+    {
+        case 1: if (!isRect(x)) { data = x; x = undefined; }; break;
+        case 2: data = y; y = undefined; break;
+    }
+    if (isRect(x)) { h = x.h || x.height; w = x.w || x.width; y = x.y || x.bottom; x = x.x || x.left; } //unpack params
+    if (!isdef(x)) x = this.left;
+    if (!isdef(y)) y = this.bottom;
+    if (!isdef(w)) w = this.width; //no- x;
+    if (!isdef(h)) h = this.height; //no- y;
+    if (this.parent) { x += this.parent.left; y += this.parent.bottom; } //TODO: check if this is in the right place
+//TODO: clip?
+//        x = Math.max(0, Math.min(this.width - 1, x)); //CAUTION: getImageData will throw exception if x, y out of range
+//        y = Math.max(0, Math.min(this.height - 1, y));
+//        w = Math.max(0, Math.min(this.width - x - 1, w));
+//        h = Math.max(0, Math.min(this.height - y - 1, h));
+    if (!isdef(data)) //get
+    {
+        var retval = /*this.has_ctx?*/ this.ctx.getImageData(x, y, w, h); //: null; //always get in; models might need initial values for first render
+//            var uint32view = new Uint32Array(retval.data);
+        console.log("imgdata get: x %s, y %s w %s h %s, parent (%s, %s), ctx? %s", x, y, w, h, (this.parent || {}).left, (this.parent || {}).bottom, !!this.has_ctx); //u8 len %s, u32 len %s", retval.data.length, uint32view.length);
+        if (retval) retval.data.inspect = function(depth, opts) //make debug easier
+        {
+            var buf = '';
+            for (var ofs = 0, limit = /*retval*/ this.data.length /*numch*/; ofs < limit; ofs += 4)
+            {
+                if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
+                buf += ' ' + hex8(this.data.readUInt32BE(ofs)); //toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
+            }
+            return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
+        }.bind(retval);
+//            console.log("imgdata(%s, %s, %s, %s), parent? %s :", x, y, w, h, !!this.parent, retval);
+        return retval;
+    }
+//        console.log("put img", w || this.width || 1, h || this.height || 1, data);
+    if (data) { this.ctx.putImageData(data, x, y, x, y, w, h); this.dirty = true; }
+    return this; //fluent
+}
+
 Model2D.prototype.save = function()
 {
     this.ctx.save();
     return this; //fluent
 }
 
+var Color = require('tinycolor2'); //'onecolor');
+var color_cache = require('my-projects/models/color-cache').cache;
+
 Model2D.prototype.fillStyle = function(color)
 {
-    color = fromRGBA(color);
-    color = this.ctx.fillStyle = sprintf("rgba(%d, %d, %d, %d)", color.r, color.g, color.b, color.a); //'#' + hex8(color);
-//    console.log("fill style '%s'", this.name, this.ctx.fillStyle, color);
+//    color = fromRGBA(color);
+//    color = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+    var rgba = color_cache('=' + color, function() { return Color(color).toRgbString(); }); //allows CSS color formats
+    this.ctx.fillStyle = rgba; //sprintf("rgba(%d, %d, %d, %d)", rgba.r, rgba.g, rgba.b, rgba.a); //'#' + hex8(color);
+    console.log("fill style '%s'", this.name, this.ctx.fillStyle, color);
     return this; //fluent
 }
 
@@ -315,8 +353,10 @@ Model2D.prototype.fillStyle = function(color)
 //set to initial color:
 Model2D.prototype.clear = function()
 {
-    if (this.opts.zinit !== false)
-        this.fill((this.opts.zinit !== true)? this.opts.zinit: 0); //init xparent black if caller didn't pass a color
+    if (this.opts.zinit !== false) //this.promise.then(function()
+//    {
+        this.fill((isdef(this.opts.zinit) && (this.opts.zinit !== true))? this.opts.zinit: 0); //init xparent black if caller didn't pass a color
+//    }.bind(this));
 //    console.log("model2d has fill?", this.fill? "Y": "N");
     return this; //fluent
 }
@@ -338,8 +378,8 @@ Model2D.prototype.fill = function(x, y, w, h, color)
 //        y = Math.max(0, Math.min(this.height - 1, y));
 //        w = Math.max(0, Math.min(this.width - x - 1, w));
 //        h = Math.max(0, Math.min(this.height - y - 1, h));
-    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w, y, y + h, hex8(color));
     if (isdef(color)) this.save().fillStyle(color);
+    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w, y, y + h, this.ctx.fillStyle); //hex8(color));
     this.ctx.fillRect(x, y, w, h);
     if (isdef(color)) this.restore();
     this.dirty = true;
@@ -481,21 +521,96 @@ Model2D.prototype.XYList = function(x_ranges, y_ranges)
 */
 
 
-//rendering:
-Model2D.prototype.buf_resize = function(bufname, needlen)
+//node/pixel access:
+
+Model2D.prototype.buf_resize = function(bufname, needlen, grouping)
 {
     switch (Math.sign((this[bufname] || []).length - needlen))
     {
         case -1: this[bufname] = new Buffer(needlen); break;
         case +1: this[bufname] = this[bufname].slice(0, needlen); break;
     }
+    if (isdef(grouping)) this[bufname].inspect = function(depth, opts) //make debug easier
+    {
+        var buf = '';
+        for (var ofs = 0, limit = this.length, items = 0; ofs < limit; ofs += grouping, ++items)
+        {
+            if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / grouping + ' '; break; }
+            if (!(items % 16)) buf += " 'x" + ofs.toString(16) + " "; //show byte offset periodically
+            switch (grouping)
+            {
+                case 3: buf += ' ' + hex6(this.readUInt24BE(ofs)); break;
+                case 4: buf += ' ' + hex8(this.readUInt32BE(ofs)); break;
+                default: throw "Unhandled chunk size: " + grouping;
+            }
+        }
+        return '<Buffer ' + (limit / grouping) + 'x' + grouping + ': ' + buf + '>';
+    }
     return this[bufname];
 }
 
 
-Model2D.prototype.renderNode_RGBA = function(pxbuf, pxofs)
+//generate node list; controls mapping of canvas pixels to hardware nodes
+Model2D.prototype.generateNodelist = function()
 {
-    this.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs)); //RGBA
+    if (!this.opts.order) return;
+    this.nodelist = [];
+    (this.opts.order.bind(this))(); //call(this); //generate ordered node list
+    if (!this.nodelist.length) throw "Model '" + this.name + "' no nodelist generated";
+    this.setRenderType(this.opts.output);
+    console.log("model '%s' generated %s nodes, %s b/n %s, out buf len %s", this.name, this.nodelist.length, this.bytesPerNode, this.opts.output || 'RGB', this.outbuf.length);
+}
+
+Model2D.prototype.setRenderType = function(nodetype)
+{
+    ['renderNode', 'bytesPerNode'].forEach(function(propname) //set up rendering info
+    {
+        if (!(this[propname] = Model2D.prototype[propname + '_' + (nodetype || 'RGB')])) //set once based on node output type
+            throw "Unhandled node render type: '" + (nodetype || 'RGB') + "'";
+    }.bind(this));
+    this.buf_resize('outbuf', this.bytesPerNode * this.nodelist.length, this.bytesPerNode); //CAUTION: same buffer is reused every time; use double-buffering if previous frame needs to remain available
+    console.log("model '%s' set outbuf size to %s", this.name, this.outbuf.length);
+}
+
+//var m_pixelbuf = new ImageData(1, 1); //no worky
+Model2D.prototype.pixel = function(x, y, color)
+{
+//    var m_pixelbuf;
+    if (this.parent) { x += this.parent.left; y += this.parent.bottom; } //TODO: should this be here?
+    if (!isdef(color)) //get
+    {
+        var retval = this.has_ctx? this.ctx.getImageData(x, this.T2B(y), 1, 1): null; //avoid creating canvas when getting data
+//        if (retval) retval = toRGBA(retval.data[0], retval.data[1], retval.data[2], retval.data[3]);
+        if (retval) retval = retval.data.readUInt32BE(0); //want RGBA
+        return retval;
+    }
+//    color = fromRGBA(color);
+//        if (!this.pixelbuf) this.pixelbuf = this.ctx.createImageData(1, 1);
+//        var imgdata = {data: new Uint8ClampedArray([color.r, color.g, color.b, color.a])};
+//    this.pixelbuf.data[0] = color.r; this.pixelbuf.data[1] = color.g; this.pixelbuf.data[2] = color.b; this.pixelbuf.data[3] = color.a;
+//    if (!Model2D.prototype.pixel.pixelbuf) Model2D.prototype.pixel.pixelbuf = this.ctx.getImageData(0, 0, 1, 1); //kludge: can't create buffer so get one from context
+//    Model2D.prototype.pixel.pixelbuf.data.writeUInt32BE(rgba, 0);
+//    this.ctx.putImageData(Model2D.prototype.pixel.pixelbuf, x, this.T2B(y)); //, x, this.T2B(y), 1, 1);
+    if (isdef(color)) this.save().fillStyle(color);
+    console.log("set '%s' pixel (%s, %s) to color %s", this.name, x, y, this.ctx.fillStyle); //hex8(color));
+    this.ctx.fillRect(x, this.T2B(y), 1, 1);
+    if (isdef(color)) this.restore();
+    return this; //fluent
+}
+
+
+//rendering:
+
+Model2D.prototype.bytesPerNode_raw = 4;
+Model2D.prototype.renderNode_raw = function(outofs, pxbuf, pxofs)
+{
+    this.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0, outofs); //RGBA; endianness doesn't matter here as long as it's preserved
+}
+
+Model2D.prototype.bytesPerNode_RGBA = 4;
+Model2D.prototype.renderNode_RGBA = function(outofs, pxbuf, pxofs)
+{
+    this.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0, outofs); //RGBA
 //    rgba_split[0] = pxbuf[pxofs + 0]; //R
 //    rgba_split[1] = pxbuf[pxofs + 1]; //G
 //    rgba_split[2] = pxbuf[pxofs + 2]; //B
@@ -503,33 +618,45 @@ Model2D.prototype.renderNode_RGBA = function(pxbuf, pxofs)
 //    this.outbuf.write(rgba_split.readUInt32BE(0), 4); //RGBA
 }
 
-Model2D.prototype.renderNode_RGB = function(pxbuf, pxofs)
+Model2D.prototype.bytesPerNode_RGB = 3;
+Model2D.prototype.renderNode_RGB = function(outofs, pxbuf, pxofs)
 {
-    rgba_split[0] = pxbuf[pxofs + 0]; //R
-    rgba_split[1] = pxbuf[pxofs + 1]; //G
-    rgba_split[2] = pxbuf[pxofs + 2]; //B
-    this.outbuf.write(rgba_split.readUInt32BE(0), 3); //RGB
+    this.outbuf.writeUInt24BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs) >>> 8: 0, outofs); //RGB, drop A
+//    rgba_split[0] = (pxofs !== null)? pxbuf[pxofs + 0]: 0; //R
+//    rgba_split[1] = (pxofs !== null)? pxbuf[pxofs + 1]: 0; //G
+//    rgba_split[2] = (pxofs !== null)? pxbuf[pxofs + 2]: 0; //B
+//    rgba_split[3] = 0xEE; //make it easier to see if this is working
+//    this.outbuf.write(rgba_split.readUInt32BE(0), 3); //RGB
 //    this.outbuf[inx + 0] = pixels[pxofs + 0]; //R
 //    this.outbuf[inx + 1] = pixels[pxofs + 1]; //G
 //    this.outbuf[inx + 2] = pixels[pxofs + 2]; //B
 }
 
-Model2D.prototype.renderNode_GRB = function(pxbuf, pxofs)
+Model2D.prototype.bytesPerNode_GRB = 3;
+Model2D.prototype.renderNode_GRB = function(outofs, pxbuf, pxofs)
 {
-    rgba_split[1] = pxbuf[pxofs + 0]; //R; R<->G on some WS281X strips
-    rgba_split[0] = pxbuf[pxofs + 1]; //G
-    rgba_split[2] = pxbuf[pxofs + 2]; //B
-    this.outbuf.write(rgba_split.readUInt32BE(0), 3); //GRB
+    var abgr = (pxofs !== null)? pxbuf.readUInt32LE(pxofs): 0; //ABGR
+    var grb = ((abgr & 0xFFFF) << 8) | ((abgr & 0xFF0000) >>> 16); // ABGR -> GRB
+    this.outbuf.writeUInt24BE(grb, outofs);
+//    rgba_split.writeUInt24BE( = new Buffer([255, 255, 255, 255]);
+//    this.outbuf.writeUInt24BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs) >>> 8: 0); //RGB, drop A
+//    rgba_split[1-0] = (pxofs !== null)? pxbuf[pxofs + 0]: 0; //R; R<->G on some WS281X strips
+//    rgba_split[1-1] = (pxofs !== null)? pxbuf[pxofs + 1]: 0; //G
+//    rgba_split[2] = (pxofs !== null)? pxbuf[pxofs + 2]: 0; //B
+//    rgba_split[3] = 0xEE; //make it easier to see if this is working
+//    this.outbuf.write(rgba_split.readUInt32BE(0), 3); //GRB
 }
 
 Model2D.prototype.render = function(frnext)
 {
-    console.log("model render: dirty? %s, port? %s, renderNode %s", this.dirty, !!this.port); //, this.renderNode);
+    console.log("model '%s' render: dirty? %s %s, port? %s", this.name, this.dirty, (this.parent || {}).dirty, !!this.port); //, this.renderNode);
     if (this.dirty && this.port) //if not dirty or no port, there's no need to render
     {
         if (!this.renderNode) throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
-        var imgdata = this.imgdata();
-        var pxbuf = imgdata? new Uint32Array(imgdata.data.buffer, 0, UInt32Array.BYTES_PER_ELEMENT): null;
+//        this.buf_resize('outbuf', 4 * this.nodelist.length);
+        var imgdata = this.imgdata(); //get all my pixels
+        var pxbuf = imgdata.data; //? new DataView(imgdata.data.buffer): null; //Uint32Array(imgdata.data.buffer/*, 0, Uint32Array.BYTES_PER_ELEMENT*/): null;
+        console.log("start '%s' render: imgdata? %s, pxbuf %s len %s, outbuf len %s", this.name, !!imgdata, pxbuf? pxbuf.constructor.name: '(none)', pxbuf? pxbuf.length: 'none', (this.outbuf || []).length);
         if (pxbuf)
             (this.nodelist || []).forEach(function(pxofs, inx)
             {
@@ -539,11 +666,45 @@ Model2D.prototype.render = function(frnext)
 //            this.outbuf[inx + 2] = pixels[pxofs + 2]; //B
 //            this.outbuf[inx + 3] = pixels[pxofs + 3]; //A
 //            this.outbuf.writeUInt32BE(pxbuf.readUInt32(pxofs)); //RGBA
-                this.renderNode(pxbuf, pxofs);
+                this.renderNode(inx * this.bytesPerNode, pxbuf, pxofs); //NOTE: null is used as a placeholder node and should be set off to reduce entropy
             }.bind(this));
+        console.log("finish '%s' render: outbuf len %s", this.name, (this.outbuf || []).length); //, this.outbuf);
     }
     this.dirty = false;
     return this.fx? frnext + 50: false; //TODO: generate frnext based on running fx; no next frame scheduled
+}
+
+
+//http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
+Model2D.prototype.rdframe = function(filename)
+{
+    if (!filename) filename = process.cwd() + '/frame.data'; //_dirname
+    var stream = fs.createReadStream(filename, {flags: 'r', objectMode: true});
+    var buf = stream.read();
+    stream.close();
+    console.log("read '%s' len %s from file '%s'", this.name, buf.length, filename); //data.length);
+//var imgdata = entire.imgdata();
+//if (imgdata) imgdata = imgdata.data;
+//console.log("imgdata len %s", imgdata.length); //data.length);
+//console.log("imgdata ", imgdata); //data.length);
+    this.imgdata(buf);
+    this.dirty = true;
+    return this; //fluent
+}
+
+Model2D.prototype.wrframe = function(filename)
+{
+//var imgdata = entire.imgdata();
+//if (imgdata) imgdata = imgdata.data;
+//console.log("imgdata len %s", imgdata.length); //data.length);
+//console.log("imgdata ", imgdata); //data.length);
+    var buf = new Buffer(this.imgdata().data);
+    if (!filename) filename = process.cwd() + '/frame.data'; //__dirname
+    var stream = fs.createWriteStream(filename, {flags: 'w', objectMode: true});
+    stream.write(buf);
+    stream.end();
+    console.log("wrote '%s' len %s to file '%s'", this.name, buf.length, filename); //data.length);
+    return this; //fluent
 }
 
 

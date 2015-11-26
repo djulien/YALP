@@ -22,7 +22,7 @@ var shortname = require('my-plugins/utils/shortname');
 //var models = require('my-projects/models/model'); //generic models
 //var ChannelPool = require('my-projects/models/chpool'); //generic ports
 //var models = require('my-projects/shared/my-models').models;
-//var Model2D = require('my-projects/models/model-2d');
+var Model2D = require('my-projects/models/model-2d');
 
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
@@ -36,13 +36,12 @@ function dim(rgba, brightness)
     var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
     c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
     rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a;
-    return rgba_split.readUInt32BE(0); //>>> 0;
+    return rgba_split.readUInt32BE(0);
 }
 
 
 var YalpSource = require('my-plugins/streamers/YalpSource').YalpSource;
 
-//TODO: rework this to be a stream transform (xml -> YalpSource)
 function Vixen2YalpSource(opts)
 {
     if (!(this instanceof Vixen2YalpSource)) return makenew(Vixen2YalpSource, arguments);
@@ -52,11 +51,10 @@ function Vixen2YalpSource(opts)
 
 //load + parse xml file:
     var where, files;
-    files = glob.sync(where = m_opts.filename || path.join(m_opts.folder || process.cwd(), '**', '!(*-bk).vix'));
+    files = glob.sync(where = path.join(this.opts.folder, '**', '!(*-bk).vix'));
     if (!files.length) throw "Can't find Vixen2 seq at " + where;
-    if (files.length > 1) throw "Too many Vixen2 seq found at " + where + ": " + files.length;
+    if (files.length > 1) throw "Too many Vixen2 seq found at " + where;
     add_prop('vix2filename', files[0]);
-    add_prop('name', shortname(this.vix2filename));
     var m_top = load(this.vix2filename);
 
 //extract top-level props, determine #frames, #channels, etc:
@@ -77,37 +75,27 @@ function Vixen2YalpSource(opts)
 ////    top.decoded = chvals;
 
 //extract color settings of all channels:
-//    var m_chcolors = get_channels.call(this, m_top.byname.Channels, m_numch);
-    console.log("TODO: fix profile + path here".red);
-    var vix2prof = Vixen2Profile(path.join(process.cwd(), 'my-projects/playlists', '**', '!(*RGB*).pro'));
-    if (!vix2prof) throw "no Vixen2 profile";
-    var m_chcolors = this.channels = vix2prof.chcolors;
+    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    var m_chcolors = [];
+    if ((m_top.byname.Channels || {}).children) //get channels before chvals so colors can be applied (used for mono -> RGB mapping)
+    {
+        if (m_top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top.byname.Channels.children.length, m_numch);
+        m_top.byname.Channels.children.forEach(function(child, inx) //NOTE: ignore output order
+        {
+            m_chcolors.push((child.attr.color || 0xFFFFFF) << 8 | 0xFF); //full alpha; //Color(line.color));
+        }.bind(this));
+    }
 
 //map mono channel values to RGB colors, rotate matrix for faster access by frame:
      var pivot = new Buffer(4 * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
 //    var rgba = new DataView(pivot);
-    var non_blank = {count: 0};
-    for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
-        for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
-            if (m_chvals[chofs + frinx])
-            {
-                if (!non_blank.count++) non_blank.first = frinx;
-                non_blank.last = frinx;
-                break;
-            }
-//TODO: write stats to stream as well
-    console.log("non-blank frames: %s of %s, first was fr# %s, last was fr# %s".cyan, non_blank.count, m_numfr, non_blank.first, non_blank.last);
-
     var m_color_cache = {};
-    color_cache_stats.skipped = 0;
     for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
         for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
         {
 //            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
             var rgba = m_chcolors[chinx], brightness = m_chvals[chofs + frinx];
-            if (!brightness) { ++color_cache_stats.skipped; rgba = 0; } //set to black
-            else if (brightness == 255) ++color_cache_stats.skipped; //leave as-is (full brightness)
-            else rgba = color_cache(rgba + '^' + brightness, function()
+            rgba = color_cache(rgba + '^' + brightness, function()
             {
                 if (brightness != 255) rgba = dim(rgba, brightness);
                 return rgba;
@@ -115,7 +103,7 @@ function Vixen2YalpSource(opts)
             pivot.writeUInt32BE(rgba, 4 * (chofs + frinx));
         }
     m_chvals = pivot; pivot = null;
-    console.log("pivot color cache vix2 '%s': hits %d, misses %d, skipped %d".cyan, this.name, color_cache_stats.hits, color_cache_stats.misses, color_cache_stats.skipped);
+    console.log("pivot color cache vix2 '%s': hits %d, misses %d", this.name, color_cache_stats.hits, color_cache_stats.misses);
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
@@ -138,14 +126,13 @@ function Vixen2YalpSource(opts)
 //load frame data into stream:
 //NOTE: a stream should incrementally read data to reduce memory usage, but the Vixen2 channel value matrix is oriented the wrong way to do that
     for (var frinx = 0; frinx < m_numfr; ++frinx)
-        this.frames.push({frtime: frinx * this.FixedFrameInterval, data: this.chvals(frinx)});
-    this.frames.push({frtime: -Math.max(this.FixedFrameInterval, 100), data: {numfr: m_numfr, numch: m_numch, src: this.vix2filename, duration: m_duration}});
+        m_frames.push({frtime: frinx * this.FixedFrameInterval, data: this.chvals(frinx)});
+    m_frames.push({frtime: -Math.max(this.FixedFrameInterval, 100), data: {numfr: m_numfr, numch: m_numch, src: filename, duration: m_duration}});
 }
 inherits(Vixen2YalpSource, YalpSource);
 module.exports.Vixen2YalpSource = Vixen2YalpSource;
 
 
-/*
 var Sequence = require('my-projects/shared/sequence'); //base class
 //var Vixen2seq = module.exports.vix2seq = function(filename)
 function Vixen2Sequence(opts)
@@ -183,7 +170,23 @@ function Vixen2Sequence(opts)
         console.log("num ch# %d, partial frame? %d", m_numch, !!partial);
 ////    top.decoded = chvals;
 
-    var m_chcolors = get_channels.call(this, m_top.byname.Channels, m_numch);
+//    this.getChannels(m_top.bynme.Channels, m_numch);
+    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
+    var m_chcolors = [];
+    if ((m_top.byname.Channels || {}).children) //get channels before chvals so colors can be applied
+    {
+        if (m_top.byname.Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top.byname.Channels.children.length, m_numch);
+        var wrstream = this.opts.dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
+        wrstream.write(sprintf("#%d channels:\n", m_top.byname.Channels.children.length));
+        m_top.byname.Channels.children.forEach(function(child, inx) //NOTE: ignore output order
+        {
+//            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
+            var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
+            wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
+            m_chcolors.push((child.attr.color || 0xFFFFFF) << 8 | 0xFF); //full alpha; //Color(line.color));
+        }.bind(this));
+        wrstream.end('#eof\n');
+    }
 
     var pivot = new Buffer(4 * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
 //    var rgba = new DataView(pivot);
@@ -219,7 +222,7 @@ function Vixen2Sequence(opts)
 //    this.getFrame = function(frinx, frbuf)
 //    {
 //        for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
-//            frbuf[chinx] = m_chvals[/-*chinx * m_numfr*-/ chofs + frinx];
+//            frbuf[chinx] = m_chvals[/*chinx * m_numfr*/ chofs + frinx];
 //        return m_numch;
 //        return m_chvals.slice(frinx * m_numch, (frinx + 1) * m_numch);
 //    }
@@ -238,7 +241,7 @@ function Vixen2Sequence(opts)
         debugger;
         var chvals = this.chvals(Math.floor(frtime / this.FixedFrameInterval)); //rgba values for this frame
         var ic_debug = chvals.slice(2, 2+14);
-//        if (/-*frtime*-/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
+//        if (/*frtime*/ m_prevbuf && (this.opts.dedup !== false) && !bufdiff(chvals, m_prevbuf)) return {frnext: frtime + this.FixedFrameInterval, bufs: null}; //no change
         if (!m_prevbuf || (this.opts.dedup === false) || bufdiff(chvals, m_prevbuf)) //no dedup or chvals changed
         {
             if (this.opts.dedup !== false) m_prevbuf = chvals;
@@ -249,7 +252,7 @@ function Vixen2Sequence(opts)
 //                if (chpool.dirty) console.log("chpool buf",
                 Model2D.all.forEach(function(model, inx, all) //update Vixen-aware models
                 {
-//                if (!model.opts.vix2ch /-*vix2buf*-/) { console.log("model %s is not mapped for vix2", model.name); return; }
+//                if (!model.opts.vix2ch /*vix2buf*/) { console.log("model %s is not mapped for vix2", model.name); return; }
 //                model.vix2set(frtime, chvals); //apply vix2 ch vals to model
                     if (!model.opts.vix2ch) return; //doesn't want Vixen2 channels
                     model.vix2buf = chvals; //send all channels so models can influence each other; not really - model will slice it down
@@ -286,7 +289,7 @@ function Vixen2Sequence(opts)
 //    console.log("opts.cues %s, fixint %s, vixint %s".cyan, opts.cues, this.fixedInterval, m_interval);
 
 //    return this;
-/-*
+/*
     for (var chofs = 0; chofs < chvals.length; chofs += numch)
     {
         var buf = "", nonnull = false;
@@ -298,18 +301,15 @@ function Vixen2Sequence(opts)
         }
         if (nonnull) console.log("frame [%d/%d]: " + buf.substr(2), chofs / numch, numfr);
     }
-*-/
+*/
 }
 inherits(Vixen2Sequence, Sequence);
-module.exports.Sequence = Vixen2Sequence;
-*/
 
 
 //var path = require('path');
 //var glob = require('glob');
 
 
-/*
 //Vixen2 Sequence with custom mapping
 //Vixen2Sequence.prototype.ExtendModel = function(model)
 function ExtendModel(model)
@@ -328,7 +328,7 @@ function ExtendModel(model)
         {
 //            var chbuf = newbuf.slice(this.opts.vix2ch[0], this.opts.vix2ch[0] + this.opts.vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
 //            var altbuf = this.opts.vix2alt? newbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[0] + this.opts.vix2alt[1]): null; //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
-//            if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /-*this.opts.*-/vix2alt, /-*this.opts.*-/vix2ch);
+//            if (altbuf && altbuf.compare(chbuf)) console.log("Vixen2 alt buf %j doesn't match %j".red, /*this.opts.*/vix2alt, /*this.opts.*/vix2ch);
 //        if (this.buf.compare(chbuf)) { this.dirty = true; chbuf.copy(this.buf); }
             var chbuf = newbuf.slice(vix2ch[0], vix2ch[0] + vix2ch[1]); //this.opts.vix2ch[0], this.opts.vix2ch[1]);
             if (vix2alt) //paranoid check on alternate range of channels
@@ -337,7 +337,7 @@ function ExtendModel(model)
                 var altbuf = newbuf.slice(vix2alt[0], vix2alt[0] + vix2alt[1]); //this.opts.vix2alt? chbuf.slice(this.opts.vix2alt[0], this.opts.vix2alt[1]): null;
                 if (ofs = bufdiff(chbuf, altbuf)) console.warn("Vixen2 alt buf %j %j doesn't match %j %j at ofs %d".red, vix2alt, altbuf, vix2ch, chbuf, ofs);
             }
-            if (/-*frtime*-/ m_prevbuf && (model.opts.dedup !== false) && !bufdiff(chbuf, m_prevbuf)) return; //don't force dirty on first frame, only if no prior buf
+            if (/*frtime*/ m_prevbuf && (model.opts.dedup !== false) && !bufdiff(chbuf, m_prevbuf)) return; //don't force dirty on first frame, only if no prior buf
 //        if (this.opts.dedup !== false)
             if (model.opts.dedup !== false) m_prevbuf = chbuf; //CAUTION: assume different buffer memory next time; avoids expensive mem copy
 //            this.frtime = frtime;
@@ -346,7 +346,7 @@ function ExtendModel(model)
         },
     });
     return true;
-/-*
+/*
     model.vix2set = function(frtime, vix2buf)
     {
 //    var vix2ch = chbuf.slice(400, 400 + 16);
@@ -377,10 +377,8 @@ function ExtendModel(model)
         this.frtime = frtime;
         this.dirty = true;
     }.bind(model);
-*-/
-}
-//module.exports.ExtendModel = ExtendModel;
 */
+}
 
 
 function Vixen2Profile(filename)
@@ -390,7 +388,7 @@ function Vixen2Profile(filename)
 //    var top = load(filename);
     var m_opts = {path: filename}; //glob shim
     var where, files;
-    this.vix2filename = this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(caller(1, __filename), '..', '**', '!(*-bk).pro')))[0];
+    this.filename = m_opts.filename || (files = glob.sync(where = m_opts.path || path.join(caller(1, __filename), '..', '**', '!(*-bk).pro')))[0];
     if (!this.filename) throw "Can't find Vixen2 profile at " + where;
     if (files.length > 1) throw "Too many Vixen2 profiles found at " + where;
     var top = load(this.filename);
@@ -404,12 +402,15 @@ function Vixen2Profile(filename)
 //    var wrstream = fs.createWriteStream(path.join(filename, '..', shortname(filename) + '-channels.txt'), {flags: 'w', });
 //    wrstream.write(sprintf("#%d channels:\n", top.byname.Channels.children.length));
     var numch = top.byname.ChannelObjects.children.length;
-
-//    this.channels = {length: numch}; //tell caller #ch even if they have no data
-    this.chcolors = get_channels.call(this, top.byname.ChannelObjects, numch);
+    this.channels = {length: numch}; //tell caller #ch even if they have no data
+    top.byname.ChannelObjects.children.forEach(function(child, inx)
+    {
+        if (!(this instanceof Vixen2Profile)) throw "Wrong this type";
+        /*var line =*/ this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: inx, output: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
+//        wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
+    }.bind(this));
 //    wrstream.end('#eof\n');
 }
-module.exports.Profile = Vixen2Profile;
 
 
 function load(abspath, cb)
@@ -420,40 +421,6 @@ function load(abspath, cb)
     fs.createReadStream(abspath) //async, streamed
         .on('data', function(chunk) { seq += chunk; console.log("got xml chunk len " + chunk.length); })
         .on('end', function() { console.log("total xml read len " + seq.length); cb(parse(seq)); });
-}
-
-
-function get_channels(m_top_Channels, m_numch)
-{
-//    this.getChannels(m_top.bynme.Channels, m_numch);
-    if (!this.vix2filename) throw "Called wrongly";
-    this.channels = {length: m_numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
-    var m_chcolors = [];
-    if ((m_top_Channels || {}).children) //get channels before chvals so colors can be applied (used for mono -> RGB mapping)
-    {
-        if (m_top_Channels.children.length != m_numch) console.log("#ch mismatch: %d vs. %d".red, m_top_Channels.children.length, m_numch);
-        else console.log("#ch matches okay %d".green, m_top_Channels.children.length);
-        var wrstream = (this.opts || {}).dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
-        wrstream.write(sprintf("#%d channels:\n", m_top_Channels.children.length));
-        m_top_Channels.children.forEach(function(child, inx) //NOTE: ignore output order
-        {
-            if (child.attr.color === 0) console.log("ch# %d is black, won't show up".red, m_chcolors.count);
-//            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
-//            if (!(this instanceof Vixen2Profile)) throw "Wrong this type";
-            var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
-//            /*var line =*/ this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: inx, output: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
-            wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
-            m_chcolors.push(((child.attr.color || 0xFFFFFF) << 8 | 0xFF) >>> 0); //full alpha; //Color(line.color));
-        }.bind(this));
-        wrstream.end('#eof\n');
-    }
-    var buf = '';
-    m_chcolors.forEach(function(color) { buf += ', #' + color.toString(16); });
-//    console.log("%d channels, ch colors: ".cyan, m_chcolors.length, buf.slice(2)); //m_chcolors);
-//    console.log("channels", m_top_Channels);
-    if (m_chcolors.length < 1) throw "No channels found?";
-    if (m_chcolors.length != this.channels.length) throw "Missing channels? found " + m_chcolors + ", expected " + m_numch;
-    return m_chcolors;
 }
 
 
@@ -545,6 +512,10 @@ function main()
 
 main();
 */
+
+module.exports.Sequence = Vixen2Sequence;
+module.exports.Profile = Vixen2Profile;
+//module.exports.ExtendModel = ExtendModel;
 
 
 //eof

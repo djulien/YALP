@@ -10,11 +10,6 @@ var makenew = require('my-plugins/utils/makenew');
 var inherits = require('inherits');
 require('my-plugins/my-extensions/object-enum');
 
-module.exports.Playlist = CustomPlaylist;
-module.exports.Sequence = CustomSequence;
-//module.exports.ChannelPools = ChannelPools;
-module.exports.Ports = PortBase;
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 // Custom playlist extensions:
@@ -27,6 +22,7 @@ function CustomPlaylist(opts)
     console.log("TODO: sequence extensions: if (glob(*.vix|*.fseq)load; ??");
 }
 inherits(CustomPlaylist, Playlist);
+module.exports.Playlist = CustomPlaylist;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -51,11 +47,12 @@ function CustomSequence(opts)
 //    [vix2, xlnc3].forEach(function(adapter)
     /*try*/ { return new makenew(vix2.Sequence, args); }
 //    catch (exc) { console.log("nope vix2, try next".red, exc); };
-    try { return new makenew(xlnc3.Sequence, args); }
-    catch (exc) { console.log("nope xlnc3, try uncustomized".red, exc); };
+    /*try*/ { return new makenew(xlnc3.Sequence, args); }
+//    catch (exc) { console.log("nope xlnc3, try uncustomized".red, exc); };
     Sequence.apply(this, args);
 }
 inherits(CustomSequence, Sequence);
+module.exports.Sequence = CustomSequence;
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -196,82 +193,87 @@ chmap.forEach(function(chgrp, grpname)
 // Each model is analogous to a DMX "universe", except they can be any number of nodes
 // Models are also assigned to Vixen2 and xLights/Nutcracker 3 channels in order to allow those sequences to be run as-is or augmented
 
-var Model2D = module.exports.models = require('my-projects/models/model-2d');
+var Model2D = module.exports.Model2D = require('my-projects/models/model-2d'); //generic
+module.exports.CustomModels = {};
+
+//var RenXt = {AddProtocol: function(port) { console.log("TODO: assign RenXt protocol to port '%s'", port.name || port.device); }}; //require('my-plugins/hw/RenXt');
+var RenXt = require('my-plugins/hw/RenXt');
+
 
 //NOTE: set zinit to false to allow smoother xition from previous seq
 //NOTE: vixch should match profile info from above
 
 //use this model for entire-house fx:
-var entire = new Model2D('tutorial'); //.fill(toRGBA(11, 22, 33));
+var entire = module.exports.CustomModels.entire = new Model2D('tutorial'); //.fill(toRGBA(11, 22, 33));
 
 
 //use bottom row of canvas for virtual fx:
 
 //show_group('fx', [395, +5]);
-var fx = new entire.Model2D({name: 'fx', x: 0, y: 0, w: 5, h: 1, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
+var fx = module.exports.CustomModels.fx = new entire.Model2D({name: 'fx', x: 0, y: 0, w: 5, h: 1, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
 fx.vix2render = function() {} //TODO
 
 //show_group('snglobe', [300, +2], [418, +2]);
-var snglobe_fx = new entire.Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
+var snglobe_fx = module.exports.CustomModels.snglobe_fx = new entire.Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
 snglobe_fx.vix2render = function() {} //TODO
 
-var gdoor_fx = new entire.Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +1], macro: +0, bitmap: +1});
+var gdoor_fx = module.exports.CustomModels.gdoor_fx = new entire.Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +1], macro: +0, bitmap: +1});
 gdoor_fx.vix2render = function() {} //TODO
 
 
 //archfans near bottom:
-//var archfans = new entire.Model2D({name: 'TODO: AF', x: 0, y: 1, w: 4 * 8, h: 8});
+//var archfans = module.exports.CustomModels.archfans = new entire.Model2D({name: 'TODO: AF', x: 0, y: 1, w: 4 * 8, h: 8});
 /*
 //show_group('af', [117, +64]);
 //show_group('arches', [117, +32]);
 //show_group('fans', [149, +32]);
 //var af = aport.alloc(Rect2D, {name: 'af', w: 8, h: 8, zinit: false, vix2ch: [117, +64]});
-var arches = wport.alloc(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2ch: [117, +32]});
+var arches = module.exports.CustomModels.arches = wport.alloc(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2ch: [117, +32]});
 arches.vix2render = function() {} //TODO
-var fans = wport.alloc(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +32]});
+var fans = module.exports.CustomModels.fans = wport.alloc(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +32]});
 fans.vix2render = function() {} //TODO
 
 //show_group('tuneto', 205);
-var tuneto = wport.alloc(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
+var tuneto = module.exports.CustomModels.tuneto = wport.alloc(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
 tuneto.vix2render = function() {} //TODO
 */
 
 
 //nat figures next row:
-//var nat = new entire.Model2D({name: 'TODO: Nat-fig', x: 0, y: 9, w: 4 * 12, h: 24});
+//var nat = module.exports.CustomModels.nat = new entire.Model2D({name: 'TODO: Nat-fig', x: 0, y: 9, w: 4 * 12, h: 24});
 
 /*
 //show_group('shep', [103, +4]);
-var shep = bport.alloc(Strip1D, {name: 'shep', w: 4, zinit: false, vix2ch: [103, +4], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
+var shep = module.exports.CustomModels.shep = bport.alloc(Strip1D, {name: 'shep', w: 4, zinit: false, vix2ch: [103, +4], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
 shep.vix2render = function() {} //TODO
 //show_group('sheep', [107, +6]);
-var sheep = bport.alloc(Strip1D, {name: 'sheep', w: 6, zinit: false, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
+var sheep = module.exports.CustomModels.sheep = bport.alloc(Strip1D, {name: 'sheep', w: 6, zinit: false, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
 sheep.vix2render = function() {} //TODO
 //show_group('she_bank', [113, +4]);
-var sh_bank = bport.alloc(Strip1D, {name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
+var sh_bank = module.exports.CustomModels.sh_bank = bport.alloc(Strip1D, {name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
 sh_bank.vix2render = function() {} //TODO
 */
 
 /*
 //show_group('nat', 46, [83, +8], 232);
-var cross = wport.alloc(Single0D, {name: 'cross', numch: 1, zinit: false, vix2ch: 46, cross: 46});
+var cross = module.exports.CustomModels.cross = wport.alloc(Single0D, {name: 'cross', numch: 1, zinit: false, vix2ch: 46, cross: 46});
 cross.vix2render = function() {} //TODO
-var nat = wport.alloc(Strip1D, {name: 'nat-people', w: 9, vix2ch: [83, +9], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
+var nat = module.exports.CustomModels.nat = wport.alloc(Strip1D, {name: 'nat-people', w: 9, vix2ch: [83, +9], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
 nat.vix2render = function() {} //TODO
-var donkey = wport.alloc(Single0D, {name: 'donkey', numch: 1, zinit: false, vix2ch: 232, donkey: 232});
+var donkey = module.exports.CustomModels.donkey = wport.alloc(Single0D, {name: 'donkey', numch: 1, zinit: false, vix2ch: 232, donkey: 232});
 donkey.vix2render = function() {} //TODO
 
 //show_group('gift', [77, +5], 82);
-var gift = wport.alloc(Strip1D, {name: 'gift', w: 6, zinit: false, vix2ch: [77, +5], gift_1M: 77, gift_2R: 78, gift_3B_top: 79, gift_3B_bot: 80, tags: 81});
+var gift = module.exports.CustomModels.gift = wport.alloc(Strip1D, {name: 'gift', w: 6, zinit: false, vix2ch: [77, +5], gift_1M: 77, gift_2R: 78, gift_3B_top: 79, gift_3B_bot: 80, tags: 81});
 gift.vix2render = function() {} //TODO
-var city = wport.alloc(Single0D, {name: 'city', numch: 1, zinit: false, vix2ch: 82, city: 82});
+var city = module.exports.CustomModels.city = wport.alloc(Single0D, {name: 'city', numch: 1, zinit: false, vix2ch: 82, city: 82});
 city.vix2render = function() {} //TODO
 
 //show_group('acc', [96, +5]);
-var acc = wport.alloc(Strip1D, {name: 'acc', w: 5, zinit: false, vix2ch: [96, +5], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
+var acc = module.exports.CustomModels.acc = wport.alloc(Strip1D, {name: 'acc', w: 5, zinit: false, vix2ch: [96, +5], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
 acc.vix2render = function() {} //TODO
 //show_group('acc_bank', [101, +2]);
-var acc_bank = wport.alloc(Strip1D, {name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
+var acc_bank = module.exports.CustomModels.acc_bank = wport.alloc(Strip1D, {name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
 acc_bank.vix2render = function() {} //TODO
 */
 
@@ -279,39 +281,72 @@ acc_bank.vix2render = function() {} //TODO
 //gdoor, cols, tree, angel, gifts:
 
 //show_group('gdoor', [298, +2], [416, +2]);
-var gdoorL = entire.Model2D({name: 'gdoorL', x: 0, y: 33, w: 24, h: 16, zinit: false, order: Model2D.prototype.B2T_R2L, output: 'GRB'});
-var gdoorR = entire.Model2D({name: 'gdoorR', y: 33, zinit: false, order: Model2D.prototype.B2T_L2R, output: 'GRB'});
-var gdoor_all = entire.Model2D({name: 'gdoor-all', x: gdoorL.left, y: 33, w: gdoorR.right - gdoorL.left, zinit: false});
+var gdoorL = module.exports.CustomModels.gdoorL = entire.Model2D({name: 'gdoorL', x: 0, y: 33, w: 24, h: 16, zinit: false, order: Model2D.prototype.B2T_R2L, output: 'GRB'});
+var gdoorR = module.exports.CustomModels.gdoorR = entire.Model2D({name: 'gdoorR', y: 33, zinit: false, order: Model2D.prototype.B2T_L2R, output: 'GRB'});
+var gdoor_all = module.exports.CustomModels.gdoor_all = entire.Model2D({name: 'gdoor-all', x: gdoorL.left, y: 33, w: gdoorR.right - gdoorL.left, zinit: false});
+
+//custom column layout:
+//
+// L  M  R
+// L  M  R
+// :  :  :
+// HHHHH
+//
+//L = 37 nodes (0..36 first string, T2B)
+//M = 50 nodes (0..49 second string, T2B)
+//R = 50 nodes (0..49 third string, T2B)
+//H = 42 nodes (37..78 first string, L2R)
+//
+//canvas is 2D rectangle (sparsely populated)
+//Vixen2 channels are T2B
+
+//maps sparse 42 x 51 rect to 4 x 80 rect
+//(0, 0) in lower left corner
+Model2D.prototype.ColumnNodes = function()
+{
+//    console.log("columns: %s x %s @(%s..%s, %s..%s)", this.width, this.height, this.left, this.right, this.bottom, this.top);
+    for (var i = 0; i < 37+42+1; ++i)
+        if (i < 37) this.nodelist.push(this.pixelXY(0, this.T2B(i))); //colL is upper part of left edge of canvas
+        else if (i < 37+42) this.nodelist.push(this.pixelXY(i - 37, 0)); //colH is bottom edge of canvas
+        else this.nodelist.push(null); //pad out remaining nodes
+    for (var y = 0; y < 50+30; ++y)
+        this.nodelist.push((y < 50)? this.pixelXY(Math.round((this.left + this.right) / 2), this.T2B(y)): null);
+    for (var y = 0; y < 50+30; ++y)
+        this.nodelist.push((y < 50)? this.pixelXY(this.right - 1, this.T2B(y)): null);
+    for (var y = 0; y < 80; ++y)
+        this.nodelist.push(null); //set 4th parallel string even tho there is no hardware; this reduces parallel palette entropy
+//    console.log("columns %d nodes", this.nodelist.length);
+}
 
 //show_group('col', [181, +24]);
-var cols_LMRH = new entire.Model2D({name: 'cols-LMRH', y: 33, w: 42, h: 51, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB', parallel: true}); //, vix2ch: [181, +24], noop: [181, 182, 189, 197, 198]}); //w: 42, h: 51, numnodes: 3 * 80,
+var cols_LMRH = module.exports.CustomModels.cols_LMRH = new entire.Model2D({name: 'cols-LMRH', y: 33, w: 42, h: 51, zinit: false, order: Model2D.prototype.ColumnNodes, output: 'GRB', nodetype: RenXt.WS2811(RenXt.PARALLEL)}); //, vix2ch: [181, +24], noop: [181, 182, 189, 197, 198]}); //w: 42, h: 51, numnodes: 3 * 80,
 //show_group('colL', [181, +8]);
-var colL = new entire.Model2D({name: 'colL', x: cols_LMRH.left, y: cols_LMRH.top - 37, w: 1, h: 37, zinit: false, vix2ch: [183, +6]}); //, adrs: cols_, startch: cols_LMR.startch}); //, top: 183, bottom: 188}); //overlay
+var colL = module.exports.CustomModels.colL = new entire.Model2D({name: 'colL', x: cols_LMRH.left, y: cols_LMRH.top - 37, w: 1, h: 37, zinit: false, vix2ch: [183, +6]}); //, adrs: cols_, startch: cols_LMR.startch}); //, top: 183, bottom: 188}); //overlay
 colL.vix2render = function() {} //TODO
 //show_group('colM', [189, +8]);
-var colM = new entire.Model2D({name: 'colM', x: Math.round((cols_LMRH.left + cols_LMRH.right) / 2), y: cols_LMRH.top - 50, h: 50, zinit: false, vix2ch: [190, +7]}); //, startch: cols_LMR.startch, top: 190, bottom: 196});
+var colM = module.exports.CustomModels.colM = new entire.Model2D({name: 'colM', x: Math.round((cols_LMRH.left + cols_LMRH.right) / 2), y: cols_LMRH.top - 50, h: 50, zinit: false, vix2ch: [190, +7]}); //, startch: cols_LMR.startch, top: 190, bottom: 196});
 colM.vix2render = function() {} //TODO
 //show_group('colR', [197, +8]);
-var colR = new entire.Model2D({name: 'colR', x: cols_LMRH.right - 1, y: cols_LMRH.top - 50, zinit: false, vix2ch: [199, +6]}); //, top: 199, bottom: 204});
+var colR = module.exports.CustomModels.colR = new entire.Model2D({name: 'colR', x: cols_LMRH.right - 1, y: cols_LMRH.top - 50, zinit: false, vix2ch: [199, +6]}); //, top: 199, bottom: 204});
 colR.vix2render = function() {} //TODO
 
 /*
 //show_group('mtree', [47, +24]);
-var mtree = gport.alloc(Strip1D, {name: 'mtree', w: 24, zinit: false, vix2ch: [47, +24]});
+var mtree = module.exports.CustomModels.mtree = gport.alloc(Strip1D, {name: 'mtree', w: 24, zinit: false, vix2ch: [47, +24]});
 mtree.vix2render = function() {} //TODO
 //show_group('mtree_bank', [71, +4]);
-var mtree_bank = noport.alloc(Strip1D, {name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
+var mtree_bank = module.exports.CustomModels.mtree_bank = noport.alloc(Strip1D, {name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
 mtree_bank.vix2render = function() {} //TODO
 //show_group('tb', [75, +2]);
-var tb = noport.alloc(Strip1D, {name: 'tb', w: 2, zinit: false, vix2ch: [75, +2], ball1: 75, ball2: 76});
+var tb = module.exports.CustomModels.tb = noport.alloc(Strip1D, {name: 'tb', w: 2, zinit: false, vix2ch: [75, +2], ball1: 75, ball2: 76});
 tb.vix2render = function() {} //TODO
 
 //show_group('angel', [40, +3]);
-var angel = gport.alloc(Strip1D, {name: 'angel', w: 3, zinit: false, vix2ch: [40, +3], body: 40, wings: 41, trumpet: 42});
+var angel = module.exports.CustomModels.angel = gport.alloc(Strip1D, {name: 'angel', w: 3, zinit: false, vix2ch: [40, +3], body: 40, wings: 41, trumpet: 42});
 angel.vix2render = function() {} //TODO
 
 //show_group('star', [43, +3]);
-var star = noport.alloc(Strip1D, {name: 'star', w: 3, zinit: false, vix2ch: [43, +3], aura_B: 43, inner_Y: 44, outer_W: 45});
+var star = module.exports.CustomModels.star = noport.alloc(Strip1D, {name: 'star', w: 3, zinit: false, vix2ch: [43, +3], aura_B: 43, inner_Y: 44, outer_W: 45});
 star.vix2render = function() {} //TODO
 */
 
@@ -330,7 +365,7 @@ Model2D.prototype.CustomX_T2B = function(x_ranges)
 //CustomX_T2B = function(x_ranges)
 {
 //    console.log("custom t2b, mode", this, x_ranges.length, arguments.length);
-    this.nodelist = []; //new Array(w * h);
+//    this.nodelist = []; //new Array(w * h);
     arguments.forEach(function(range)
     {
 //        console.log("x range", range, range[0] + '++' + range[1], this.top + '--' + this.bottom, range[0] + '--' + range[1], this.top + '--' + this.bottom);
@@ -342,30 +377,30 @@ Model2D.prototype.CustomX_T2B = function(x_ranges)
                 this.nodelist.push(this.pixelXY(x, y));
     }.bind(this));
 //    console.log("node list ", this.nodelist.length);
-    return this.nodelist;
+//    return this.nodelist;
 }
 
 //show_group('ic', [2, +14]);
 //NOTE: previous value of x, y, w, h is used if not specified
 //debugger;
-var ic1 = entire.Model2D({name: 'ic1', x: 0, y: 100, w: 33, h: 10, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //{from: 32, to: 0}, vorder: {from: 9: to: 0}});
-var ic2 = entire.Model2D({name: 'ic2', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
-var ic3 = entire.Model2D({name: 'ic3', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
-var ic4 = entire.Model2D({name: 'ic4', y: 100, w: 24+8, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 24+8, to: 1+8}, {from: 8, to: 1}]});
-var ic5 = entire.Model2D({name: 'ic5', y: 100, w: 34, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 34, to: 1}]});
+var ic1 = module.exports.CustomModels.ic1 = entire.Model2D({name: 'ic1', x: 0, y: 100, w: 33, h: 10, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //{from: 32, to: 0}, vorder: {from: 9: to: 0}});
+var ic2 = module.exports.CustomModels.ic2 = entire.Model2D({name: 'ic2', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
+var ic3 = module.exports.CustomModels.ic3 = entire.Model2D({name: 'ic3', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
+var ic4 = module.exports.CustomModels.ic4 = entire.Model2D({name: 'ic4', y: 100, w: 24+8, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 24+8, to: 1+8}, {from: 8, to: 1}]});
+var ic5 = module.exports.CustomModels.ic5 = entire.Model2D({name: 'ic5', y: 100, w: 34, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 34, to: 1}]});
 //var icbig = entire.Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: Model2D.prototype.CustomX_T2B.bind(undefined, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14]), output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
-var icbig = entire.Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { Model2D.prototype.CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14])(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
+var icbig = module.exports.CustomModels.icbig = entire.Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { Model2D.prototype.CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14])(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 //var icbig = entire.Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { (CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14]))(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
-var ic_all = entire.Model2D({name: 'ic-all', x: ic1.left, y: 100, w: icbig.right - ic1.left, zinit: false, vix2ch: [2, +14]}); //yport.alloc(IcicleSegment2D.all, {name: 'ic-all', x: 0, y: 0, w: 207, h: 10, zinit: false}); //CAUTION: must use same port as segments
+var ic_all = module.exports.CustomModels.ic_all = entire.Model2D({name: 'ic-all', x: ic1.left, y: 100, w: icbig.right - ic1.left, zinit: false, vix2ch: [2, +14]}); //yport.alloc(IcicleSegment2D.all, {name: 'ic-all', x: 0, y: 0, w: 207, h: 10, zinit: false}); //CAUTION: must use same port as segments
 ic_all.vix2render = function() {} //TODO
 
 /*
 //show_group('floods', [282, +16], [400, +16]);
-var floods = gport.alloc(Rect2D, {name: 'floods', w: 4, h: 4, zinit: false, vix2ch: [282, +16], vix2alt: [400, +15]}); //, chpool: aport}); //new Model();
+var floods = module.exports.CustomModels.floods = gport.alloc(Rect2D, {name: 'floods', w: 4, h: 4, zinit: false, vix2ch: [282, +16], vix2alt: [400, +15]}); //, chpool: aport}); //new Model();
 floods.vix2render = function() {} //TODO
 
 //show_group('ab', [16, +24]);
-var ab = wport.alloc(Rect2D, {name: 'ab', w: 3, h: 8, zinit: false, vix2ch: [16, +24], body: +0, wings: +1, bell: +2});
+var ab = module.exports.CustomModels.ab = wport.alloc(Rect2D, {name: 'ab', w: 3, h: 8, zinit: false, vix2ch: [16, +24], body: +0, wings: +1, bell: +2});
 ab.vix2render = function() {} //TODO
 */
 
@@ -385,6 +420,7 @@ Model2D.all.forEach(function(model)
 
 var streamBuffer = require('stream-buffers'); //https://github.com/samcday/node-stream-buffer
 var serial = require('serialport'); //https://github.com/voodootikigod/node-serialport
+var fs = require('fs');
 
 //show list of available ports:
 serial.list(function(err, ports)
@@ -432,8 +468,8 @@ function PortBase(args)
     }
 //    var m_outbufs = [new Buffer(4096), new Buffer(4096)], m_ff = 0;
 //    this.dirty = false;
-    this.outbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be plenty
-    this.render = function(frtime) //{buf, rawbuf, frnext}
+    this.outbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
+    this.render = function(frtime) //{frnext, buf}
     {
         console.log("port '%s' base render %d models", this.name, this.models.length);
 //        var buf = null;
@@ -441,18 +477,30 @@ function PortBase(args)
         var frnext_min = false; //assume no further frames are needed (no animation); //(this.FixedFrameInterval)? frtime + this.FixedFrameInterval: this.duration;
         this.models.forEach(function(model)
         {
+            var was_dirty = model.dirty;
             var frnext = model.render(frtime); //render new output if dirty, get next refresh time
-            console.log("model '%s' render: frnext %s", this.name, frnext);
+            /*if (was_dirty)*/ this.outbuf.write(model.outbuf); //no or dumb protocol: fixed length output; copy all model outputs even if no change
+            console.log("model '%s' render: frnext %s, now dirty? %s %s, port outbuf len %s", model.name, frnext, model.dirty, (model.parent || {}).dirty, this.outbuf.size());
             if ((frnext === false) || (frnext === true)) return; //no next frame
             frnext_min = (frnext_min === false)? frnext: Math.min(frnext_min, frnext);
         }.bind(this));
-        return {frnext: (frnext_min !== false)? frnext_min: undefined, buf: !!this.outbuf.getContents()};
+        var buflen = this.outbuf.size(), buf = this.outbuf.getContents();
+        console.log("finished port '%s' render: frnext %s, buflen %s %s", this.name, frnext_min, buflen, (buf || []).length);
+        if (buf)
+        {
+            var stream = fs.createWriteStream(process.cwd() + '/frame.data', {flags: 'w', objectMode: true});
+            stream.write(buf);
+            stream.end();
+        }
+        return {port: this.name || this.device, frtime: frtime, frnext: (frnext_min !== false)? frnext_min: undefined, buflen: buflen, buf: buf}; //this.outbuf.getContents()};
     }
 
     if (!PortBase.all) PortBase.all = [];
     PortBase.all.push(this); //allows easier enum over all instances
 }
 //inherits(PortBase, streamBuffers.WritableStreamBuffer);
+//module.exports.ChannelPools = ChannelPools;
+module.exports.Ports = PortBase;
 
 
 //simplified wrapper (sets param defaults):
@@ -485,9 +533,6 @@ var bport = named(new SerialPort('/dev/ttyUSB2'), 'FTDI-B'); //1536 Shep + 256 G
 var wport = named(new SerialPort('/dev/ttyUSB3'), 'FTDI-W'); //7 * 56 AC (5 * 56 unused) + 768 gdoor + 3 * 384 (AB-future) ~= 2312 nodes
 
 //then assign protocol handlers:
-//var RenXt = {AddProtocol: function(port) { console.log("TODO: assign RenXt protocol to port '%s'", port.name || port.device); }}; //require('my-plugins/hw/RenXt');
-var RenXt = require('my-plugins/hw/RenXt');
-
 SerialPort.all.forEach(function(port, inx)
 {
 //    if (!chpool.opts.device) return;

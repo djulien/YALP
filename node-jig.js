@@ -8,6 +8,7 @@ console.log("node-jig on ", target);
 //console.log(process.cwd());
 
 require('my-plugins/my-extensions');
+delete require.cache[target]; //kludge: make sure we get a fresh copy (sometimes node.js seems to keep old code active)
 require(target);
 
 //eof
