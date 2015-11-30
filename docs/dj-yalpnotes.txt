@@ -103,6 +103,10 @@ this is an app, not an embeddable module, so don't need any devDependencies ??
 don't need template engine with express since gulp/watch is being used to pre-build bundles incrementally
 forever, gulp, browserify, livereload, etc are attractive, but that code can just be added directly into the app or use npm scripts
 http://blog.keithcirkel.co.uk/how-to-use-npm-as-a-build-tool/
+9b. check for updates:
+ https://www.npmjs.com/package/npm-check-updates
+ npm install -g npm-check-updates
+ ncu [-u]
 
 NPM MODS:
 1. fork on github.com

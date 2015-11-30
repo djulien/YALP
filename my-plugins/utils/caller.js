@@ -11,6 +11,7 @@ module.exports.stackx = function(depth)
     return callsite()[depth].getFileName();
 }
 
+//use exclude if stack depth might be variable (ie, ctors with optional "new" will use an extra level of stack)
 module.exports.stack = function(depth, exclude)
 {
     var trace = stack.get();

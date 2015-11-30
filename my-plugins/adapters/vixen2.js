@@ -6,6 +6,8 @@ require('colors'); //var colors = require('colors/safe'); //https://www.npmjs.co
 var fs = require('fs'); //'fs-extra');
 var assert = require('insist');
 var inherits = require('inherits');
+var inherits_etc = require('my-plugins/utils/class-stuff').inherits_etc;
+var allow_opts = require('my-plugins/utils/class-stuff').allow_opts;
 var Color = require('tinycolor2'); //'onecolor').color;
 var color_cache = require('my-projects/models/color-cache').cache;
 var color_cache_stats = require('my-projects/models/color-cache').stats;
@@ -27,9 +29,10 @@ var shortname = require('my-plugins/utils/shortname');
 function isdef(thing) { return (typeof thing !== 'undefined'); }
 
 
-var rgba_split = new Buffer([255, 255, 255, 255]);
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //convert rgba color to hsv and then dim it:
+var rgba_split = new Buffer([255, 255, 255, 255]);
 function dim(rgba, brightness)
 {
     rgba_split.writeUInt32BE(rgba, 0);
@@ -40,14 +43,15 @@ function dim(rgba, brightness)
 }
 
 
-var YalpSource = require('my-plugins/streamers/YalpSource').YalpSource;
+var YalpSource = require('my-plugins/streamers/YalpStream').YalpSource;
+//console.log("ypsrc ", typeof(YalpSource));
 
-//TODO: rework this to be a stream transform (xml -> YalpSource)
+//TODO: rework this to be a stream transform (xml -> YalpSource)?
 function Vixen2YalpSource(opts)
 {
     if (!(this instanceof Vixen2YalpSource)) return makenew(Vixen2YalpSource, arguments);
     YalpSource.apply(this, arguments); //base class
-    var m_opts = (typeof opts == 'string')? {filename: opts}: opts || {};
+    var m_opts = Object.assign({}, YalpSource.DefaultOptions, (typeof opts == 'string')? {filename: opts}: opts || {});
     var add_prop = function(name, value, vis) { if (!this[name]) Object.defineProperty(this, name, {value: value, enumerable: vis !== false}); }.bind(this); //expose prop but leave it read-only
 
 //load + parse xml file:
@@ -141,9 +145,53 @@ function Vixen2YalpSource(opts)
         this.frames.push({frtime: frinx * this.FixedFrameInterval, data: this.chvals(frinx)});
     this.frames.push({frtime: -Math.max(this.FixedFrameInterval, 100), data: {numfr: m_numfr, numch: m_numch, src: this.vix2filename, duration: m_duration}});
 }
-inherits(Vixen2YalpSource, YalpSource);
-module.exports.Vixen2YalpSource = Vixen2YalpSource;
+inherits_etc(Vixen2YalpSource, YalpSource); //, module.exports);
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/* not needed; can use generic YalpSplitter
+var YalpXform = require('my-plugins/streamers/YalpStream').YalpXform;
+
+//opts:
+// map{}: channel range -> stream map
+function Vixen2StreamSplitter(opts)
+{
+    if (!(this instanceof Vixen2StreamSplitter)) return makenew(Vixen2StreamSplitter, arguments);
+    YalpXform.apply(this, arguments); //base class
+    this.opts = Object.assign({}, YalpSource.DefaultOptions, (typeof opts == 'string')? {param: opts}: opts || {}); //expose unknown options to others
+    var num_dest = 0;
+    (this.opts.
+}
+inherits_etc(Vixen2StreamSplitter, YalpXform); //, module.exports);
+
+Vixen2StreamSplitter.prototype.onFrame = function(frdata)
+{
+    if ((frdata !== null) && Buffer.isBuffer(frdata.data))
+    {
+        var ofs = bufdiff(frdata.data, null);
+        if (!ofs) frdata.data = "all zeroes";
+        else
+        {
+            var ofs2 = bufdiff.reverse(frdata.data, null);
+            --ofs; --ofs2; //adjust to actual ofs
+            if (ofs || (ofs2 != frdata.data.length & ~3)) //trim
+            {
+                var newdata = frdata.data.slice(ofs, ofs2 + 4); //just keep the part that changed
+//                if (frdata.data[0] || frdata.data[1] || frdata.data[2] || frdata.data[3]) console.error("first quad on frtime %s", frdata.frtime);
+                frdata.ltrim = ofs;
+                frdata.rtrim = ofs2;
+                frdata.origlen = frdata.data.length;
+                console.log("trim frtime %s ofs %s..%s, %s/%s remains", frdata.frtime, ofs, ofs2, newdata.length, frdata.data.length);
+                frdata.data = newdata;
+            }
+        }
+    }
+//    console.log("notrim frtime %s", (frdata !== null)? frdata.frtime: '(eof)');
+*/
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
 var Sequence = require('my-projects/shared/sequence'); //base class
@@ -382,6 +430,8 @@ function ExtendModel(model)
 //module.exports.ExtendModel = ExtendModel;
 */
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function Vixen2Profile(filename)
 {

@@ -1,58 +1,88 @@
-//plug-in to provide a consistent time base and hide implementation
+//plug-in to provide a consistent time base as well as formating
+
 'use strict';
 
-module.exports.Now = Now;
-module.exports.elapsed = elapsed;
-module.exports.asString = asString;
-module.exports.addNow = addNow;
+//TODO: use process.hrtime (nsec) instead of Date (msec)?
+const TZlocal = true; //false to use/display UTC
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//formatting:
+
+function asTimeString(msec, tzlocal)
+{
+    if (arguments.length < 2) tzlocal = TZlocal;
+//    console.log("utc as str ", msec);
+    var local2utc = (typeof msec !== 'undefined')? new Date(msec): new Date(); //default to now; optional param
+    if (tzlocal) local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000); //make it display as-is
+//    console.log("local utc ", msec, local2utc.toISOString());
+    return asTimeString.latest = local2utc.toISOString().substr(11, 12).replace(/^(00:)+/, ''); //YYYY-MM-DDTHH:MM:SS.MMMZ -> HH:MM:SS.MMM
+}
+
+function asDateTimeString(msec, tzlocal)
+{
+    if (arguments.length < 2) tzlocal = TZlocal;
+//    console.log("utc as str ", msec);
+    var local2utc = (typeof msec !== 'undefined')? new Date(msec): new Date(); //default to now; optional param
+    if (tzlocal) local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000); //make it display as-is
+//    console.log("local utc ", msec, local2utc.toISOString());
+    return asDateTimeString.latest = local2utc.toISOString().replace(/^\d{2}(\d{2})-(\d+-\d+)T(\d+:\d+:\d+\.\d+)Z$/, "$2-$1 $3"); //YYYY-MM-DDTHH:MM:SS.MMMZ -> MM-DD-YY HH:MM:SS.MMM
+}
+var local2utc = new Date();
+//console.log("tz ", local2utc.getTimezoneOffset() * 60000);
+//console.log(asDateTimeString(), asDateTimeString(undefined, false));
+
+module.exports.asTimeString = asTimeString;
+module.exports.asDateTimeString = asDateTimeString;
+module.exports.asString = asTimeString; //default to shorter format
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//current date/time:
+
+var started = Now(); //NOTE: this is when module was first loaded
+
+function elapsed(when)
+{
+    return (when || Now()) - started;
+}
+
+elapsed.asTimeString = asTimeString;
+elapsed.asDateTimeString = asDateTimeString;
+elapsed.asString = elapsed.asTimeString; //default to shorter format
 
 
 function Now()
 {
-    if (global.v8debug) module.exports.Now.asString(); //allow latest time to be seen more easily in node inspector
+    if (global.v8debug) /*Now.*/asTimeString(); //allow latest time to be seen more easily in node inspector
 //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now
-    return Date.now? Date.now(): (new Date()).getTime(); //poly fill < ECMA-262 5th edition; TODO: use process.hrtime (nsec)?
+    var retval = Date.now? Date.now(): (new Date()).getTime(); //poly fill < ECMA-262 5th edition
+    if (TZlocal) retval -= (new Date()).getTimezoneOffset() * 60000; //show local times instead of UTC
+    return retval;
 }
 
-function elapsed(when)
-{
-    return (when || module.exports.Now()) - started;
-}
+Now.asTimeString = asTimeString;
+Now.asDateTimeString = asDateTimeString;
+Now.asString = asTimeString; //default to shorter format
 
-/*module.exports.*/ Now.asString = function(when)
-{
-    var local2utc = when? new Date(when): new Date(); //optional param
-    local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000);
-//    console.log("local utc ", local2utc.toISOString());
-    return module.exports.Now.latest = local2utc.toISOString().substr(11, 12);
-}
 
-function asString(msec)
-{
-//    console.log("utc as str ", msec);
-    var local2utc = (typeof msec !== 'undefined')? new Date(msec): new Date(); //default to now; optional param
-//    local2utc.setTime(local2utc.getTime() - local2utc.getTimezoneOffset() * 60000); //make it display as-is
-//    console.log("local utc ", msec, local2utc.toISOString());
-    return module.exports.asString.latest = local2utc.toISOString().substr(11, 12).replace(/^(00:)+/, '');
-}
-
-/*module.exports.*/ elapsed.asString = function(msec)
-{
-//    console.log("elapsed ", msec, module.exports.Now.asString(msec), module.exports.elapsed(), module.exports.Now.asString(module.exports.elapsed()));
-    module.exports.Now.asString(msec || module.exports.elapsed());
-}
-
-//add method to an object:
+//add getter method to an object:
 function addNow(that, name)
 {
 //    this.getTime = function() //check current time from a consistent place;
     Object.defineProperty(that, name || "now", //read-only
     {
-        get: function() { return module.exports.Now(); },
+        get: function() { return /*module.exports.*/Now(); },
         enumerable: true,
     });
 }
 
-var started = module.exports.Now();
+
+module.exports.Now = Now;
+module.exports.addNow = addNow;
+module.exports.elapsed = elapsed;
+
 
 //eof

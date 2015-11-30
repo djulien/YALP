@@ -15,8 +15,6 @@ var timescale = require('./time-scale');
 //});
 
 
-//elapsed(); //set time base to now
-
 module.exports = Elapsed; //commonjs
 
 function Elapsed(reset) //factory/ctor
@@ -27,6 +25,7 @@ function Elapsed(reset) //factory/ctor
 //        return (new Date()).getTime() - (this.start || reset || 0); //TODO: use process.hrtime (nsec)?
 //    }
     this.started = reset || 0; //#msec elapsed already; caller can back-date using < 0, or skip ahead using > 0
+//NOTE: times are all relative, so local vs. UTC is irrelevant
     Object.defineProperty(this, "now", //relative to start time
     {
         get: function() { return (new Date()).getTime() - this.started; }, //(m_start || reset || 0); }, //TODO: use process.hrtime (nsec)?
@@ -55,5 +54,8 @@ function Elapsed(reset) //factory/ctor
 //    get: function() { return (new Date()).getTime(); }}, //TODO: use process.hrtime (nsec)?
 //    enumerable: true,
 //});
+
+//for caller convenience pre-define a system-wide elapsed time counter:
+Elapsed.epoch = new Elapsed();
 
 //eof

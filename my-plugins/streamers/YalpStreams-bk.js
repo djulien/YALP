@@ -1,7 +1,7 @@
 //YALP object streams:
-//YalpXform is a reader-writer stream to apply a transformation
 //YalpSource is a time-controlled frame reader (playback) stream
 //YalpSink is a writable stream for use as a final destination
+//YalpXform is a reader-writer stream to apply a transformation
 
 //TODO: use stream-json?
 //TODO: merge Source + Sink into Xform so one base class can handle either direction? (this would allow common base logic)
@@ -54,23 +54,104 @@ inherits(ReadOnlyArray, Array)
 
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//object "cache":
+//Streams only transport string or buffer data types.
+//For data already in process memory, serialize/deserialize is extra needless overhead.
+//This object is used to pin a reference to binary data that is to be sent back and forth.
+//Passing a reference thru the stream interfaces is much lower overhead (especially for larger binary structures).
+//However copy-on-write semantics are needed if the data is used elsewhere.
+//var obj_cache = {key: 0xF00D0000};
+//module.exports.YalpCache = obj_cache; //TODO: allow outside to see it?
+
+//light-weight object wrapper to make it more easily recognizable in serialized format
+//use ctor to create ref, func call to deref
+//NOTE: not exposed to outside
+function YalpRef(opts, keep)
+{
+    if (!YalpRef.all) { YalpRef.all = {}; YalpRef.next_key = 0xF00D0000; } //NOTE: needs to be static to be excluded from serialization
+    if (!(this instanceof YalpRef)) //return makenew(YalpRef, arguments);
+    {
+//        console.log("deserialize-1 ", typeof opts, "isbuf? " + Buffer.isBuffer(opts), opts);
+        if (Buffer.isBuffer(opts)) opts = new Buffer(opts);
+//        console.log("deserialize-2 ", typeof opts, "isstr? " + (typeof opts == 'string'), opts);
+        opts = JSON.parse(opts);
+//        console.log("deserialize-3 ", typeof opts, opts);
+////        var matches = (typeof opts == 'string')? opts.match(/^{"key":([0-9]+)}$/): [];
+////        console.log("deserialize-3 key ", matches);
+        var retval = YalpRef.all[opts.objref || 'nothing'];
+        /*if (!keep)*/ if (typeof retval != 'undefined') delete YalpRef.all[opts.objref]; //tidy up shared data
+        return retval; //return caller's data if found
+    }
+    this.objref = YalpRef.next_key++; //assign unique key
+    YalpRef.all[this.objref] = opts; //arguments; //hang on to caller's data, but not directly within this object
+}
+
+
+//TODO: make yalp2yalp automatic (source needs to send callback info downstream so destination can tell it to do this)
+//NOTE: feedback loop can be done this way as well
+//TODO: actually, if next stage is a Yalp stream anyway, just call onFrame directly
 function serialize(data, want_strline, yalp2yalp)
 {
     if ((typeof data == 'string') || Buffer.isBuffer(data)) return data; //okay to send as-is
 //stream will only accept string or buffer
+//        if (('want_strline' in this.opts) && (typeof data != 'string') && !Buffer.isBuffer(data))
+//        {
+//            data = JSON.stringify(data) + (this.opts.want_strline? '\n': ''); //to string; new Buffer(retval); //convert to buffer each time instead of preallocating so it can be released each time
+////            data = 'STR[@' + this.elapsed.now + ']:' + data.slice(0, -1) + ", eof? " + is_last_frame + "\n";
+//        }
     if (yalp2yalp) data = new YalpRef(data); //replace data with wrapper + key
     data = JSON.stringify(data) + (want_strline? '\n': ''); //to string; //new Buffer(retval); //convert to buffer each time instead of preallocating so it can be released each time
 //    console.log("serialize yalpref", typeof data, data); //.prototype.constructor.name);
     return data;
 }
 
+
 function deserialize(chunk, encoding)
 {
+//    if (chunk instanceof YalpRef) return chunk.deref();
     var retval = YalpRef(chunk);
+//    console.log("deserialized yalp ref", typeof chunk, retval); //.prototype.constructor.name);
     if (typeof retval != 'undefined') return retval;
+//fall back to manual reconstruction if YalpRef not found:
+//    console.log("deserialize non-yalp ref", typeof chunk, chunk); //.prototype.constructor.name);
+//    var buffer = Buffer.isBuffer(chunk) ? chunk : new Buffer(chunk, encoding); //convert string to buffer if needed
+//NOTE: assumes objectMode, so object is not broken up
     var frdata = JSON.parse(chunk); //NOTE: incoming data had to be serialized, so it must be deserialized here
     var had_newline = (chunk.slice(-1) === '\n')? '\n': '';
     if (frdata.data) //try to reconstruct data/buffer; format varies
+    {
+//TODO: replace this with JSON reviver?
+        switch (frdata.data.type || '(none)')
+        {
+            case 'Buffer':
+//                console.log("try rebuild buf", JSON.stringify(frdata.data).slice(0, 100));
+                var rebuilt = new Buffer(frdata.data, encoding);
+//                console.log("rebuilt buf", rebuilt);
+                frdata.data = rebuilt;
+                break;
+            case '(none)':
+//                console.log("no type, leave as-is", JSON.stringify(frdata.data).slice(0, 100));
+                break;
+            default:
+//                console.log("unhandled data type: %s", frdata.data.type);
+//                console.log("try rebuild ", frdata.data.type, JSON.stringify(frdata.data).slice(0, 100));
+                var rebuilt = JSON.parse(frdata.data);
+//                console.log("rebuilt %s", frdata.data.type, rebuilt);
+                frdata.data = rebuilt;
+                break;
+        }
+    }
+//    var buffer = !Buffer.isBuffer(chunk)? new Buffer(chunk, encoding): chunk;
+//    console.log("buffer#" + this.processed, buffer);
+//    chunk.toString();
+//    var buf = '';
+//    for (var i in frdata.data) buf += ', ' + typeof frdata.data[i] + ' ' + i;
+//        if (buf && !isdef(buf.length)) buf.length = buf.data.length; //kludge: repair buffer (type changed somewhere along the way, maybe during socketio)
+//    console.error("processed rec# %s, enc %s, frtime %s, frnext %s, data ", this.processed, encoding, !isNaN(frdata.frtime)? frdata.frtime: 'huh?', !isNaN(frdata.frnext)? frdata.frnext: 'huh?', Buffer.isBuffer(frdata.data)? 'buffer len ' + frdata.data.length: frdata.data? (typeof frdata.data) + ' ' + frdata.data: '(no data per se)'); //buf.data? buf.data.length: 'none'); //typeof chunk, chunk.slice(0, 180), "frtime ", chunk.frtime || 'huh?');
+//    console.error(typeof buf, buf, buf.frtime || 'huh?');
+//    if (Buffer.isBuffer(frdata.data)) { frdata.data = frdata.data.slice(0, 10); frdata.trunc = true; chunk = JSON.stringify(frdata); }
     return frdata;
 }
 

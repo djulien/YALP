@@ -1,12 +1,14 @@
 
 'use strict';
 
-require('colors');
+var colors = require('colors'); //require('colors/safe'); //https://www.npmjs.com/package/colors; http://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+//require('colors');
 var fs = require('fs');
 var glob = require('glob');
 //var Q = require('q'); //https://github.com/kriskowal/q
 var inherits = require('inherits');
 var clock = require('my-plugins/utils/clock');
+var bufdiff = require('my-plugins/utils/buf-diff');
 var Elapsed = require('my-plugins/utils/elapsed');
 //var stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
@@ -14,112 +16,91 @@ var Elapsed = require('my-plugins/utils/elapsed');
 
 
 var Vix2YalpSource = require('my-plugins/adapters/vixen2').Vixen2YalpSource;
-var YalpXform = require('my-plugins/streamers/YalpXform').YalpXform;
+Vix2YalpSource.DefaultOptions =
+{
+    dedup: true,
+    want_stats: true,
+    yalp2yalp: true,
+    dedup: true,
+    want_stats: true,
+    want_strline: false && true,
+};
 
-var demo = new Vix2YalpSource({folder: 'my-projects/songs/xmas/Amaz*', want_strline: false && true, speed: true});
+/*
+var demo = new Vix2YalpSource({folder: 'my-projects/songs/xmas/Amaz*', xspeed: true});
 console.log("got %s frames", demo.frames.length);
-demo.rewind(); //force sort
-Array.prototype.splice.call(demo.frames, 5, demo.frames.length + 1);
+//demo.rewind(); //force sort
+//Array.prototype.splice.call(demo.frames, 5, demo.frames.length + 1);
 //demo.dirty = true;
 //demo.rewind();
 //console.log("now %s frames", demo.frames.length, demo.frames);
-
-/*
-var xform = new YalpXform();
-xform._transform = function(frdata, encoding, done)
-{
-    if (frdata.frtime >= 0)
-    {
-        ++this.processed;
-        frdata.inbuflen = frdata.data.length;
-        frdata.outbuflen = 3;
-        frdata.data = frdata.data.slice(0, 3);
-    }
-    else ++this.passthru;
-    this.push(frdata);
-    done();
-}
-xform._flush = function(done)
-{
-    console.error("xform: %s records processed, %s skipped", this.processed || 'NO', this.passthru || 'NO');
-    done();
-}
-xform.on('readable', function()
-{
-     var line
-     while (null !== (line = xform.read())) {
-          // do something with line
-     }
-});
 */
 
-var stream = require('stream')
-var xform = new stream.Transform( { objectMode: true } )
 
-xform._transform = function (chunk, encoding, done)
+/*
+var YalpXform = require('my-plugins/streamers/YalpStream').YalpXform;
+var xform = new YalpXform({want_strline: true});
+
+var num_fr = 0;
+xform.onFrame = function(frdata)
 {
-//     var data = chunk.toString()
-//     if (this._lastLineData) data = this._lastLineData + data
-//     var lines = data.split('\n')
-//     this._lastLineData = lines.splice(lines.length-1,1)[0]
-//     lines.forEach(this.push.bind(this))
-//    var buf = new Buffer(chunk, encoding);
-    if (isNaN(++this.processed)) this.processed = 1;
-    var frdata = JSON.parse(chunk); //NOTE: incoming data had to be serialized, so it must be deserialized here
-    var had_newline = (chunk.slice(-1) === '\n')? '\n': '';
-    if (frdata.data) //try to reconstruct data/buffer; format varies
+    if (frdata !== null) ++num_fr;
+    else console.log("saw %s of %s frames", num_fr, demo.frames.length);
+    return frdata;
+    if ((frdata !== null) && Buffer.isBuffer(frdata.data))
     {
-//TODO: replace this with JSON reviver?
-        switch (frdata.data.type || '(none)')
+        var ofs = bufdiff(frdata.data, null);
+        if (!ofs) frdata.data = "all zeroes";
+        else
         {
-            case 'Buffer':
-//                console.log("try rebuild buf", JSON.stringify(frdata.data).slice(0, 100));
-                var rebuilt = new Buffer(frdata.data, encoding);
-//                console.log("rebuilt buf", rebuilt);
-                frdata.data = rebuilt;
-                break;
-            case '(none)':
-//                console.log("no type, leave as-is", JSON.stringify(frdata.data).slice(0, 100));
-                break;
-            default:
-//                console.log("unhandled data type: %s", frdata.data.type);
-//                console.log("try rebuild ", frdata.data.type, JSON.stringify(frdata.data).slice(0, 100));
-                var rebuilt = JSON.parse(frdata.data);
-//                console.log("rebuilt %s", frdata.data.type, rebuilt);
-                frdata.data = rebuilt;
-                break;
+            var ofs2 = bufdiff.reverse(frdata.data, null);
+            --ofs; --ofs2; //adjust to actual ofs
+            if (ofs || (ofs2 != frdata.data.length & ~3)) //trim
+            {
+                var newdata = frdata.data.slice(ofs, ofs2 + 4); //just keep the part that changed
+//                if (frdata.data[0] || frdata.data[1] || frdata.data[2] || frdata.data[3]) console.error("first quad on frtime %s", frdata.frtime);
+                frdata.ltrim = ofs;
+                frdata.rtrim = ofs2;
+                frdata.origlen = frdata.data.length;
+                console.log("trim frtime %s ofs %s..%s, %s/%s remains", frdata.frtime, ofs, ofs2, newdata.length, frdata.data.length);
+                frdata.data = newdata;
+            }
         }
     }
-//    var buffer = !Buffer.isBuffer(chunk)? new Buffer(chunk, encoding): chunk;
-//    console.log("buffer#" + this.processed, buffer);
-//    chunk.toString();
-//    var buf = '';
-//    for (var i in frdata.data) buf += ', ' + typeof frdata.data[i] + ' ' + i;
-//        if (buf && !isdef(buf.length)) buf.length = buf.data.length; //kludge: repair buffer (type changed somewhere along the way, maybe during socketio)
-    console.error("processed rec# %s, enc %s, frtime %s, frnext %s, data ", this.processed, encoding, !isNaN(frdata.frtime)? frdata.frtime: 'huh?', !isNaN(frdata.frnext)? frdata.frnext: 'huh?', Buffer.isBuffer(frdata.data)? 'buffer len ' + frdata.data.length: frdata.data? (typeof frdata.data) + ' ' + frdata.data: '(no data per se)'); //buf.data? buf.data.length: 'none'); //typeof chunk, chunk.slice(0, 180), "frtime ", chunk.frtime || 'huh?');
-//    console.error(typeof buf, buf, buf.frtime || 'huh?');
-    if (Buffer.isBuffer(frdata.data)) { frdata.data = frdata.data.slice(0, 10); frdata.trunc = true; chunk = JSON.stringify(frdata); }
-    this.push(chunk + '\n'); //buf); //"chunk#" + this.processed + "\n");
-     done()
+//    console.log("notrim frtime %s", (frdata !== null)? frdata.frtime: '(eof)');
+    return frdata;
 }
-xform._flush = function (done) {
-//     if (this._lastLineData) this.push(this._lastLineData)
-//     this._lastLineData = null
-    console.error("processed %d recs", this.processed || 'none');
-     done()
-}
-
-
-demo
-    .once('my-end', function() { console.error("timing perf:".blue, JSON.stringify(demo.timing_perf)); }) //NOTE: need to do this on Yalp, not stdout
-    .pipe(xform)
-//    .pipe(process.stdout); //echo to stdout
-    .pipe(fs.createWriteStream('zout.txt', {encoding: 'utf-8'})); //capture to file
+*/
 
 
 /*
-var YalpSource = require('my-plugins/streamers/YalpSource').YalpSource;
-var demo = new YalpSource({want_strbuf: true, want_strline: true, xspeed: true});
+var YalpSplitter = require('my-plugins/streamers/YalpStream').YalpSplitter;
+YalpSplitter.DefaultOptions = { want_strline: true, dedup: true};
+var splitter = new YalpSplitter({firstch: 0, xaltch: 3, numch: 10});
+splitter.warn = function(msg)
+{
+    if (isNaN(++this.stats.warnings)) this.stats.warnings = 1;
+    var args = Array.from(arguments);
+    args[0] = colors.yellow("warning: " + args[0]);
+    console.error.apply(null, args);
+}
+*/
+
+
+/*
+demo
+    .once('my-end', function() { console.error("timing perf:".blue, JSON.stringify(demo.timing_perf)); }) //NOTE: need to do this on Yalp, not stdout
+//    .pipe(xform)
+//    .pipe(splitter)
+//    .pipe(process.stdout); //echo to stdout
+    .pipe(fs.createWriteStream('zout.txt', {encoding: 'utf-8'})); //capture to file
+console.log("pipe ends at zout.txt");
+*/
+
+/*
+var YalpSource = require('my-plugins/streamers/YalpStream').YalpSource;
+YalpSource.DefaultOptions = { want_strline: true, dedup: true});
+var demo = new YalpSource({xspeed: true});
 demo.frames =
 [
 //red/white marque:
@@ -134,17 +115,33 @@ demo.frames =
     {frtime: 4100, data: [0, 0, 0, 0]},
 ];
 console.log("#demo frames: %d", demo.frames.length);
+*/
 
 
-var timing_test = new YalpSource({want_strbuf: true, want_strline: true, delay: 1000, speed: true, want_stats: true});
+var YalpSource = require('my-plugins/streamers/YalpStream').YalpSource;
+YalpSource.DefaultOptions = {dedup: true, want_strbuf: true, want_strline: true, want_stats: true};
+var timing_test = new YalpSource({delay: 1000, speed: true});
 timing_test.frames =
 [
-    {frtime: 0, data: 0},
-    {frtime: 5000, data: "5 sec"},
-    {frtime: 10000, data: "10 sec"},
-//    {frtime: 15000, data: "15 sec"},
-//    {frtime: 20000, data: "20 sec"},
-//    {frtime: 25000, data: "25 sec"},
+    {frtime: 0, data: new Buffer("0 sec")},
+    {frtime: 50, data: new Buffer(".05 sec")},
+    {frtime: 100, data: new Buffer(".1 sec")},
+    {frtime: 150, data: new Buffer(".15 sec")},
+    {frtime: 200, data: new Buffer(".2 sec")},
+    {frtime: 250, data: new Buffer(".25 sec")},
+    {frtime: 1000, data: new Buffer("1 sec")},
+    {frtime: 10000, data: new Buffer("10 sec")},
+    {frtime: 11000, data: new Buffer("11 sec")},
+    {frtime: 12000, data: new Buffer("11 sec")},
+    {frtime: 13000, data: new Buffer("11 sec")},
+    {frtime: 14000, data: new Buffer("11 sec")},
+    {frtime: 15000, data: new Buffer("11 sec")},
+    {frtime: 16000, data: new Buffer("11 sec")},
+    {frtime: 17000, data: new Buffer("17 sec")},
+    {frtime: 18000, data: new Buffer("17 sec")},
+    {frtime: 19000, data: new Buffer("17 sec")},
+    {frtime: 20000, data: new Buffer("20 sec")},
+    {frtime: 25000, data: "25 sec"},
 //    {frtime: 30000, data: "30 sec"},
 //    {frtime: 35000, data: "35 sec"},
 //    {frtime: 40000, data: "40 sec"},
@@ -156,22 +153,22 @@ timing_test.frames =
 
 
 //can instantiate custom stream directly; see http://stackoverflow.com/questions/21491567/how-to-implement-a-writable-stream
-var echoStream = new stream.Writable({objectMode: true});
-echoStream._write = function (chunk, encoding, done)
-{
-  console.log(chunk.toString());
-  done();
-};
+//var echoStream = new stream.Writable({objectMode: true});
+//echoStream._write = function (chunk, encoding, done)
+//{
+//  console.log(chunk.toString());
+//  done();
+//};
 
 
 timing_test
     .once('my-end', function() { console.log("timing perf:".blue, JSON.stringify(timing_test.timing_perf)); }) //NOTE: need to do this on Yalp, not stdout
-    .pipe(process.stdout); //echo to stdout
+//    .pipe(process.stdout) //echo to stdout
 //    .once('end', function() { console.log("timing perf:".blue, timing_test.timing_perf); });
 //demo.pipe(process.stdout); //echo to stdout
-//demo.pipe(fs.createWriteStream('myOutput.txt', {encoding: 'utf-8'})); //capture to file
+    .pipe(fs.createWriteStream('zout.txt', {encoding: 'utf-8'})); //capture to file
 //demo.pipe(echoStream);
-*/
+
 //or
 /*
 demo

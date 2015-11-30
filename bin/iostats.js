@@ -80,7 +80,7 @@ function IOStats(opts)
     var m_outbufs = {}, m_inbufs = {}, m_cmpbufs = {};
     var m_playlist = ipc.open('player');
     var m_trace = fs.createWriteStream(path.join(__dirname, '../tmp/iostats.log'), {flags: (opts.append === false)? 'w': 'a'});
-    m_trace.write("start " + clock.Now.asString() + "\n");
+    m_trace.write("start " + clock.Now.asDateTimeString() + "\n");
     m_playlist.send('iostats', "hello!", function(data) //subscribe to player iostats
     {
         if (typeof data !== 'object') return true; //ignore ack msg

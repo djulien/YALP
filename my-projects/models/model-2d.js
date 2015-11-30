@@ -9,88 +9,23 @@ var path = require('path');
 //var empty = require('my-projects/playlists/empty');
 //var Canvas = require('my-projects/models/growable-canvas');
 var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
+var logger = require('my-plugins/utils/logger')();
 var makenew = require('my-plugins/utils/makenew');
+require('my-plugins/my-extensions/object-enum');
 var inherits = require('inherits');
 //var Q = require('q'); //https://github.com/kriskowal/q
 require('sprintf.js');
 var int24 = require('int24');
 var buffer = require('buffer');
-buffer.INSPECT_MAX_BYTES = 800;
-Buffer.prototype.readUInt24BE = function(ofs) { return int24.readUInt24BE(this, ofs); };
-Buffer.prototype.writeUInt24BE = function(val, ofs) { return int24.writeUInt24BE(this, val, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
-
-['readUInt32BE', 'readUInt32LE'].forEach(function(ignored, inx, both)
-{
-    if (require('is-little-endian')) inx = 1 - inx; //https://github.com/mikolalysenko/is-little-endian
-    Uint8ClampedArray.prototype[both[inx]] = function(ofs) { return (this[ofs + 0] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
-    Uint8ClampedArray.prototype[both[1 - inx]] = function(ofs) { return (this[ofs + 3] << 24) | (this[ofs + 2] << 16) | (this[ofs + 1] << 8) | this[ofs + 0]; }
-//    if (!this.uint32view) this.uint32view = new Uint32Array(this);
-//    rgba_split.writeUInt32BE(this.
-});
-//Uint8ClampedArray.prototype.readUInt32Native = require('is-little-endian')? Uint8ClampedArray.prototype.readUInt32LE: Uint8ClampedArray.prototype.readUInt32BE;
-
-
-var rgba_split = new Buffer([255, 255, 255, 255]);
-
-
-/*
-var mm_canvas = new Canvas(1, 1);
-var mm_ctx = mm_canvas.getContext('2d');
-var data = mm_ctx.getImageData(0, 0, 10, 10);
-console.log("data", data);
-process.exit(0);
-*/
-
-//if (!console.clear) console.clear = function() {};
-//console.clear();
-//        if (canvas.getContext){
-//    var ctx = canvas.getContext('2d');
-
-
-// var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
-//var Image = canvas.Image;
-
-
-//function makenew(type, args)
-//{
-//    return new (type.bind.apply(type, [null].concat(Array.prototype.slice.call(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
-//}
-
-function isdef(thing)
-{
-    return typeof thing !== 'undefined';
-}
-
-//function inherits(from, to)
-//{
-//    for (var m in from.prototype) to.prototype[m] = from.prototype[m]; //NOTE: this is not right for node.js (need to link prototype chain as well)
-//}
-
-function isRect(thing)
-{
-    if (typeof thing != 'object') return false;
-    return (typeof (thing.x != 'undefined') || (typeof thing.left != 'undefined')) && ((typeof thing.w != 'undefined') || (typeof thing.width != 'undefined'));
-//    ? false: isdef(thing.x)
-}
-
-//just use UInt32 readers
-//function toRGBA(r, g, b, a)
-//{
-//    return ((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (isdef(a)? a & 0xFF: 0xFF);
-//}
-//function fromRGBA(color)
-//{
-//    return {r: (color >> 24) & 0xFF, g: (color >> 16) & 0xFF, b: (color >> 8) & 0xFF, a: color & 0xFF};
-//}
-
-function hex8(val)
-{
-    return ('00000000' + (val >>> 0).toString(16)).slice(-8);
-}
-
+extensions(); //hoist them up here
 
 module.exports = Model2D;
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// 2D model base class:
+//
 
 //Model is the main "canvas" for writing effects to.
 //For now, this is only 2D, but 3D-aware canvas is planned for future.
@@ -102,12 +37,14 @@ function Model2D(opts)
 {
     if (!(this instanceof Model2D)) return makenew(Model2D, arguments);
     this.opts = (typeof opts == 'string')? {id: opts}: opts || {}; //give subclasses access to unknown params
-    if (!Model2D.all) Model2D.all = [];
-    /*else*/ Model2D.all.push(this); //allow iteration thru all instances; /*don't*/ include first (root) instance
 //    this.aaa = 'inst#' + Model2D.all.length; //make debug easier
     this.name = this.opts.id || this.opts.name || '(inst#' + Model2D.all.length + ')';
+//    if (!Model2D.all) Model2D.all = {};
+    this.BecomeChild(this.opts.parent || Model2D.all.entire); //NOTE: need to do this before bounds checking below
+    /*else*/ Model2D.all[this.name] = this; //.push(this); //allow iteration thru all instances; /*don't*/ include first (root) instance
 
 //set up size + position first (no re-flow):
+//TODO: z-order? also, allow nested models? (> 1 level)
     var hasdom = !this.parent && this.opts.id && (typeof document != 'undefined'); //only link top-level canvas to DOM
     var m_canvas = hasdom? document.getElementById(this.opts.id): null; //link to browser DOM if present
 //NOTE: no need to truncate left/bottom/right/top/width/height; parent will be enlarged to hold child
@@ -117,6 +54,7 @@ function Model2D(opts)
     this.bottom = isdef(this.opts.y)? this.opts.y: isdef(this.opts.bottom)? this.opts.bottom: (this.prior_sibling || {}).bottom || 0;
     this.right = this.left + this.width;
     this.top = this.bottom + this.height; //CAUTION: y coordinate is inverted; try to turn it right side here (origin is lower left corner)
+    if (this.parent) this.parent.enlarge(this); //NOTE: need to do this after bounds checking above
 
 //canvas access:
 //canvas is shared, access is delegated thru parent
@@ -233,29 +171,32 @@ function Model2D(opts)
 //finalize model setup:
     if (this.opts.port) this.port = this.opts.port;
 //    var m_parent = this; //preserve "this" for nested ctor
-    this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
+//TODO?    this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
     this.generateNodelist();
 //defer    if (this.opts.zinit !== false) this.oninit.push(function() { this.clear(); }.bind(this)); //do this when canvas is instantiated
 }
-//Model2D.all = [];
+//shared class data:
+Model2D.all = {}; //[];
 
 
 //sub-model ctor; adds parent/child links
-Model2D.prototype.SubModel2D = function(opts)
+//called by child ctor to link with parent
+Model2D.prototype.BecomeChild /*SubModel2D*/ = function(parent)
 {
-    if (!(this instanceof Model2D.prototype.SubModel2D)) return makenew(Model2D.prototype.SubModel2D, arguments);
+    if (!parent) return;
+//    if (!(this instanceof Model2D.prototype.SubModel2D)) return makenew(Model2D.prototype.SubModel2D, arguments);
 //        m_opts.parent = m_parent; arguments[0] = m_opts;
-    var args = Array.from(arguments);
-    this.parent = args.shift(); //m_parent;
+//    var args = Array.from(arguments);
+    this.parent = parent; //args.shift(); //m_parent;
     this.prior_sibling = this.parent.last_child; //|| {};
 //        if (!m_parent.children) m_parent.children = [];
-    Model2D.apply(this, args);
+//    Model2D.apply(this, args);
 //        this.drop(true); //disconnect child from dom
 //        m_parent.children.push(this);
     this.parent.last_child = this; //makes tiling easier
-    this.parent.enlarge(this);
+//    this.parent.enlarge(this);
 }
-inherits(Model2D.prototype.SubModel2D, Model2D);
+//inherits(Model2D.prototype.SubModel2D, Model2D);
 
 
 //NOTE: does not re-flow siblings
@@ -269,7 +210,7 @@ Model2D.prototype.enlarge = function(x, y, w, h)
     this.height = Math.max(this.height, (y || 0) + (h || 1));
     this.right = Math.max(this.right, this.left + this.width);
     this.top = Math.max(this.top, this.bottom + this.height);
-    console.log("Canvas '%s': was (%d, %d) is now (%d, %d), realloc? %s", this.name, savew, saveh, this.width, this.height, this.has_ctx && (this.width * this.height != savew * saveh));
+//    console.log("Canvas '%s': was (%d, %d) is now (%d, %d), realloc? %s", this.name, savew, saveh, this.width, this.height, this.has_ctx && (this.width * this.height != savew * saveh));
 /*NO; resize only occurs during initial construction, and there's no image to preserve at that time so skip this
     if (this.has_ctx) //&& (this.width * this.height != savew * saveh)) //ignore shape-only change
     {
@@ -558,7 +499,7 @@ Model2D.prototype.generateNodelist = function()
     (this.opts.order.bind(this))(); //call(this); //generate ordered node list
     if (!this.nodelist.length) throw "Model '" + this.name + "' no nodelist generated";
     this.setRenderType(this.opts.output);
-    console.log("model '%s' generated %s nodes, %s b/n %s, out buf len %s", this.name, this.nodelist.length, this.bytesPerNode, this.opts.output || 'RGB', this.outbuf.length);
+    logger(30, "model '%s' generated %s nodes, %s byte/node %s, out buf len %s".blue, this.name, this.nodelist.length, this.bytesPerNode, this.opts.output || 'RGB', this.outbuf.length);
 }
 
 Model2D.prototype.setRenderType = function(nodetype)
@@ -569,7 +510,7 @@ Model2D.prototype.setRenderType = function(nodetype)
             throw "Unhandled node render type: '" + (nodetype || 'RGB') + "'";
     }.bind(this));
     this.buf_resize('outbuf', this.bytesPerNode * this.nodelist.length, this.bytesPerNode); //CAUTION: same buffer is reused every time; use double-buffering if previous frame needs to remain available
-    console.log("model '%s' set outbuf size to %s", this.name, this.outbuf.length);
+    logger(30, "model '%s' set outbuf size to %s".blue, this.name, this.outbuf.length);
 }
 
 //var m_pixelbuf = new ImageData(1, 1); //no worky
@@ -874,5 +815,91 @@ Model2D.all.forEach(function(model, inx)
 //var buf = myImageData.data; //Uint8ClampedArray of RGBA values
 //console.log("w %d, h %d, len %d:", myImageData.width, myImageData.height, buf.length, buf);
 */
+
+
+debugger;
+var entire = new Model2D('entire'); //define super-model that includes everything
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// helper functions:
+//
+
+function extensions()
+{
+    buffer.INSPECT_MAX_BYTES = 800;
+    Buffer.prototype.readUInt24BE = function(ofs) { return int24.readUInt24BE(this, ofs); };
+    Buffer.prototype.writeUInt24BE = function(val, ofs) { return int24.writeUInt24BE(this, val, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
+
+    ['readUInt32BE', 'readUInt32LE'].forEach(function(ignored, inx, both)
+    {
+        if (require('is-little-endian')) inx = 1 - inx; //https://github.com/mikolalysenko/is-little-endian
+        Uint8ClampedArray.prototype[both[inx]] = function(ofs) { return (this[ofs + 0] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+        Uint8ClampedArray.prototype[both[1 - inx]] = function(ofs) { return (this[ofs + 3] << 24) | (this[ofs + 2] << 16) | (this[ofs + 1] << 8) | this[ofs + 0]; }
+//    if (!this.uint32view) this.uint32view = new Uint32Array(this);
+//    rgba_split.writeUInt32BE(this.
+    });
+//Uint8ClampedArray.prototype.readUInt32Native = require('is-little-endian')? Uint8ClampedArray.prototype.readUInt32LE: Uint8ClampedArray.prototype.readUInt32BE;
+}
+
+
+//var rgba_split = new Buffer([255, 255, 255, 255]);
+
+/*
+var mm_canvas = new Canvas(1, 1);
+var mm_ctx = mm_canvas.getContext('2d');
+var data = mm_ctx.getImageData(0, 0, 10, 10);
+console.log("data", data);
+process.exit(0);
+*/
+
+//if (!console.clear) console.clear = function() {};
+//console.clear();
+//        if (canvas.getContext){
+//    var ctx = canvas.getContext('2d');
+
+
+// var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
+//var Image = canvas.Image;
+
+
+//function makenew(type, args)
+//{
+//    return new (type.bind.apply(type, [null].concat(Array.prototype.slice.call(args))))(); //http://stackoverflow.com/questions/1606797/use-of-apply-with-new-operator-is-this-possible
+//}
+
+function isdef(thing)
+{
+    return typeof thing !== 'undefined';
+}
+
+//function inherits(from, to)
+//{
+//    for (var m in from.prototype) to.prototype[m] = from.prototype[m]; //NOTE: this is not right for node.js (need to link prototype chain as well)
+//}
+
+function isRect(thing)
+{
+    if (typeof thing != 'object') return false;
+    return (typeof (thing.x != 'undefined') || (typeof thing.left != 'undefined')) && ((typeof thing.w != 'undefined') || (typeof thing.width != 'undefined'));
+//    ? false: isdef(thing.x)
+}
+
+//just use UInt32 readers
+//function toRGBA(r, g, b, a)
+//{
+//    return ((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (isdef(a)? a & 0xFF: 0xFF);
+//}
+//function fromRGBA(color)
+//{
+//    return {r: (color >> 24) & 0xFF, g: (color >> 16) & 0xFF, b: (color >> 8) & 0xFF, a: color & 0xFF};
+//}
+
+function hex8(val)
+{
+    return ('00000000' + (val >>> 0).toString(16)).slice(-8);
+}
+
 
 //eof
