@@ -105,7 +105,7 @@
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
 		<Unit filename="my-plugins/streamers/serialport-stream.js" />
-		<Unit filename="my-plugins/streamers/strmon.js" />
+		<Unit filename="my-plugins/streamers/stmon.js" />
 		<Unit filename="my-plugins/streamers/uint32bebuf.js" />
 		<Unit filename="my-plugins/streamers/vix2json.js" />
 		<Unit filename="my-plugins/utils/YalpRef.js" />
@@ -184,9 +184,6 @@
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/lyrics.txt" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/tracks.timing" />
 		<Unit filename="my-projects/songs/xmas/What Can You Get a Wookie For Christmas (Yulenog)/wookie.js" />
-		<Unit filename="new-streams/djtest.js" />
-		<Unit filename="new-streams/more-tests.js" />
-		<Unit filename="new-streams/playback-test.js" />
 		<Unit filename="node-jig.js" />
 		<Unit filename="package.json" />
 		<Unit filename="public/css/yalp.css" />
@@ -211,6 +208,7 @@
 		<Unit filename="tests/canvas-test.html" />
 		<Unit filename="tests/canvas-test.js" />
 		<Unit filename="tests/createjs.html" />
+		<Unit filename="tests/djtest.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/index.js" />
@@ -228,8 +226,10 @@
 		<Unit filename="tests/json-reviver.js" />
 		<Unit filename="tests/json-streams.js" />
 		<Unit filename="tests/mail.js" />
+		<Unit filename="tests/more-tests.js" />
 		<Unit filename="tests/multi-class.js" />
 		<Unit filename="tests/pi-led.js" />
+		<Unit filename="tests/playback-test.js" />
 		<Unit filename="tests/playback.js" />
 		<Unit filename="tests/playlist-test.js" />
 		<Unit filename="tests/renxt-test.js" />

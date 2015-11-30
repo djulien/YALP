@@ -15,14 +15,14 @@ module.exports.rd = rd;
 module.exports.wr = wr;
 module.exports.echo = echo;
 module.exports.rdwr = rdwr;
-module.exports.stmon = strmon;
+module.exports.stmon = stmon;
 
 
 //create a file reader stream with debug monitoring:
 function rd(infile, desc)
 {
     if (!desc) desc = "infile";
-    return strmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), desc + " '" + infile + "'");
+    return stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), desc + " '" + infile + "'");
 }
 
 
@@ -30,7 +30,7 @@ function rd(infile, desc)
 function wr(outfile, desc)
 {
     if (!desc) desc = "outfile";
-    return strmon(fs.createWriteStream(path.resolve(process.cwd(), outfile)), desc + " '" + outfile + "'");
+    return stmon(fs.createWriteStream(path.resolve(process.cwd(), outfile)), desc + " '" + outfile + "'");
 }
 
 
@@ -54,14 +54,14 @@ function echo()
 function rdwr(desc, cb)
 {
     if (!desc) desc = "in/outfile";
-    var passthru = strmon(new PassThrough(), desc);
+    var passthru = stmon(new PassThrough(), desc);
     if (cb) passthru.on('data', cb);
     return passthru;
 }
 
 
 //log stream events (for debug):
-function strmon(stream, desc)
+function stmon(stream, desc)
 {
     if (!desc /*arguments.length < 2*/) desc = "unamed stream"; //{ stream = desc; desc = "stream"; }
     if (!isStream(stream)) throw "'" + desc + "' is not a stream";

@@ -10,7 +10,7 @@ const logger = require('my-plugins/utils/logger')({detail: 99, filename: "zout.l
 const hfmt = require('human-format');
 function not_hfmt(val, scale) { return val; }
 const bufferJSON = require('buffer-json'); //https://github.com/jprichardson/buffer-json
-const strmon = require('my-plugins/streamers/strmon');
+const stmon = require('my-plugins/streamers/stmon');
 const isStream = require('is-stream');
 const stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
@@ -32,10 +32,10 @@ const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
 
 //var vix2prof = new require('my-plugins/streamers/vix2json').Profile(profile);
 //var vix2seq = new require('my-plugins/streamers/vix2json').Sequence({filename: sequence, profile: vix2prof});
-var outs = strmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
-//var outs = strmon.rdwr("vix2 in/outfile");
+var outs = stmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
+//var outs = stmon.rdwr("vix2 in/outfile");
 //outs.pipe(process.stdout);
-//outs.pipe(zlib.createGzip()).pipe(strmon.wr('zout.json.gz')); //compress
+//outs.pipe(zlib.createGzip()).pipe(stmon.wr('zout.json.gz')); //compress
 
 //outs.write("["); //wrap in one large json array
 //outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + ',\n'); };
@@ -52,11 +52,12 @@ var outs = strmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
 //NO process.exit(0); //DO NOT DO THIS; async stream not written yet!
 
 
-function vix2(cb)
+function vix2(seq, cb)
 {
 const profile = 'my-projects/playlists/!(*RGB*).pro';
 const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
-return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, sequence, cb);
+if (typeof seq == 'function') { cb = seq; seq = null; }
+return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, seq || sequence, cb);
 //outs.end(); //eof
 }
 //vix2(function(data) { console.log(data); }); //.pipe(process.stdout);
@@ -69,39 +70,43 @@ function hardwired()
 var rows =
 [
     {comment: "whatever"},
-    {frame: 0, time: 0, buf: new Buffer([0, 1, 2, 3, 4]), buflen: 5, diff: [0, 5], nonzofs: 1},
-    {frame: 1, time: 50, buf: new Buffer([1, 2, 3, 4, 5]), buflen: 5, diff: [0, 5], nonzofs: 0},
-    {frame: 2, time: 100, buf: new Buffer([2, 3, 4, 5, 6]), buflen: 5, diff: [0, 5], nonzofs: 0},
-    {frame: 3, time: 150, dup: true, nonzofs: 0},
-    {frame: 4, time: 200, dup: true, nonzofs: 0},
-    {frame: 5, time: 250, dup: true, nonzofs: 0},
-    {frame: 6, time: 300, buf: new Buffer([3, 4, 5, 6, 7]), buflen: 5, diff: [0, 5], nonzofs: 0},
+    {frame: 0, time: 0, fx: 'rawbuf', buf: new Buffer([0, 1, 2, 3, 4]), buflen: 5, diff: [0, 5], nonzofs: 1},
+    {frame: 1, time: 50, fx: 'rawbuf', buf: new Buffer([1, 2, 3, 4, 5]), buflen: 5, diff: [0, 5], nonzofs: 0},
+    {frame: 2, time: 100, fx: 'rawbuf', buf: new Buffer([2, 3, 4, 5, 6]), buflen: 5, diff: [0, 5], nonzofs: 0},
+    {frame: 3, time: 150, fx: 'rawbuf', dup: true, nonzofs: 0},
+    {frame: 4, time: 200, fx: 'rawbuf', dup: true, nonzofs: 0},
+    {frame: 5, time: 250, fx: 'rawbuf', dup: true, nonzofs: 0},
+    {frame: 6, time: 300, fx: 'rawbuf', buf: new Buffer([3, 4, 5, 6, 7]), buflen: 5, diff: [0, 5], nonzofs: 0},
     {comment: "whatever"},
 ];
-//var outs = strmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'");
-var outs = strmon.rdwr('hard-wired in-out');
+//var outs = stmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'");
+var outs = stmon.rdwr('hard-wired in-out');
 //NO outs.write("["); //wrap in one large json array
 //outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + '\n'); }; //,\n
-process.nextTick(function() { rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); }); });
+process.nextTick(function() {
+    rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
+    logger("%d hardwired frames written".cyan, rows.length);
 //outs.write = outs.svwrite;
 //outs.write(JSON.stringify("eof")); //NO + "]");
-//outs.end(); //eof
-logger("%d hardwired frames written".cyan, rows.length);
+    outs.end(); //eof
+});
 return outs; //fluent (pipes)
 }
-//hardwired().pipe(process.stdin);
+//hardwired().pipe(process.stdout);
 
 
 debugger;
 function playback()
 {
 const infile = (process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
-//strmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
+//stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
 
     var myfx = require('my-projects/effects/myfx').myfx; //CAUTION: instance, not ctor
-    var data = vix2();
-    myfx.FxPlayback(data);
-    data.end(); //close pipe after data all read??
+    var data = hardwired();
+//    var data = vix2();
+//    myfx.FxPlayback(data);
+    data.pipe(myfx);
+//NO    data.end(); //close pipe after data all read??
 }
 playback();
 

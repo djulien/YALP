@@ -17,6 +17,7 @@ const filetime = require('my-plugins/utils/filetime');
 //var allow_opts = require('my-plugins/utils/class-stuff').allow_opts;
 require('my-plugins/my-extensions/object-enum'); //allow forEach() on objects
 const Color = require('tinycolor2'); //'onecolor').color;
+//TODO? const Color = require('parse-color'); //css color parser
 const color_cache = require('my-projects/models/color-cache').cache;
 const color_cache_stats = require('my-projects/models/color-cache').stats;
 const makenew = require('my-plugins/utils/makenew');
@@ -28,7 +29,7 @@ const timescale = require('my-plugins/utils/time-scale');
 //var parser = new xml2js.Parser();
 const xmldoc = require('xmldoc'); //https://github.com/nfarina/xmldoc
 const shortname = require('my-plugins/utils/shortname');
-const rdwr = require('my-plugins/streamers/strmon').rdwr;
+const rdwr = require('my-plugins/streamers/stmon').rdwr;
 //var models = require('my-projects/models/model'); //generic models
 //var ChannelPool = require('my-projects/models/chpool'); //generic ports
 //var models = require('my-projects/shared/my-models').models;
@@ -79,7 +80,7 @@ const outfile = "zout.json";
 var filename = glob.unique(infile);
 var ins = fs.createReadStream(filename);
 var xml = new XmlStream(ins);
-var outs = strmon(fs.createWriteStream(outfile));
+var outs = stmon(fs.createWriteStream(outfile));
 outs.write(JSON.stringify(xml)) //+ '\n');
 outs.end(); //eof
 logger("file written".cyan); //"%d frames written".cyan, frags.length);
@@ -258,6 +259,7 @@ function get_channels(m_top_Channels, m_numch, chk)
             if (child.attr.color === 0) throw "ch# " + (m_chcolors.count + 1) + "  is black, won't show up";
 //            if (!(this instanceof Vixen2Sequence)) throw "Wrong this type";
 //            if (!(this instanceof Vixen2Profile)) throw "Wrong this type";
+//TODO?            var color = Color().rgba; color.a *= 255;
             var line = this.channels[child.value || '??'] = {name: child.value, enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
 //            /*var line =*/ this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: inx, output: 1 * child.attr.output || inx, color: '#' + (child.attr.color >>> 0).toString(16).substr(-6) /*|| '#FFF'*/, };
             wrstream.write(sprintf("'%s': %s,\n", child.value || '??', JSON.stringify(line)));
@@ -282,6 +284,7 @@ function dim(rgba, brightness)
     rgba_split.writeUInt32BE(rgba, 0);
 //    if (rgba_split[3] != 255) throw "Unusual color: " + rgba;
     var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+//TODO?   c = Color(hex8(rgba)).hsv(); c.v *= brightness/255; c = c.rgba(); c.a *= 255;
     c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
     rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a * 255; //1.0 => 255
     return rgba_split.readUInt32BE(0); //>>> 0;
