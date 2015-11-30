@@ -28,6 +28,7 @@ const timescale = require('my-plugins/utils/time-scale');
 //var parser = new xml2js.Parser();
 const xmldoc = require('xmldoc'); //https://github.com/nfarina/xmldoc
 const shortname = require('my-plugins/utils/shortname');
+const rdwr = require('my-plugins/streamers/strmon').rdwr;
 //var models = require('my-projects/models/model'); //generic models
 //var ChannelPool = require('my-projects/models/chpool'); //generic ports
 //var models = require('my-projects/shared/my-models').models;
@@ -36,7 +37,7 @@ const shortname = require('my-plugins/utils/shortname');
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// Convert a Vixen2 sequence to JSON:
+/// Streaming:
 //
 
 function Vixen2json(outstream, profile, seqfile)
@@ -45,16 +46,44 @@ function Vixen2json(outstream, profile, seqfile)
     var vix2seq = new Vixen2Sequence({filename: seqfile, profile: vix2prof});
 
 //no    outs.write("["); //wrap in one large json array
-    outstream.svwrite = outstream.write; outstream.write = function(buf) { outstream.svwrite(JSON.stringify(buf) + '\n'); }; //',\n'
+    outstream.svwrite = outstream.write;
+    outstream.write = function(buf) { outstream.svwrite(JSON.stringify(buf) + '\n'); }; //',\n'
     vix2prof.toJSON(outstream); //put channel + profile info in front of seq
     vix2seq.toJSON(outstream);
     outstream.write = outstream.svwrite;
 //no    outs.write(JSON.stringify("eof") + "]");
 //    outstream.end(); //eof
-    logger("written".cyan);
+    logger("vix2 prof + seq written".cyan);
     return outstream; //fluent
 }
 module.exports.Vixen2json = Vixen2json;
+
+
+function Vixen2Stream(profile, seqfile, cb)
+{
+    var passthru = rdwr('vix2 in-out', cb);
+    process.nextTick(function() { Vixen2json(passthru, profile, seqfile); }); //kludge: give caller time to connect pipe before filling it
+    return passthru; //fluent (pipes)
+}
+module.exports.Vixen2Stream = Vixen2Stream;
+
+
+//TODO: stream a Vixen2 sequence?
+function broken()
+{
+const XmlStream = require('xml-stream'); //https://codeforgeek.com/2014/10/parse-large-xml-files-node/
+
+const infile = "my-projects/songs/xmas/Amaz*/!(*-bk).vix";
+const outfile = "zout.json";
+
+var filename = glob.unique(infile);
+var ins = fs.createReadStream(filename);
+var xml = new XmlStream(ins);
+var outs = strmon(fs.createWriteStream(outfile));
+outs.write(JSON.stringify(xml)) //+ '\n');
+outs.end(); //eof
+logger("file written".cyan); //"%d frames written".cyan, frags.length);
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +106,7 @@ function Vixen2Sequence(opts)
     this.FixedFrameInterval = 1 * this.top.byname.EventPeriodInMilliseconds.value;
     var m_numfr = Math.ceil(m_duration / this.FixedFrameInterval);
     var partial = this.partial = (m_numfr * this.FixedFrameInterval != m_duration);
-    if (partial) console.log("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #seq channels %d", shortname(this.filename), m_duration, this.FixedFrameInterval, m_numfr, !!partial, (this.top.byname.Channels.children || []).length);
+    if (partial) logger("'%s' duration: %d msec, interval %d msec, #frames %d, last partial? %s, #seq channels %d".blue, shortname(this.filename), m_duration, this.FixedFrameInterval, m_numfr, !!partial, (this.top.byname.Channels.children || []).length);
 ////    top.PlugInData.PlugIn.[name = "Adjustable preview"].BackgroundImage base64
     var m_chvals = this.top.byname.EventValues.value;
 //    console.log("ch val encoded len " + this.chvals.length);
@@ -170,6 +199,7 @@ function Vixen2Sequence(opts)
             outstream.write(outfr);
             m_prior = frbuf;
         }
+        logger("wrote %d frames".cyan, m_numfr);
 //        if (outfr.time < this.duration) //TODO: do we need a partial/dummy frame at end?
         outstream.write({comment: "sequence end"});
     }
@@ -197,12 +227,13 @@ function Vixen2Profile(opts)
     this.toJSON = function(outstream)
     {
         outstream.write({comment: "profile begin " + clock.asDateTimeString()});
-        outstream.write({filename: this.filename, filetime: filetime.asString(this.filename), numch: m_numch, fx: "vix2json.Sequence"});
+        outstream.write({filename: this.filename, filetime: filetime.asString(this.filename), numch: m_numch, fx: "vix2json.Profile"});
         outstream.write({comment: this.channels.length + " channel defs"});
         this.channels.forEach(function(channel)
         {
             outstream.write(channel); //this.var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
         });
+        logger("wrote %d channels".cyan, this.channels.length);
         outstream.write({comment: "profile end"});
     }
 }

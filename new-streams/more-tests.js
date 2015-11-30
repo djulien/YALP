@@ -10,45 +10,62 @@ const logger = require('my-plugins/utils/logger')({detail: 99, filename: "zout.l
 const hfmt = require('human-format');
 function not_hfmt(val, scale) { return val; }
 const bufferJSON = require('buffer-json'); //https://github.com/jprichardson/buffer-json
+const strmon = require('my-plugins/streamers/strmon');
+const isStream = require('is-stream');
 const stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
 //var Writable = stream.Writable || require('readable-stream').Writable; //http://codewinds.com/blog/2013-08-19-nodejs-writable-streams.html
+const PassThrough = stream.PassThrough || require('readable-stream').PassThrough;
+const zlib = require('zlib');
 
 
-function vix2json()
+//rd('zout.json').pipe(zlib.createGzip()).pipe(wr('zout.json.gz')); //compress
+//rd('zout.json.gz'.pipe(zlib.createGunzip()).pipe(wr('zout-rt.json')); //uncompress
+//rd('zout2.json').pipe(process.stdout); //cat
+
+
+function vix2json_obsolete()
 {
-const files =
-[
-    'my-projects/songs/xmas/Amaz*/*Amaz*.vix',
-    'my-projects/playlists/!(*RGB*).pro',
-];
 const outfile = "zout.json";
+const profile = 'my-projects/playlists/!(*RGB*).pro';
+const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
 
-//var vix2prof = new require('my-plugins/streamers/vix2json').Profile(files[1]);
-//var vix2seq = new require('my-plugins/streamers/vix2json').Sequence({filename: files[0], profile: vix2prof});
+//var vix2prof = new require('my-plugins/streamers/vix2json').Profile(profile);
+//var vix2seq = new require('my-plugins/streamers/vix2json').Sequence({filename: sequence, profile: vix2prof});
+var outs = strmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
+//var outs = strmon.rdwr("vix2 in/outfile");
+//outs.pipe(process.stdout);
+//outs.pipe(zlib.createGzip()).pipe(strmon.wr('zout.json.gz')); //compress
 
-var outs = fs.createWriteStream(outfile)
-    .on('open', function() { logger("outfile '%s' opened".green, outfile); })
-    .on('data', function() { logger("outfile data".blue); })
-    .on('close', function() { logger("outfile '%s' closed".green, outfile); })
-    .on('error', function(err) { logger("outfile '%s' error: %j".red, outfile, err); });
 //outs.write("["); //wrap in one large json array
 //outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + ',\n'); };
 //vix2prof.toJSON(outs); //put channel + profile info in front of seq
 //vix2seq.toJSON(outs);
 //outs.write = outs.svwrite;
 //outs.write(JSON.stringify("eof") + "]");
-    require('my-plugins/streamers/vix2json').Vixen2json(outs, files[1], files[0]);
+    require('my-plugins/streamers/vix2json').Vixen2json(outs, profile, sequence);
     outs.end(); //eof
-logger("written".cyan);
-return outs;
+//logger("written".cyan);
+//return outs;
 }
-vix2json();
-process.exit(0);
+//vix2json();
+//NO process.exit(0); //DO NOT DO THIS; async stream not written yet!
 
-function hardwired2json()
+
+function vix2(cb)
 {
-const outfile = "zout.json";
+const profile = 'my-projects/playlists/!(*RGB*).pro';
+const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
+return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, sequence, cb);
+//outs.end(); //eof
+}
+//vix2(function(data) { console.log(data); }); //.pipe(process.stdout);
+//vix2().pipe(process.stdout);
+
+
+function hardwired()
+{
+//const outfile = "zout.json";
 var rows =
 [
     {comment: "whatever"},
@@ -61,57 +78,40 @@ var rows =
     {frame: 6, time: 300, buf: new Buffer([3, 4, 5, 6, 7]), buflen: 5, diff: [0, 5], nonzofs: 0},
     {comment: "whatever"},
 ];
-var outs = fs.createWriteStream(outfile)
-    .on('open', function() { logger("outfile '%s' opened".green, outfile); })
-    .on('data', function() { logger("outfile data".blue); })
-    .on('close', function() { logger("outfile '%s' closed".green, outfile); })
-    .on('error', function(err) { logger("outfile '%s' error: %j".red, outfile, err); });
+//var outs = strmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'");
+var outs = strmon.rdwr('hard-wired in-out');
 //NO outs.write("["); //wrap in one large json array
-outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + '\n'); }; //,\n
-rows.forEach(function(row) { outs.write(row); });
-outs.write = outs.svwrite;
-outs.write(JSON.stringify("eof")); //NO + "]");
-outs.end(); //eof
+//outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + '\n'); }; //,\n
+process.nextTick(function() { rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); }); });
+//outs.write = outs.svwrite;
+//outs.write(JSON.stringify("eof")); //NO + "]");
+//outs.end(); //eof
+logger("%d hardwired frames written".cyan, rows.length);
+return outs; //fluent (pipes)
 }
-//hardwired2json();
+//hardwired().pipe(process.stdin);
 
 
-function vix2json_reader()
+debugger;
+function playback()
 {
-require('my-plugins/my-extensions/json-revival');
-var split = require('split');
-//can instantiate custom stream directly; see http://stackoverflow.com/questions/21491567/how-to-implement-a-writable-stream
-var count = 0;
-var echoStream = new stream.Writable({objectMode: true});
-echoStream._write = function (chunk, encoding, done)
-{
-    var buf = JSON.parse(chunk, bufferJSON.reviver);
-    console.log("json[%d]:", count++, buf);
-    done();
-};
-echoStream.on('end', function() { console.log("%d json objects read", count); });
-const infile = "./zout2.json";
-fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile))
-//    .pipe(echoStream)
-  .pipe(split(JSON.parse))
-  .on('data', function (obj) { //each chunk now is a js object
-    console.log("json[%d]:", count++, obj.time || '(no time)', obj);
-  })
-  .on('error', function (err) { //syntax errors will land here; note, this ends the stream.
-    console.log("error: ".red, err);
-  })
-    .on('end', function() { console.log("%d json objects read".green, count); });
+const infile = (process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
+//strmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
+
+    var myfx = require('my-projects/effects/myfx').myfx; //CAUTION: instance, not ctor
+    var data = vix2();
+    myfx.FxPlayback(data);
+    data.end(); //close pipe after data all read??
 }
-//reader();
+playback();
 
 
-function chmodel_reader()
+function model_reader()
 {
 const models = require('my-projects/models/my-models').models;
 //var entire = models.entire;
-
 }
-model_reader();
+//model_reader();
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

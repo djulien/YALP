@@ -59,7 +59,7 @@
 		<Unit filename="graphics/yalp-icon8.bmp" />
 		<Unit filename="index.js" />
 		<Unit filename="my-plugins/adapters/vixen2.js" />
-		<Unit filename="my-plugins/adapters/xlights3.js" />
+		<Unit filename="my-plugins/adapters/xlights3-bk.js" />
 		<Unit filename="my-plugins/canvas/html.js" />
 		<Unit filename="my-plugins/check-install.js" />
 		<Unit filename="my-plugins/cmdline.js" />
@@ -105,6 +105,7 @@
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
 		<Unit filename="my-plugins/streamers/serialport-stream.js" />
+		<Unit filename="my-plugins/streamers/strmon.js" />
 		<Unit filename="my-plugins/streamers/uint32bebuf.js" />
 		<Unit filename="my-plugins/streamers/vix2json.js" />
 		<Unit filename="my-plugins/utils/YalpRef.js" />
@@ -132,6 +133,7 @@
 		<Unit filename="my-plugins/utils/shortname.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
+		<Unit filename="my-projects/effects/myfx.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool-bk.js" />
 		<Unit filename="my-projects/models/color-cache.js" />
@@ -185,7 +187,6 @@
 		<Unit filename="new-streams/djtest.js" />
 		<Unit filename="new-streams/more-tests.js" />
 		<Unit filename="new-streams/playback-test.js" />
-		<Unit filename="new-streams/vix2json.js" />
 		<Unit filename="node-jig.js" />
 		<Unit filename="package.json" />
 		<Unit filename="public/css/yalp.css" />

@@ -372,7 +372,7 @@ chmap.forEach(function(chgrp, grpname)
 
 //model summary:
 //console.log("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
-models.forEach(function(model)
+Model2D.all.forEach(function(model)
 {
 //    if (!(model.name || '').match(/-all$/i)) return;
     logger("%s: %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);

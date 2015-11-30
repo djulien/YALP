@@ -27,12 +27,14 @@ module.exports = Model2D;
 /// 2D model base class:
 //
 
+//Defines basic geometry and access to canvas/pixels
+
 //Model is the main "canvas" for writing effects to.
 //For now, this is only 2D, but 3D-aware canvas is planned for future.
 //Model is a wrapper around HTML5 Canvas, so all the HTML5 graphics functions and libraries can be used.
 //Pixels on the canvas are then rendered by the protocol handler into control bytes to send to the hardware.
 //Models can be nested or overlapped for composite or whole-house models, etc.
-//Any methods that do not require access to private data are put in prototype rather than object for better code space usage
+//Any methods that do not require access to private data are put in prototype rather than object to reduce code space usage.
 function Model2D(opts)
 {
     if (!(this instanceof Model2D)) return makenew(Model2D, arguments);
@@ -175,6 +177,7 @@ function Model2D(opts)
     this.generateNodelist();
 //defer    if (this.opts.zinit !== false) this.oninit.push(function() { this.clear(); }.bind(this)); //do this when canvas is instantiated
 }
+
 //shared class data:
 Model2D.all = {}; //[];
 
@@ -344,6 +347,7 @@ Model2D.prototype.restore = function()
 
 
 //node ordering:
+//generic ordering defined below.  caller can supply custom ordering.
 
 Model2D.prototype.R2L = function(x) { return this.width - x - 1; }
 
@@ -520,6 +524,7 @@ Model2D.prototype.pixel = function(x, y, color)
     if (this.parent) { x += this.parent.left; y += this.parent.bottom; } //TODO: should this be here?
     if (!isdef(color)) //get
     {
+//TODO: cache pixel values
         var retval = this.has_ctx? this.ctx.getImageData(x, this.T2B(y), 1, 1): null; //avoid creating canvas when getting data
 //        if (retval) retval = toRGBA(retval.data[0], retval.data[1], retval.data[2], retval.data[3]);
         if (retval) retval = retval.data.readUInt32BE(0); //want RGBA
@@ -621,7 +626,7 @@ Model2D.prototype.rdframe = function(filename)
 {
     if (!filename) filename = process.cwd() + '/frame.data'; //_dirname
     var stream = fs.createReadStream(filename, {flags: 'r', objectMode: true});
-    var buf = stream.read();
+    var buf = stream.read(); //read a single "image" from file
     stream.close();
     console.log("read '%s' len %s from file '%s'", this.name, buf.length, filename); //data.length);
 //var imgdata = entire.imgdata();
@@ -818,7 +823,7 @@ Model2D.all.forEach(function(model, inx)
 
 
 debugger;
-var entire = new Model2D('entire'); //define super-model that includes everything
+var entire = new Model2D('entire'); //define super-model (first) to include all other models
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 
 //TODO: use stream-json?
 //TODO: merge Source + Sink into Xform so one base class can handle either direction? (this would allow common base logic)
+//concise summary of duplex vs. tranform vs. read + write streams: http://stackoverflow.com/questions/18096266/whats-the-difference-between-write-and-push-for-passthrough-streams
 
 'use strict'; //helps catch errors
 
@@ -31,6 +32,18 @@ var Transform = stream.Transform || require('readable-stream').Transform;
 
 function abspath(relpath) { return relpath; } //doesn't seem to be needed; //fs.realpathSync(relpath); } //only works for existing files; //path.join(process.cwd(), relpath); } //TODO: is this needed?
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// x
+//
+
+//TODO? YALP streams are duplex.  reader side provides timed playback.
+//TODO: update code below into one duplex class?
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// older stuff (to convert):
 
 //easier access to last element in array:
 if (!Array.prototype.last) Object.defineProperty(Array.prototype, 'last',
@@ -544,7 +557,7 @@ var Dissolve = require('dissolve'); //https://github.com/deoxxa/dissolve
 var UInt32BEBuffer = require('my-plugins/streamers/uint32bebuf');
 
 
-function YalpStream(opts)
+function old_YalpStream(opts)
 {
     if (!(this instanceof YalpStream)) return new YalpStream(opts)
     if (typeof opts !== 'object') opts = {filename: opts};
