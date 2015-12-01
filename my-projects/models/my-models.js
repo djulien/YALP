@@ -5,6 +5,7 @@ const path = require('path');
 const hfmt = require('human-format');
 function not_hfmt(val, scale) { return val; }
 const logger = require('my-plugins/utils/logger')();
+/*var sprintf =*/ require('sprintf.js'); //.sprintf;
 
 
 const Model2D = require('my-projects/models/model-2d');
@@ -367,15 +368,65 @@ chmap.forEach(function(chgrp, grpname)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// additional analysis and setup:
+/// additional setup and analysis:
 //
+
+//TODO: port.reset(), port.flush(), model.vix2render(vix2chbuf); //populate port buffers
+
+//assign models to ports:
+//NOTE: order of model definitions above determines geometry (sticky dimensions, tiling)
+//order of models on ports is set explicitly below so it can match the hardware layout exactly
+{
+    FTDI_Y: [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
+    FTDI_G: [mtree, gift, angel, cross], //city, tb
+    FTDI_B: [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
+    FTDI_W: [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
+    null: [tune_to, she_bank, acc, ac_bank, colL, colM, colR, colH, mtree_bank, ic_all],
+}.forEach(function(port, models) {  models.forEach(function(model) { model.port = port; }); });
+
+
+var mapped_vix2ch = {}; //vix2 channel range
+function vix2map(model)
+{
+    if (typeof model.vix2ch == 'undefined') return;
+    if (!Array.isArray(model.vix2ch)) model.vix2ch = [model.vix2ch, 1]; //[0] = startch, [1] = count (optional)
+    if (model.vix2alt)
+    {
+        if (!Array.isArray(model.vix2alt)) model.vix2alt = [model.vix2alt, 1];
+        if (model.vix2alt[1] != model.vix2ch[1]) throw new Error(sprintf("model '%s' alt ch mismatch: %j vs. %j".red, model.name, model.vix2alt, model.vix2ch));
+    }
+    for (var ch = model.vix2ch[0]; ch < model.vix2ch[0] + model.vix2ch[1]; ++ch)
+        if (isNaN(++mapped_vix2ch[ch]) mapped_vix2ch[ch] = 1;
+}
+
+var ports = module.exports.ports = {};
+function portmap(model)
+{
+    if (!model.port) return;
+    if (isNaN(++model.port.num_models)) { model.port.num_models = 1; model.port.num_nodes = 0; }
+    model.port.num_nodes += model.nodelist.length;
+    ports[port.name || port.device] = port;
+}
+
 
 //model summary:
 //console.log("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
 Model2D.all.forEach(function(model)
 {
 //    if (!(model.name || '').match(/-all$/i)) return;
-    logger("%s: %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
+    logger("model '%s': %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
+    if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
+    vix2map(model);
+    portmap(model);
+});
+
+var chlist = module.exports.chlist = Object.keys(mapped_ch).sort();
+logger(Vixen2 channels mapped: %s/%s (%d%%), first %s, last %s".cyan, chlist.length, vix2prof.channels.length, Math.round(100 * chlist.length / vix2prof.channels.length), chlist.length? chlist[0]: '-', chlist.length? chlist[chlist.length - 1]: '-');
+
+//port summary:
+ports.forEach(function(port)
+{
+    logger("port '%s': #models %s, #nodes %s".blue, port.name || port.device, port.num_models, port.num_nodes);
 });
 
 

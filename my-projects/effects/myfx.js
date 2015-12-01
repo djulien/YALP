@@ -22,7 +22,7 @@ debugger;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// effects stream
+/// process all effects found in a stream
 //
 
 //writable effects stream:
@@ -36,25 +36,31 @@ function FxPlayback(opts)
 //    this.on('end', function() { console.log("%d json objects read", count); });
     stmon(this, "FxStream");
     this.opcodes = {};
+    models.ports.forEach(function(port) { port.reset(); }); //clear buffers
     var m_withfx = 0, m_without = 0, m_unkn = 0, m_errors = 0;
-//    this.on('fxdata', function(data)
-    this.onfxdata = function(data)
+    this.on('data', function(data)
+//    this.onfxdata = function(data)
     {
+        var has_time = (typeof data.time != 'undefined'); //frames with timestamp are synced
+        if (has_time && (typeof this.elapsed == 'undefined')) this.elapsed = new Elapsed(data.time); //sync playback timer to first frame, then subsequent frames to timer
 //            FxDispatch(data);
 //            console.log("in data", data);
         if (typeof data.fx == 'undefined') { ++m_without; return; } //no effect to process
-        console.log("fx json[%d]: time %s, data %j", m_withfx++, data.time || '(no time)', data);
+        console.log("fx json[%d]: time %s, has buf? %s, data", m_withfx++, has_time? data.time: '(no time)', Buffer.isBuffer(data.buf), data);
         if (isNaN(++this.opcodes[data.fx])) this.opcodes[data.fx] = 1;
-        if (FxPlayback.myfx.ismine(data.fx)) FxPlayback.myfx[data.fx](data);
+        if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
         else { ++m_unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); }
-//    }.bind(this));
-    }
+        if (!has_time) return; //don't need to refresh hardware on this frame
+        FxPlayback.myfx.MyFx.render(data.time);
+        this.flush_ports(data.time); //send bytes to hardware at the correct time
+    }.bind(this));
+//    }
     this.on('error', function (err) //syntax errors will land here; note, this ends the stream.
     {
         ++m_errors;
         logger("error: ".red, err);
     }.bind(this))
-    .on('end', function()
+    .on('finish', function()
     {
         logger("FxPlayback: %d with fx, %d without, %d unknown fx, %d errors".cyan, m_withfx, m_without, m_unkn, m_errors);
         logger("opcodes: %j", this.opcodes);
@@ -69,9 +75,24 @@ FxPlayback.prototype._write = function writer(chunk, encoding, done)
 debugger;
     var buf = JSON.parse(chunk, bufferJSON.reviver);
 //    console.log('write: ', chunk.length, encoding, typeof chunk, typeof buf, chunk.toString()); //(encoding));
-//    this.emit('fxdata', buf); //kludge: make the interface a little more consistent
-    this.onfxdata(buf);
+    this.emit('data', buf); //kludge: force on() to see data (makes interface a little more consistent)
+//    this.onfxdata(buf);
     done();
+}
+
+
+FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
+{
+    var delay = frtime - this.elapsed(); //always compare to start in order to minimize cumulative timing error
+    if (delay < -2.5) logger("frame %s is overdue by %s".red, frtime, delay);
+    else if (delay < +2.5) logger("frame %s is more-or-less on time: delay %s".yellow, frtime, delay);
+    else
+    {
+        logger("frame %s is pre-mature after %s: wait %s".blue, delay, retry? "retry": "pre-render", frtime);
+        setTimeout(function() { this.flush_ports(frtime, true); }.bind(this), delay);
+        return;
+    }
+    models.ports.forEach(function(port) { port.flush(); });
 }
 
 
@@ -99,7 +120,7 @@ MyFx.prototype.FxPlayback = function FxPlayback(rd)
 //            FxDispatch(data);
 //            console.log("in data", data);
             if (typeof data.fx == 'undefined') { ++without; return; } //no effect to process
-            console.log("json[%d]: time %s, data %j", withfx++, data.time || '(no time)', data);
+            console.log("json[%d]: time %s, data %j", withfx++, (typeof data.time != 'undefined')? data.time: '(no time)', data);
             if (isNaN(++this.opcodes[data.fx])) this.opcodes[data.fx] = 1;
             if (MyFx.myfx.ismine(data.fx)) MyFx.myfx[data.fx](data);
             else { ++unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); }
@@ -146,34 +167,62 @@ function example_consumer()
 /// effect definitions
 //
 
-var MyFx = FxPlayback.prototype.MyFx = {}; //define top-level namespace for effects
-
-MyFx.ismine = function ismine(fxname)
-{
-    return fxname && (fxname in this.MyFx) && (typeof this.MyFx[fxname] == 'function'); //.prototype;
-}
-
-
 //pre-defined generic or special-purpose pseudo-effects
 
-MyFx.rawbuf = function rawbuf(data)
+//var MyFx = FxPlayback.prototype.MyFx = {}
+//define top-level namespace for effects
+//function MyFx()
+
+const models = require('my-projects/models/my-models').models;
+const chlist = require('my-projects/models/my-models').chlist;
+
+
+//pseudo-namespace + state:
+FxPlayback.prototype.MyFx =
 {
-//TODO: save raw data
+    chbuf: new Buffer(4 * chlist.length),
+    ismine: function ismine(fxname)
+    {
+        return fxname && (fxname in this) && (typeof this[fxname] == 'function'); //.prototype;
+    },
+    rawbuf: function rawbuf(data)
+    {
+        if (data.dup) return; //no change to channel data
+        data.buf.copy(this.chbuf, Math.abs(data.diff[0] || 0)); //reassemble buf from fragments
+    },
+    render: function(frtime) //NOTE: render runs about 1 frame ahead so port flush will be on time
+    {
+//        if (typeof this.elapsed == 'undefined') this.elapsed = new Elapsed(frtime); //start elapsed time counter when first frame is received; header frames come before first data frame to stay in sync even with setup or pre-render
+        models.forEach(function(model)
+        {
+            if (!model.vix2ch) return; //continue; //[0] = startch, [1] = count (optional)
+            logger("render model '%s' @ %s msec", model.name, frtime);
+            var vix2chbuf = this.chbuf.slice(model.vix2ch[0], model.vix2ch[0] + model.vix2ch[1]);
+            if (typeof model.vix2alt != 'undefined')
+            {
+                var altbuf = this.chbuf.slice(model.vix2alt[0], model.vix2alt[0] + model.vix2alt[1]);
+                var cmp = bufdiff(vix2chbuf, altbuf);
+                if (cmp) logger("model '%s' vix2ch buf != altbuf: time %s, ofs %s", model.name, frtime, cmp);
+            }
+            model.vix2render(vix2chbuf); //populate port buffers
+        }.bind(this));
+//        flush_ports(frtime);
+    },
 }
 
 
-MyFx.vix2json = {}; //namespace
-
-MyFx.vix2json.Profile = function vix2json_prof(data)
+//namespace + state:
+FxPlayback.prototype.MyFx.vix2json =
 {
-    this.prof_info = Object.assign(this.prof_info || {}, data); //just store profile props for access later
-}
-
-
-MyFx.vix2json.Sequence = function vix2json_seq(data)
-{
-    this.seq_info = Object.assign(this.seq_info || {}, data); //just store sequence props for access later
-}
+    Profile: function vix2json_prof(data)
+    {
+        this.prof_info = Object.assign(this.prof_info || {}, data); //just store profile props for access later
+    },
+    Sequence: function vix2json_seq(data)
+    {
+        this.seq_info = Object.assign(this.seq_info || {}, data); //just store sequence props for access later
+    },
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -185,6 +234,13 @@ MyFx.vix2json.Sequence = function vix2json_seq(data)
 //use nested namespaces as desired to group related effects into a hierarchy
 //TODO: fx library manager?
 
+//namespace + state:
+FxPlayback.prototype.MyFx.xl3lib =
+{
+    butterfly: function() {},
+    meteors: function() {},
+};
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
@@ -195,5 +251,6 @@ MyFx.vix2json.Sequence = function vix2json_seq(data)
 //this one handles basic updates to models
 //caller can create additional Fx streams as needed
 FxPlayback.myfx = new FxPlayback();
+console.log(Object.getOwnPropertyNames(FxPlayback.myfx).filter(function (prop) { return typeof FxPlayback.myfx[prop] === 'function'; }));
 
 //eof
