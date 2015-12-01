@@ -3,14 +3,10 @@
 
 const path = require('path');
 const hfmt = require('human-format');
+const inherits = require('inherits');
 function not_hfmt(val, scale) { return val; }
 const logger = require('my-plugins/utils/logger')();
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
-
-
-const Model2D = require('my-projects/models/model-2d');
-module.exports.models = Model2D.all; //export all model instances from below
-const RenXt = require('my-plugins/hw/RenXt');
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -18,10 +14,30 @@ const RenXt = require('my-plugins/hw/RenXt');
 /// custom model definitions:
 //
 
+const Model2D = require('my-projects/models/model-2d');
+module.exports.models = Model2D.all; //export all model instances from below
+const RenXt = require('my-plugins/hw/RenXt');
+
+
+//RenXT chipiplexed SSRs:
+//8 "rows" of 7 "columns" = 56 channels
+function ACSSR(opts)
+{
+    if (!(this instanceof ACSSR)) return makenew(ACSSR, arguments);
+    var opts = (typeof opts == 'string')? {name: opts}: opts || {};
+    opts.output = 'mono';
+    if (!opts.w) opts.w = 7;
+    if (!opts.h) opts.h = 8;
+    if (!opts.order) opts.order = Model2D.prototype.B2T_L2R;
+    Model2D.apply(this, arguments); //base class
+}
+inherits(ACSSR, Model2D);
+
+
 /*
 //show_group('fx', [395, +5]);
 var fx = new Model2D({name: 'fx', x: 0, y: 0, w: 5, h: 1, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
-fx.vix2render = function() {} //TODO
+fx.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 //show_group('snglobe', [300, +2], [418, +2]);
 var snglobe_fx = new Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
@@ -48,6 +64,13 @@ fans.vix2render = function() {} //TODO
 var tuneto = new Model2D(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
 tuneto.vix2render = function() {} //TODO
 */
+var acssr1 = new ACSSR({name: 'ACSSR1', zinit: false});
+var acssr2 = new ACSSR({name: 'ACSSR2', zinit: false});
+var acssr3 = new ACSSR({name: 'ACSSR3', zinit: false});
+var acssr4 = new ACSSR({name: 'ACSSR4', zinit: false});
+var acssr5 = new ACSSR({name: 'ACSSR5', zinit: false});
+var acssr6 = new ACSSR({name: 'ACSSR6', zinit: false});
+var acssr7 = new ACSSR({name: 'ACSSR7', zinit: false});
 
 
 //nat figures next row:
@@ -230,7 +253,7 @@ ab.vix2render = function() {} //TODO
 /// Vixen2 profile mapping, design-time info, etc:
 //
 
-const vix2 = require('my-plugins/adapters/vixen2');
+const vix2 = require('my-plugins/streamers/vix2json');
 const files =
 [
     'my-projects/playlists/!(*RGB*).pro',
@@ -371,20 +394,27 @@ chmap.forEach(function(chgrp, grpname)
 /// additional setup and analysis:
 //
 
-//TODO: port.reset(), port.flush(), model.vix2render(vix2chbuf); //populate port buffers
-
 //assign models to ports:
 //NOTE: order of model definitions above determines geometry (sticky dimensions, tiling)
 //order of models on ports is set explicitly below so it can match the hardware layout exactly
+//FTDI-Y //2100 Ic + 150 Cols ~= 2250 nodes
+//FTDI-G //16 Floods + 1188 Mtree + 640 Angel + 384 Star (reserved) ~= 2228 nodes
+//FTDI-B //1536 Shep + 256 Gift (reserved) ~= 1792 nodes
+//FTDI-W //7 * 56 AC (5 * 56 unused) + 768 gdoor + 3 * 384 (AB-future) ~= 2312 nodes
+var assts =
 {
-    FTDI_Y: [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
-    FTDI_G: [mtree, gift, angel, cross], //city, tb
-    FTDI_B: [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
-    FTDI_W: [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
-    null: [tune_to, she_bank, acc, ac_bank, colL, colM, colR, colH, mtree_bank, ic_all],
-}.forEach(function(port, models) {  models.forEach(function(model) { model.port = port; }); });
+//    'FTDI-Y': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
+//    'FTDI-G': [mtree, gift, angel, cross], //city, tb
+    'FTDI-B': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
+//    'FTDI-W': [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
+    null: [fx, snglobe_fx, gdoor_fx, tune_to, she_bank, acc, ac_bank, colL, colM, colR, colH, mtree_bank, ic_all],
+}.forEach(function(port, models) {  models.forEach(function(model) { model.port = (port !== null)? ports[port]: null; }); });
+var unassigned = '';
+models.all.forEach(function(model) { if (typeof model.port == 'undefined') unassigned += model.name || model.device; });
+if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: " + unassigned.substr(2);
 
 
+//analyze mapped Vixen channels:
 var mapped_vix2ch = {}; //vix2 channel range
 function vix2map(model)
 {
@@ -396,14 +426,16 @@ function vix2map(model)
         if (model.vix2alt[1] != model.vix2ch[1]) throw new Error(sprintf("model '%s' alt ch mismatch: %j vs. %j".red, model.name, model.vix2alt, model.vix2ch));
     }
     for (var ch = model.vix2ch[0]; ch < model.vix2ch[0] + model.vix2ch[1]; ++ch)
-        if (isNaN(++mapped_vix2ch[ch]) mapped_vix2ch[ch] = 1;
+        if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
 }
 
+//analyze port usage:
 var ports = module.exports.ports = {};
 function portmap(model)
 {
     if (!model.port) return;
-    if (isNaN(++model.port.num_models)) { model.port.num_models = 1; model.port.num_nodes = 0; }
+//    if (isNaN(++model.port.num_models)) { model.port.num_models = 1; model.port.num_nodes = 0; }
+    if (!model.port.num_nodes) model.port.num_nodes = 0;
     model.port.num_nodes += model.nodelist.length;
     ports[port.name || port.device] = port;
 }
@@ -417,11 +449,10 @@ Model2D.all.forEach(function(model)
     logger("model '%s': %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
     if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
     vix2map(model);
-    portmap(model);
+//    portmap(model);
 });
-
 var chlist = module.exports.chlist = Object.keys(mapped_ch).sort();
-logger(Vixen2 channels mapped: %s/%s (%d%%), first %s, last %s".cyan, chlist.length, vix2prof.channels.length, Math.round(100 * chlist.length / vix2prof.channels.length), chlist.length? chlist[0]: '-', chlist.length? chlist[chlist.length - 1]: '-');
+logger("Vixen2 channels mapped: %s/%s (%d%%), first %s, last %s".cyan, chlist.length, vix2prof.channels.length, Math.round(100 * chlist.length / vix2prof.channels.length), chlist.length? chlist[0]: '-', chlist.length? chlist[chlist.length - 1]: '-');
 
 //port summary:
 ports.forEach(function(port)
@@ -429,5 +460,30 @@ ports.forEach(function(port)
     logger("port '%s': #models %s, #nodes %s".blue, port.name || port.device, port.num_models, port.num_nodes);
 });
 
+
+/*TODO: merge above?
+//summary info:
+var total_ports = 0, total_models = 0, total_nodes = 0;
+function classname(thing) { return thing.constructor.name; } //.prototype.constructor.name
+[SerialPort, OtherPort].forEach(function(porttype)
+{
+    var num_ports = 0, num_models = 0, num_nodes = 0;
+    (porttype.all || []).forEach(function(port, pinx, all)
+    {
+        if (!(port.models || []).length) return;
+        console.log("%s[%s/%s]: '%s', %s models:", classname(porttype), pinx, all.length, port.device, (port.models || []).length);
+        ++num_ports;
+        (port.models || []).forEach(function(model, minx)
+        {
+            console.log("  model[%s/%s]: '%s', canvas: x %s..%s, y %s..%s, w %s, h %s, nodes: %s", minx, port.models.length, model.name, model.left, model.right, model.bottom, model.top, model.width, model.height, (model.nodelist || []).length);
+            num_nodes += (model.nodelist || []).length;
+            ++num_models;
+        });
+    });
+    total_ports += num_ports; total_models += num_models; total_nodes += num_nodes;
+    console.log("#active %s: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", classname(porttype), num_ports, num_models, num_nodes, num_models? Math.round(num_nodes / num_models): 0, num_ports? Math.round(num_nodes / num_ports): 0);
+});
+console.log("total: active ports: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", total_ports, total_models, total_nodes, total_models? Math.round(total_nodes / total_models): 0, total_ports? Math.round(total_nodes / total_ports): 0);
+*/
 
 //eof

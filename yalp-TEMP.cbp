@@ -143,6 +143,7 @@
 		<Unit filename="my-projects/models/model-2d.js" />
 		<Unit filename="my-projects/models/model-bk.js" />
 		<Unit filename="my-projects/models/my-models.js" />
+		<Unit filename="my-projects/models/my-ports.js" />
 		<Unit filename="my-projects/models/myModelStreams.js" />
 		<Unit filename="my-projects/models/pixel-widths-bk.js" />
 		<Unit filename="my-projects/package.json" />

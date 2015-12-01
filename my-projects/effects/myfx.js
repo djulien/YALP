@@ -51,6 +51,7 @@ function FxPlayback(opts)
         if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
         else { ++m_unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); }
         if (!has_time) return; //don't need to refresh hardware on this frame
+debugger;
         FxPlayback.myfx.MyFx.render(data.time);
         this.flush_ports(data.time); //send bytes to hardware at the correct time
     }.bind(this));
@@ -81,6 +82,7 @@ debugger;
 }
 
 
+//controls timing of port output:
 FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
 {
     var delay = frtime - this.elapsed(); //always compare to start in order to minimize cumulative timing error
@@ -177,25 +179,30 @@ const models = require('my-projects/models/my-models').models;
 const chlist = require('my-projects/models/my-models').chlist;
 
 
+//project incoming channel values onto model canvas and mark dirty:
+Model2D.prototype.vix2render = function(vix2buf)
+{
+    if ((this.opts.dedup !== false) && this.priorbuf && !bufdiff(vix2buf, this.priorbuf)) return; //no change
+    this.priorbuf = vix2buf;
+    this.dirty = true;
+}
+
+
 //pseudo-namespace + state:
 FxPlayback.prototype.MyFx =
 {
-    chbuf: new Buffer(4 * chlist.length),
+    chbuf: new Buffer(4 * chlist.length), //"channel" (control value) list; used for Vixen2 channels
     ismine: function ismine(fxname)
     {
         return fxname && (fxname in this) && (typeof this[fxname] == 'function'); //.prototype;
     },
-    rawbuf: function rawbuf(data)
-    {
-        if (data.dup) return; //no change to channel data
-        data.buf.copy(this.chbuf, Math.abs(data.diff[0] || 0)); //reassemble buf from fragments
-    },
     render: function(frtime) //NOTE: render runs about 1 frame ahead so port flush will be on time
     {
 //        if (typeof this.elapsed == 'undefined') this.elapsed = new Elapsed(frtime); //start elapsed time counter when first frame is received; header frames come before first data frame to stay in sync even with setup or pre-render
-        models.forEach(function(model)
+//first render using Vixen channel info:
+        vix2models.forEach(function(model)
         {
-            if (!model.vix2ch) return; //continue; //[0] = startch, [1] = count (optional)
+//            if (!model.vix2ch) return; //continue; //[0] = startch, [1] = count (optional)
             logger("render model '%s' @ %s msec", model.name, frtime);
             var vix2chbuf = this.chbuf.slice(model.vix2ch[0], model.vix2ch[0] + model.vix2ch[1]);
             if (typeof model.vix2alt != 'undefined')
@@ -204,10 +211,32 @@ FxPlayback.prototype.MyFx =
                 var cmp = bufdiff(vix2chbuf, altbuf);
                 if (cmp) logger("model '%s' vix2ch buf != altbuf: time %s, ofs %s", model.name, frtime, cmp);
             }
-            model.vix2render(vix2chbuf); //populate port buffers
+//            model.vix2render(vix2chbuf); //populate port buffers
+            if ((model.opts.dedup !== false) && model.priorbuf && !bufdiff(vix2chbuf, model.priorbuf)) return; //no change
+            model.priorbuf = vix2chbuf;
+            model.vix2render(vix2chbuf); //project vix2 channels onto model canvas
+            model.dirty = true;
         }.bind(this));
+//then do general effect/animation rendering:
+        models.forEach(function(model) { model.render(); }); //extract nodes from canvas; protocol will populate port output buffers
 //        flush_ports(frtime);
     },
+}
+
+
+//raw buffer data:
+//reassembles buf from fragments
+FxPlayback.prototype.MyFx.rawbuf = function rawbuf(data)
+{
+    if (data.dup) return; //no change to channel data
+    data.buf.copy(this.chbuf, Math.abs(data.diff[0] || 0)); //use copy rather than slice in case buffer contents change later or are shared
+}
+
+
+//load image from file:
+FxPlayback.prototype.MyFx.image = function image(filename)
+{
+//TODO: duration, animation, etc
 }
 
 

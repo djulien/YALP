@@ -8,7 +8,7 @@ var path = require('path');
 //var Concentrate = require('concentrate'); //https://github.com/deoxxa/concentrate
 //var empty = require('my-projects/playlists/empty');
 //var Canvas = require('my-projects/models/growable-canvas');
-var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas
+var Canvas = require('canvas'); //https://www.npmjs.com/package/canvas; needs cairo as well; see https://www.npmjs.com/package/canvas
 var logger = require('my-plugins/utils/logger')();
 var makenew = require('my-plugins/utils/makenew');
 require('my-plugins/my-extensions/object-enum');
@@ -61,7 +61,8 @@ function Model2D(opts)
 //canvas access:
 //canvas is shared, access is delegated thru parent
 //lazy instantiation, don't allow caller to change (property default is read-only)
-    var m_ctx, /*m_pixelbuf,*/ m_dirty = true; //mark dirty to trigger first render
+    this.dirty = true; //mark dirty to trigger first render
+    var m_ctx; //, /*m_pixelbuf,*/ m_dirty = true; //mark dirty to trigger first render
 //    var m_promise = this.parent? null: Q.Promise(function(resolve, reject, notify)
 //    {
 //        this.canvas_ready = function(val) { resolve(val); }
@@ -146,18 +147,18 @@ function Model2D(opts)
                 enumerable: true,
             },
 */
-        dirty:
-        {
+//        dirty:
+//        {
 //TODO: hit/overlap test to reduce unnecessary re-rendering
-            get() { return m_dirty; }, // || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
-            set(newval)
-            {
-                m_dirty = newval;
-                if (newval && this.port) this.port.dirty = true;
-                if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
-            },
-            enumerable: true,
-        },
+//            get() { return m_dirty; }, // || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
+//            set(newval)
+//            {
+//                m_dirty = newval;
+//                if (newval && this.port) this.port.dirty = true;
+//                if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
+//            },
+//            enumerable: true,
+//        },
     });
 
 //link to port:
@@ -503,7 +504,7 @@ Model2D.prototype.generateNodelist = function()
     (this.opts.order.bind(this))(); //call(this); //generate ordered node list
     if (!this.nodelist.length) throw "Model '" + this.name + "' no nodelist generated";
     this.setRenderType(this.opts.output);
-    logger(30, "model '%s' generated %s nodes, %s byte/node %s, out buf len %s".blue, this.name, this.nodelist.length, this.bytesPerNode, this.opts.output || 'RGB', this.outbuf.length);
+    logger(30, "model '%s' generated %s nodes on %s x %s canvas, %s byte/node %s, out buf len %s".blue, this.name, this.nodelist.length, this.width, this.height, this.bytesPerNode, this.opts.output || 'RGB', this.outbuf.length);
 }
 
 Model2D.prototype.setRenderType = function(nodetype)
@@ -514,7 +515,7 @@ Model2D.prototype.setRenderType = function(nodetype)
             throw "Unhandled node render type: '" + (nodetype || 'RGB') + "'";
     }.bind(this));
     this.buf_resize('outbuf', this.bytesPerNode * this.nodelist.length, this.bytesPerNode); //CAUTION: same buffer is reused every time; use double-buffering if previous frame needs to remain available
-    logger(30, "model '%s' set outbuf size to %s".blue, this.name, this.outbuf.length);
+//    logger(30, "model '%s' set outbuf size to %s w x %s h x bytes/node = %s (".blue, this.name, this.width, this.height, this.bytesPerNode, this.outbuf.length);
 }
 
 //var m_pixelbuf = new ImageData(1, 1); //no worky
@@ -551,6 +552,27 @@ Model2D.prototype.bytesPerNode_raw = 4;
 Model2D.prototype.renderNode_raw = function(outofs, pxbuf, pxofs)
 {
     this.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0, outofs); //RGBA; endianness doesn't matter here as long as it's preserved
+}
+
+Model2D.prototype.bytesPerNode_mono = 1
+//var rgba_split = new Buffer([255, 255, 255, 255]);
+Model2D.prototype.renderNode_mono = function(outofs, pxbuf, pxofs)
+{
+//    this.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0, outofs); //RGBA; endianness doesn't matter here as long as it's preserved
+//    var rgba = (pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0;
+//    var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+//TODO?   c = Color(hex8(rgba)).hsv(); c.v *= brightness/255; c = c.rgba(); c.a *= 255;
+//    c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
+//    rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a * 255; //1.0 => 255
+//    this.outbuf.writeUInt32BE(rgba, outofs); //RGBA; endianness doesn't matter here as long as it's preserved
+    var brightness = 0;
+    if (pxofs !== null)
+    {
+//        var c = Color({r: pxbuf[pxofs + 0], g: pxbuf[pxofs + 1], b: pxbuf[pxofs + 2], a: pxbuf[pxofs + 3]}); //color >> 24, g: color >> 16));
+//        brightness = c.brightness();
+        brightness = Math.max(pxbuf[pxofs + 0], pxbuf[pxofs + 1], pxbuf[pxofs + 2]); //TODO: weighted?
+    }
+    this.outbuf[outofs] = brightness;
 }
 
 Model2D.prototype.bytesPerNode_RGBA = 4;
@@ -593,6 +615,8 @@ Model2D.prototype.renderNode_GRB = function(outofs, pxbuf, pxofs)
 //    this.outbuf.write(rgba_split.readUInt32BE(0), 3); //GRB
 }
 
+
+//render canvas onto node list:
 Model2D.prototype.render = function(frnext)
 {
     console.log("model '%s' render: dirty? %s %s, port? %s", this.name, this.dirty, (this.parent || {}).dirty, !!this.port); //, this.renderNode);
@@ -617,7 +641,7 @@ Model2D.prototype.render = function(frnext)
         console.log("finish '%s' render: outbuf len %s", this.name, (this.outbuf || []).length); //, this.outbuf);
     }
     this.dirty = false;
-    return this.fx? frnext + 50: false; //TODO: generate frnext based on running fx; no next frame scheduled
+//    return this.fx? frnext + 50: false; //TODO: generate frnext based on running fx; no next frame scheduled
 }
 
 
