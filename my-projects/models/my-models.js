@@ -34,18 +34,16 @@ function ACSSR(opts)
 inherits(ACSSR, Model2D);
 
 
-/*
 //show_group('fx', [395, +5]);
 var fx = new Model2D({name: 'fx', x: 0, y: 0, w: 5, h: 1, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
 fx.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 //show_group('snglobe', [300, +2], [418, +2]);
 var snglobe_fx = new Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
-snglobe_fx.vix2render = function() {} //TODO
+snglobe_fx.render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +1], macro: +0, bitmap: +1});
-gdoor_fx.vix2render = function() {} //TODO
-*/
+gdoor_fx.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 
 //archfans near bottom:
@@ -59,11 +57,12 @@ var arches = new Model2D(Rect2D, {name: 'arches', w: 8, h: 4, zinit: false, vix2
 arches.vix2render = function() {} //TODO
 var fans = new Model2D(Rect2D, {name: 'fans', w: 8, h: 4, zinit: false, vix2ch: [133, +32]});
 fans.vix2render = function() {} //TODO
+*/
 
 //show_group('tuneto', 205);
-var tuneto = new Model2D(Single0D, {name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
-tuneto.vix2render = function() {} //TODO
-*/
+var tune_to = new Model2D({name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
+tune_to.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
+
 var acssr1 = new ACSSR({name: 'ACSSR1', zinit: false});
 var acssr2 = new ACSSR({name: 'ACSSR2', zinit: false});
 var acssr3 = new ACSSR({name: 'ACSSR3', zinit: false});
@@ -73,8 +72,10 @@ var acssr6 = new ACSSR({name: 'ACSSR6', zinit: false});
 var acssr7 = new ACSSR({name: 'ACSSR7', zinit: false});
 
 
+/*
 //nat figures next row:
 //var nat = new Model2D({name: 'TODO: Nat-fig', x: 0, y: 9, w: 4 * 12, h: 24});
+*/
 
 /*
 //show_group('shep', [103, +4]);
@@ -83,10 +84,10 @@ shep.vix2render = function() {} //TODO
 //show_group('sheep', [107, +6]);
 var sheep = new Model2D({name: 'sheep', w: 6, zinit: false, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
 sheep.vix2render = function() {} //TODO
-//show_group('she_bank', [113, +4]);
-var sh_bank = new Model2D({name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
-sh_bank.vix2render = function() {} //TODO
 */
+//show_group('sh_bank', [113, +4]);
+var sh_bank = new Model2D({name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
+sh_bank.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 /*
 //show_group('nat', 46, [83, +8], 232);
@@ -102,14 +103,14 @@ var gift = new Model2D({name: 'gift', w: 6, zinit: false, vix2ch: [77, +5], gift
 gift.vix2render = function() {} //TODO
 var city = new Model2D({name: 'city', numch: 1, zinit: false, vix2ch: 82, city: 82});
 city.vix2render = function() {} //TODO
+*/
 
 //show_group('acc', [96, +5]);
 var acc = new Model2D({name: 'acc', w: 5, zinit: false, vix2ch: [96, +5], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
-acc.vix2render = function() {} //TODO
+acc.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 //show_group('acc_bank', [101, +2]);
 var acc_bank = new Model2D({name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
-acc_bank.vix2render = function() {} //TODO
-*/
+acc_bank.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 
 //gdoor, cols, tree, angel, gifts:
@@ -163,14 +164,21 @@ colM.vix2render = function() {} //TODO
 //show_group('colR', [197, +8]);
 var colR = new Model2D({name: 'colR', x: cols_LMRH.right - 1, y: cols_LMRH.top - 50, zinit: false, vix2ch: [199, +6]}); //, top: 199, bottom: 204});
 colR.vix2render = function() {} //TODO
+//var colH = new Model2D({name: 'colH', x: cols_LMRH.left, y: cols_LMRH.bottom, zinit: false}); //, top: 199, bottom: 204});
+//colH.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
+
 
 /*
 //show_group('mtree', [47, +24]);
 var mtree = new Model2D({name: 'mtree', w: 24, zinit: false, vix2ch: [47, +24]});
 mtree.vix2render = function() {} //TODO
+*/
+
 //show_group('mtree_bank', [71, +4]);
 var mtree_bank = new Model2D({name: 'mtree-bank', w: 4, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
-mtree_bank.vix2render = function() {} //TODO
+mtree_bank.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
+
+/*
 //show_group('tb', [75, +2]);
 var tb = new Model2D({name: 'tb', w: 2, zinit: false, vix2ch: [75, +2], ball1: 75, ball2: 76});
 tb.vix2render = function() {} //TODO
@@ -257,7 +265,7 @@ const vix2 = require('my-plugins/streamers/vix2json');
 const files =
 [
     'my-projects/playlists/!(*RGB*).pro',
-    'my-projects/songs/xmas/Amaz*/*Amaz*.vix',
+//    'my-projects/songs/xmas/Amaz*/*Amaz*.vix',
 ];
 
 var vix2prof = new require('my-plugins/streamers/vix2json').Profile(files[0]);
@@ -276,7 +284,7 @@ var GroupNames =
     colL: '^(HC )?Column L',
     colM: '^(HC )?Column M',
     colR: '^(HC )?Column R',
-    she_bank: '^(She|Cane).* Bank ',
+    sh_bank: '^(She|Cane).* Bank ',
     shep: '^Shep ',
     sheep: '^Sheep ',
     mtree_bank: '^Mtree .* Bank[AB] ',
@@ -401,14 +409,21 @@ chmap.forEach(function(chgrp, grpname)
 //FTDI-G //16 Floods + 1188 Mtree + 640 Angel + 384 Star (reserved) ~= 2228 nodes
 //FTDI-B //1536 Shep + 256 Gift (reserved) ~= 1792 nodes
 //FTDI-W //7 * 56 AC (5 * 56 unused) + 768 gdoor + 3 * 384 (AB-future) ~= 2312 nodes
+debugger;
 var assts =
 {
 //    'FTDI-Y': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
 //    'FTDI-G': [mtree, gift, angel, cross], //city, tb
     'FTDI-B': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
 //    'FTDI-W': [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
-    null: [fx, snglobe_fx, gdoor_fx, tune_to, she_bank, acc, ac_bank, colL, colM, colR, colH, mtree_bank, ic_all],
-}.forEach(function(port, models) {  models.forEach(function(model) { model.port = (port !== null)? ports[port]: null; }); });
+    null: [fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all],
+}.forEach(function(models, port)
+{
+    models.forEach(function(model)
+    {
+        model.port = (port !== null)? ports[port]: null;
+    });
+});
 var unassigned = '';
 models.all.forEach(function(model) { if (typeof model.port == 'undefined') unassigned += model.name || model.device; });
 if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: " + unassigned.substr(2);

@@ -16,14 +16,14 @@ function add_method(thing, name, value)
 //    console.log("isproto? %s", thing.isPrototypeOf(classname(thing)), thing.prototype? "has proto": "no proto");
 }
 
-add_method(Object.prototype, 'forEach', function(cb)
+add_method(Object.prototype, 'forEach', function forEach(cb)
 {
     for (var inx in this)
         if (inx !== 'length')
             cb(this[inx], inx, this);
 });
 
-add_method(Object.prototype, 'every', function(cb)
+add_method(Object.prototype, 'every', function every(cb)
 {
     for (var inx in this)
         if (inx !== 'length')
@@ -31,7 +31,7 @@ add_method(Object.prototype, 'every', function(cb)
     return true;
 });
 
-add_method(Object.prototype, 'some', function(cb)
+add_method(Object.prototype, 'some', function some(cb)
 {
     for (var inx in this)
         if (inx !== 'length')

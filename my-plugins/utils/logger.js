@@ -79,7 +79,7 @@ module.exports = function(opts)
     msg = msg.replace(ColorCodes, function(str) { svcolor.push(str); return ''; }); //strip color codes
     if (!svcolor.length) svcolor.push('');
     console.log(svcolor[0] + msg + svcolor[svcolor.length - 1]); //reapply color to end of line
-    debugger;
+//debugger;
     logfile.write(msg + '\n'); //, 'utf8', function(err) { if (err) console.log("loggr write: err? " + err); }); //strip color codes in log file
 //    console.log("logger", logfile);
 }
