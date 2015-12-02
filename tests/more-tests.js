@@ -83,14 +83,27 @@ var rows =
 var outs = stmon.rdwr('hard-wired in-out');
 //NO outs.write("["); //wrap in one large json array
 //outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + '\n'); }; //,\n
-process.nextTick(function() {
+//if (false)
+process.nextTick(function() //NOTE: this will clog up memory
+{
     rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
     logger("%d hardwired frames written".cyan, rows.length);
 //outs.write = outs.svwrite;
 //outs.write(JSON.stringify("eof")); //NO + "]");
     outs.end(); //eof
 });
+//else send_next(0); //throttle writes to match destination
 return outs; //fluent (pipes)
+
+//function send_next(inx)
+//{
+//    if (inx < rows.length)
+//    {
+//        outs.write(JSON.stringify(rows[inx]) + '\n');
+//        setTimeout(function() { send_next(inx + 1); }, 50);
+//    }
+//    else outs.end(); //eof
+//}
 }
 //hardwired().pipe(process.stdout);
 
@@ -101,9 +114,9 @@ function playback()
 const infile = (process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
 //stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
 
-    var myfx = require('my-projects/effects/myfx').myfx; //CAUTION: instance, not ctor
     var data = hardwired();
 //    var data = vix2();
+    var myfx = require('my-projects/effects/myfx').myfx; //CAUTION: instance, not ctor
 //    myfx.FxPlayback(data);
     data.pipe(myfx);
 //NO    data.end(); //close pipe after data all read??

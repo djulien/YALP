@@ -208,6 +208,29 @@ function Vixen2Sequence(opts)
 module.exports.Sequence = Vixen2Sequence;
 
 
+if (false)
+process.nextTick(function() //NOTE: this will clog up memory
+{
+    rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
+    logger("%d hardwired frames written".cyan, rows.length);
+//outs.write = outs.svwrite;
+//outs.write(JSON.stringify("eof")); //NO + "]");
+    outs.end(); //eof
+});
+else send_next(0); //throttle writes to match destination
+return outs; //fluent (pipes)
+
+function send_next(inx)
+{
+    if (inx < rows.length)
+    {
+        outs.write(JSON.stringify(rows[inx]) + '\n');
+        setTimeout(function() { send_next(inx + 1); }, 50);
+    }
+    else outs.end(); //eof
+}
+
+
 //Vixen2 profile:
 //channel info is defined in profile (typically)
 function Vixen2Profile(opts)

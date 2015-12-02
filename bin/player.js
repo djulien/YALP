@@ -3,6 +3,8 @@
 
 'use strict';
 
+//TODO: http://stackoverflow.com/questions/22235019/node-passthrough-stream-how-to-properly-address-piped-objects
+
 require('colors');
 var fs = require('fs');
 var lame = require('lame');
