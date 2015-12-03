@@ -3,6 +3,7 @@
 
 require('colors');
 const fs = require('fs');
+const inherits = require('inherits');
 const streamBuffer = require('stream-buffers'); //https://github.com/samcday/node-stream-buffer
 const logger = require('my-plugins/utils/logger')();
 
@@ -23,7 +24,7 @@ function PortBase(args)
     this.models = [];
     this.assign = function(model)
     {
-        logger("assigned model '%s' to port '%s'", model.name, this.name || this.device);
+        logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
         this.models.push(model);
 //no; already done        model.port = this;
     }
@@ -40,12 +41,12 @@ function PortBase(args)
             this.outbuf.getContents(); //clear current contents
         },
     });
-    if (!PortBase.all) PortBase.all = [];
     PortBase.all.push(this); //allows easier enum over all instances
 }
 //inherits(PortBase, streamBuffers.WritableStreamBuffer);
 //module.exports.ChannelPools = ChannelPools;
-module.exports.Ports = PortBase;
+module.exports /*.Ports*/ = PortBase;
+PortBase.all = [];
 
 
 //clear current port buffer:
@@ -149,34 +150,36 @@ function config(baud, bits, fps)
 }
 
 
-//simplified wrapper (sets param defaults):
-function SerialPort(path, options, openImmediately, callback)
+//simplified wrapper (sets default params):
+function MySerialPort(path, options, openImmediately, callback)
 {
-    if (!(this instanceof SerialPort)) return makenew(SerialPort, arguments);
+    if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
 //    serial.SerialPort.apply(this, arguments);
     serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), openImmediately || false, callback); //false => don't open immediately (default = true)
-    PortBase.call(this, arguments); //multiple inheritance
+    PortBase.apply(this, arguments); //multiple inheritance
     this.device = this.path;
-//    if (!SerialPort.all) SerialPort.all = [];
-//    SerialPort.all.push(this); //allows easier enum over all instances
+//    MySerialPort.all.push(this); //allows easier enum over all instances
 }
-inherits(SerialPort, serial.SerialPort);
-Object.assign(SerialPort.prototype, PortBase.prototype);
-module.exports.SerialPort = SerialPort;
+inherits(MySerialPort, serial.SerialPort);
+Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
+module.exports.SerialPort = MySerialPort;
+//MySerialPort.all = [];
 
 
 function OtherPort(args)
 {
     if (!(this instanceof OtherPort)) return makenew(OtherPort, arguments);
-    if (!OtherPort.all) OtherPort.all = [];
-    PortBase.call(this, arguments); //multiple inheritance
+    PortBase.apply(this, arguments);
+//TODO
+//    OtherPort.all.push(this); //allows easier enum over all instances
 }
-inherits(OtherPort, PortBase.prototype);
+inherits(OtherPort, PortBase);
 //module.exports.OtherPort = OtherBase;
+//OtherPort.all = [];
 
 
 //attach a name to port for easier recognition:
-//this is a separate wrapper function to avoid interfering with ctor param list
+//using a separate wrapper function to avoid interfering with ctor param list
 function named(obj, name)
 {
     obj.name = obj.name || name || '(unnamed)'; //makes debug easier
@@ -184,18 +187,19 @@ function named(obj, name)
 }
 
 
-//first define hardware ports:
-var yport = named(new SerialPort('/dev/ttyUSB0'), 'FTDI-Y');
-var gport = named(new SerialPort('/dev/ttyUSB1'), 'FTDI-G');
-var bport = named(new SerialPort('/dev/ttyUSB2'), 'FTDI-B');
-var wport = named(new SerialPort('/dev/ttyUSB3'), 'FTDI-W');
+//first define my hardware ports:
+var yport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-Y');
+var gport = named(new MySerialPort('/dev/ttyUSB1'), 'FTDI-G');
+var bport = named(new MySerialPort('/dev/ttyUSB2'), 'FTDI-B');
+var wport = named(new MySerialPort('/dev/ttyUSB3'), 'FTDI-W');
+var noport = named(new PortBase(), 'none');
 
 //then assign protocol handlers:
-SerialPort.all.forEach(function(port)
+PortBase.all.forEach(function(port)
 {
-//    if (!chpool.opts.device) return;
+    if (!port.device) return;
 //    chpool.port = new serial.SerialPort(chpool.opts.device, config(242500, '8N1', FPS), false); //false => don't open immediately (default = true)
-    RenXt.AddProtocol(port); //protocol handler
+    RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
 });
 
 

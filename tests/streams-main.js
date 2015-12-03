@@ -61,7 +61,7 @@ liner._flush = function (done)
 function Upper(options) //factory
 {
     if (!(this instanceof Upper)) return new Upper(options);
-    xform.call(this, options);
+    xform.apply(this, options);
 }
 util.inherits(Upper, xform);
 Upper.prototype._transform = function (chunk, enc, cb)

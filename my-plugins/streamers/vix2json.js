@@ -41,6 +41,17 @@ const rdwr = require('my-plugins/streamers/stmon').rdwr;
 /// Streaming:
 //
 
+function Vixen2Stream(profile, seqfile, cb)
+{
+    var passthru = rdwr('vix2 in-out', cb);
+    process.nextTick(function() { Vixen2json(passthru, profile, seqfile); }); //kludge: give caller time to connect pipe before filling it
+    return passthru; //fluent (pipes)
+}
+module.exports.Vixen2Stream = Vixen2Stream;
+
+
+//write Vixen2 profile + sequence to stream:
+//NOTE: this will clog stream if reader does not consume at full speed
 function Vixen2json(outstream, profile, seqfile)
 {
     var vix2prof = new Vixen2Profile(profile);
@@ -58,15 +69,6 @@ function Vixen2json(outstream, profile, seqfile)
     return outstream; //fluent
 }
 module.exports.Vixen2json = Vixen2json;
-
-
-function Vixen2Stream(profile, seqfile, cb)
-{
-    var passthru = rdwr('vix2 in-out', cb);
-    process.nextTick(function() { Vixen2json(passthru, profile, seqfile); }); //kludge: give caller time to connect pipe before filling it
-    return passthru; //fluent (pipes)
-}
-module.exports.Vixen2Stream = Vixen2Stream;
 
 
 //TODO: stream a Vixen2 sequence?
@@ -176,7 +178,7 @@ function Vixen2Sequence(opts)
             var frbuf = this.chvals(frinx), nonz = bufdiff(frbuf, null);
             var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'rawbuf'}; //, buf: frbuf};
             if (this.opts.dedup === false) { outfr.buf = frbuf; outfr.buflen = frbuf.length; }
-            var ofs = m_prior? bufdiff(frbuf, m_prior): 1; //abs(ofs) - 1 == ofs first diff
+            var ofs = frinx? bufdiff(frbuf, m_prior): 1; //abs(ofs) - 1 == ofs first diff
             if (!ofs) outfr.dup = true; //flag dups even if dedup is not wanted
             else
             {
@@ -208,10 +210,12 @@ function Vixen2Sequence(opts)
 module.exports.Sequence = Vixen2Sequence;
 
 
+/*
 if (false)
 process.nextTick(function() //NOTE: this will clog up memory
 {
-    rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
+//    rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
+    for (var inx = 0; inx < rows.length; ++inx) { outs.write(JSON.stringify(rows[inx]) + '\n'); });
     logger("%d hardwired frames written".cyan, rows.length);
 //outs.write = outs.svwrite;
 //outs.write(JSON.stringify("eof")); //NO + "]");
@@ -222,13 +226,16 @@ return outs; //fluent (pipes)
 
 function send_next(inx)
 {
+    if (!inx) send_next.elapsed = new Elapsed();
     if (inx < rows.length)
     {
         outs.write(JSON.stringify(rows[inx]) + '\n');
-        setTimeout(function() { send_next(inx + 1); }, 50);
+        setTimeout(function() { send_next(inx + 1); }, 50 * (inx + 1) - send_next.elapsed.now); //cumulative time to reduce drift
     }
+    logger("%d hardwired frames written".cyan, rows.length);
     else outs.end(); //eof
 }
+*/
 
 
 //Vixen2 profile:
@@ -274,7 +281,7 @@ function get_channels(m_top_Channels, m_numch, chk)
     if ((m_top_Channels || {}).children) //get channels before chvals so colors can be applied (used for mono -> RGB mapping)
     {
         if (m_top_Channels.children.length != m_numch) logger("#ch mismatch: %d vs. %d".red, m_top_Channels.children.length, m_numch);
-        else logger(10, "#ch matches okay %d".green, m_top_Channels.children.length);
+        else logger(10, "#ch matches okay %d in '%s'".green, m_top_Channels.children.length, shortname(this.filename));
         var wrstream = (this.opts || {}).dump_ch? fs.createWriteStream(path.join(this.vix2filename, '..', shortname(this.vix2filename) + '-channels.txt'), {flags: 'w', }): {write: function() {}, end: function() {}};
         wrstream.write(sprintf("#%d channels:\n", m_top_Channels.children.length));
         m_top_Channels.children.forEach(function(child, inx) //NOTE: ignore output order

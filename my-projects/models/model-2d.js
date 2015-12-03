@@ -42,7 +42,7 @@ function Model2D(opts)
 //    this.aaa = 'inst#' + Model2D.all.length; //make debug easier
     this.name = this.opts.id || this.opts.name || '(inst#' + Model2D.all.length + ')';
 //    if (!Model2D.all) Model2D.all = {};
-    this.BecomeChild(this.opts.parent || Model2D.all.entire); //NOTE: need to do this before bounds checking below
+    this.BecomeChild(this.opts.parent || Model2D.entire); //NOTE: need to do this before bounds checking below
     /*else*/ Model2D.all[this.name] = this; //.push(this); //allow iteration thru all instances; /*don't*/ include first (root) instance
 
 //set up size + position first (no re-flow):
@@ -847,7 +847,7 @@ Model2D.all.forEach(function(model, inx)
 
 
 debugger;
-var entire = new Model2D('entire'); //define super-model (first) to include all other models
+Model2D.entire = new Model2D('entire'); //define super-model (first) to include all other models
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

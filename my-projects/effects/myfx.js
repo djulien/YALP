@@ -17,6 +17,11 @@ const Writable = stream.Writable || require('readable-stream').Writable; //http:
 
 const CatchMissing = true; //true => throw exc, false => log message, null => ignore
 
+const Model2D = require('my-projects/models/model-2d');
+const ports = require('my-projects/models/my-ports').all;
+const models = require('my-projects/models/my-models').models;
+const vix2chlist = require('my-projects/models/my-models').vix2chlist;
+
 
 debugger;
 //module.exports = MyFx;
@@ -42,7 +47,7 @@ function FxPlayback(opts)
 //    this.on('end', function() { console.log("%d json objects read", count); });
     stmon(this, "FxStream");
     this.stats = {opcodes: {}, withfx: 0, without: 0, unkn: 0, errors: 0, delay_buckets: {}, render_count: 0, render_delay: 0, render_premature: 0};
-    models.ports.forEach(function(port) { port.reset(); }); //clear port I/O buffers
+    ports.forEach(function(port) { port.dirty = false; }); //reset(); }); //clear port I/O buffers
     this.on('data', function(data) //NOTE: evt is explicitly generated to resemble readable stream api even tho this is a writable stream
     {
         var has_time = (typeof data.time != 'undefined'); //frames with timestamp are synced
@@ -55,7 +60,7 @@ function FxPlayback(opts)
         if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
         else switch (CatchMissing) //true => throw exc, false => log message, null => ignore
         {
-            case true: ++this.stats.unkn; throw new Error("unknown effect: '" + %s'", data.fx || '(none)'); break;
+            case true: ++this.stats.unkn; throw new Error("unknown effect: '%s'", data.fx || '(none)'); break;
             case false: ++this.stats.unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); break;
             case null: ++this.stats.unkn; break;
         }
@@ -82,6 +87,7 @@ module.exports /*.FxPlayback*/ = FxPlayback;
 FxPlayback.prototype._write = function writer(chunk, encoding, done)
 {
 debugger;
+    console.log("got chunk", chunk);
     var buf = JSON.parse(chunk, bufferJSON.reviver);
 //    console.log('write: ', chunk.length, encoding, typeof chunk, typeof buf, chunk.toString()); //(encoding));
     this.emit('data', buf); //kludge: force on() to see data (makes interface a little more consistent)
@@ -193,9 +199,6 @@ function example_consumer()
 //define top-level namespace for effects
 //function MyFx()
 
-const models = require('my-projects/models/my-models').models;
-const chlist = require('my-projects/models/my-models').chlist;
-
 
 //project incoming channel values onto model canvas and mark dirty:
 Model2D.prototype.vix2render = function(vix2buf)
@@ -209,7 +212,7 @@ Model2D.prototype.vix2render = function(vix2buf)
 //pseudo-namespace + state:
 FxPlayback.prototype.MyFx =
 {
-    chbuf: new Buffer(4 * chlist.length), //"channel" (control value) list; used for Vixen2 channels
+    chbuf: new Buffer(4 * vix2chlist.length), //"channel" (control value) list; used for Vixen2 channels
     ismine: function ismine(fxname)
     {
         return fxname && (fxname in this) && (typeof this[fxname] == 'function'); //.prototype;

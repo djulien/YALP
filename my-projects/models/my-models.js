@@ -42,7 +42,7 @@ fx.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the va
 var snglobe_fx = new Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
 snglobe_fx.render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
-var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +1], macro: +0, bitmap: +1});
+var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +2], macro: +0, bitmap: +1});
 gdoor_fx.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 
@@ -63,6 +63,7 @@ fans.vix2render = function() {} //TODO
 var tune_to = new Model2D({name: 'tune-to', numch: 1, zinit: false, vix2ch: 205, tuneto: 205});
 tune_to.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
+/*
 var acssr1 = new ACSSR({name: 'ACSSR1', zinit: false});
 var acssr2 = new ACSSR({name: 'ACSSR2', zinit: false});
 var acssr3 = new ACSSR({name: 'ACSSR3', zinit: false});
@@ -70,6 +71,7 @@ var acssr4 = new ACSSR({name: 'ACSSR4', zinit: false});
 var acssr5 = new ACSSR({name: 'ACSSR5', zinit: false});
 var acssr6 = new ACSSR({name: 'ACSSR6', zinit: false});
 var acssr7 = new ACSSR({name: 'ACSSR7', zinit: false});
+*/
 
 
 /*
@@ -114,11 +116,12 @@ acc_bank.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save 
 
 
 //gdoor, cols, tree, angel, gifts:
-
+/*
 //show_group('gdoor', [298, +2], [416, +2]);
 var gdoorL = new Model2D({name: 'gdoorL', x: 0, y: 33, w: 24, h: 16, zinit: false, order: Model2D.prototype.B2T_R2L, output: 'GRB'});
 var gdoorR = new Model2D({name: 'gdoorR', y: 33, zinit: false, order: Model2D.prototype.B2T_L2R, output: 'GRB'});
 var gdoor_all = new Model2D({name: 'gdoor-all', x: gdoorL.left, y: 33, w: gdoorR.right - gdoorL.left, zinit: false});
+*/
 
 //custom column layout:
 //
@@ -410,70 +413,62 @@ chmap.forEach(function(chgrp, grpname)
 //FTDI-B //1536 Shep + 256 Gift (reserved) ~= 1792 nodes
 //FTDI-W //7 * 56 AC (5 * 56 unused) + 768 gdoor + 3 * 384 (AB-future) ~= 2312 nodes
 debugger;
+var ports = require('my-projects/models/my-ports').all;
+ports.forEach(function(port, inx) { if (!inx) ports.byname = {}; ports.byname[port.name || port.device || null] = port; });
 var assts =
 {
 //    'FTDI-Y': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
 //    'FTDI-G': [mtree, gift, angel, cross], //city, tb
     'FTDI-B': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
 //    'FTDI-W': [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
-    null: [fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all],
-}.forEach(function(models, port)
+    'none': [fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
+}.forEach(function(models, portname)
 {
-    models.forEach(function(model)
-    {
-        model.port = (port !== null)? ports[port]: null;
-    });
+    if (/*(portname !== null) &&*/ !ports.byname[portname]) throw "Unknown port: '" + portname + "'";
+    models.forEach(function(model) { model.port = ports.byname[portname]; }); //(portname !== null)? ports.byname[portname]: null; });
 });
 var unassigned = '';
-models.all.forEach(function(model) { if (typeof model.port == 'undefined') unassigned += model.name || model.device; });
+Model2D.all.forEach(function(model) { if (typeof model.port == 'undefined') unassigned += ', ' + model.name || model.device; });
 if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: " + unassigned.substr(2);
 
 
-//analyze mapped Vixen channels:
-var mapped_vix2ch = {}; //vix2 channel range
-function vix2map(model)
+//port usage summary:
+//var ports = module.exports.ports = {};
+ports.forEach(function(port)
 {
-    if (typeof model.vix2ch == 'undefined') return;
-    if (!Array.isArray(model.vix2ch)) model.vix2ch = [model.vix2ch, 1]; //[0] = startch, [1] = count (optional)
-    if (model.vix2alt)
-    {
-        if (!Array.isArray(model.vix2alt)) model.vix2alt = [model.vix2alt, 1];
-        if (model.vix2alt[1] != model.vix2ch[1]) throw new Error(sprintf("model '%s' alt ch mismatch: %j vs. %j".red, model.name, model.vix2alt, model.vix2ch));
-    }
-    for (var ch = model.vix2ch[0]; ch < model.vix2ch[0] + model.vix2ch[1]; ++ch)
-        if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
-}
-
-//analyze port usage:
-var ports = module.exports.ports = {};
-function portmap(model)
-{
-    if (!model.port) return;
+//    if (!model.port) return;
 //    if (isNaN(++model.port.num_models)) { model.port.num_models = 1; model.port.num_nodes = 0; }
-    if (!model.port.num_nodes) model.port.num_nodes = 0;
-    model.port.num_nodes += model.nodelist.length;
-    ports[port.name || port.device] = port;
-}
+    /*if (!port.num_nodes)*/ port.num_nodes = 0;
+    port.models.forEach(function(model) { port.num_nodes += (model.nodelist || []).length; });
+    logger("port '%s': #models %s, #nodes %s".blue, port.name || port.device, port.models.length, port.num_nodes);
+});
 
 
 //model summary:
 //console.log("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
+var mapped_vix2ch = {}; //vix2 channel range
 Model2D.all.forEach(function(model)
 {
 //    if (!(model.name || '').match(/-all$/i)) return;
     logger("model '%s': %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
     if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
-    vix2map(model);
+//    vix2map(model);
+    if (typeof model.opts.vix2ch == 'undefined') return; //{ console.log("no vix2 ch ", model.name); return; }
+    if (!Array.isArray(model.opts.vix2ch)) model.opts.vix2ch = [model.opts.vix2ch, 1]; //[0] = startch, [1] = count (optional)
+    if (model.opts.vix2alt)
+    {
+        if (!Array.isArray(model.opts.vix2alt)) model.opts.vix2alt = [model.opts.vix2alt, 1];
+        if (model.opts.vix2alt[1] != model.opts.vix2ch[1]) throw new Error(sprintf("model '%s' alt ch mismatch: %j vs. %j".red, model.name, model.opts.vix2alt, model.opts.vix2ch));
+        for (var ch = model.opts.vix2alt[0]; ch < model.opts.vix2alt[0] + model.opts.vix2alt[1]; ++ch)
+            if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
+    }
+    for (var ch = model.opts.vix2ch[0]; ch < model.opts.vix2ch[0] + model.opts.vix2ch[1]; ++ch)
+        if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
 //    portmap(model);
 });
-var chlist = module.exports.chlist = Object.keys(mapped_ch).sort();
-logger("Vixen2 channels mapped: %s/%s (%d%%), first %s, last %s".cyan, chlist.length, vix2prof.channels.length, Math.round(100 * chlist.length / vix2prof.channels.length), chlist.length? chlist[0]: '-', chlist.length? chlist[chlist.length - 1]: '-');
-
-//port summary:
-ports.forEach(function(port)
-{
-    logger("port '%s': #models %s, #nodes %s".blue, port.name || port.device, port.num_models, port.num_nodes);
-});
+console.log("mapped vix2 ch", JSON.stringify(mapped_vix2ch));
+var vix2chlist = module.exports.vix2chlist = Object.keys(mapped_vix2ch).sort(function(lhs, rhs) { return 1 * lhs - 1 * rhs; });
+logger("Vixen2 channels mapped: %s/%s (%d%%), %s..%s".cyan, vix2chlist.length, vix2prof.channels.length, Math.round(100 * vix2chlist.length / vix2prof.channels.length), vix2chlist.length? vix2chlist[0]: '-', vix2chlist.length? vix2chlist[vix2chlist.length - 1]: '-');
 
 
 /*TODO: merge above?

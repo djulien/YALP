@@ -72,7 +72,7 @@
 		<Unit filename="my-plugins/hw/console.js" />
 		<Unit filename="my-plugins/hw/dslop.js" />
 		<Unit filename="my-plugins/hw/pic32.cpp-ex" />
-		<Unit filename="my-plugins/hw/serial.js" />
+		<Unit filename="my-plugins/hw/serial-bk.js" />
 		<Unit filename="my-plugins/media/my-player.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/expand-macros-bk.js" />
@@ -212,6 +212,7 @@
 		<Unit filename="tests/djtest.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
+		<Unit filename="tests/funcgen.js" />
 		<Unit filename="tests/index.js" />
 		<Unit filename="tests/inh-test.js" />
 		<Unit filename="tests/ipc-cmd.js" />

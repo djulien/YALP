@@ -227,6 +227,7 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 
 module.exports.AddProtocol = function(port)
 {
+//    if (!port) return;
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
     var svport = {render: port.render, verify: port.verify, assign: port.assign};
     port.render = function(frtime, force) //encode raw nodes

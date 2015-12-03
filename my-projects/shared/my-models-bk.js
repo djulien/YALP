@@ -509,7 +509,7 @@ function SerialPort(path, options, openImmediately, callback)
     if (!(this instanceof SerialPort)) return makenew(SerialPort, arguments);
 //    serial.SerialPort.apply(this, arguments);
     serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), openImmediately || false, callback); //false => don't open immediately (default = true)
-    PortBase.call(this, arguments); //faked multiple inheritance
+    PortBase.apply(this, arguments); //faked multiple inheritance
     this.device = this.path;
     if (!SerialPort.all) SerialPort.all = [];
     SerialPort.all.push(this); //allows easier enum over all instances
@@ -521,7 +521,7 @@ function OtherPort(args)
 {
     if (!(this instanceof OtherPort)) return makenew(OtherPort, arguments);
     if (!OtherPort.all) OtherPort.all = [];
-    PortBase.call(this, arguments); //faked multiple inheritance
+    PortBase.apply(this, arguments); //faked multiple inheritance
     OtherPort.all.push(this); //allows easier enum over all instances
 }
 
