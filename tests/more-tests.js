@@ -52,9 +52,10 @@ var outs = stmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
 //NO process.exit(0); //DO NOT DO THIS; async stream not written yet!
 
 
+const outfile = "zout.json";
 function vix2(seq, cb)
 {
-const outfile = "zout.json";
+//const outfile = "zout.json";
 const profile = 'my-projects/playlists/!(*RGB*).pro';
 const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
 if (typeof seq == 'function') { cb = seq; seq = null; }
@@ -68,7 +69,7 @@ return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, seq || seq
 
 function hardwired()
 {
-const outfile = "zout.json";
+//const outfile = "zout.json";
 var rows =
 [
     {comment: "whatever"},

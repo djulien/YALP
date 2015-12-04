@@ -176,7 +176,7 @@ function Vixen2Sequence(opts)
         for (var frinx = 0; frinx < m_numfr; ++frinx)
         {
             var frbuf = this.chvals(frinx), nonz = bufdiff(frbuf, null);
-            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'rawbuf'}; //, buf: frbuf};
+            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'vix2raw'}; //, buf: frbuf};
             if (this.opts.dedup === false) { outfr.buf = frbuf; outfr.buflen = frbuf.length; }
             var ofs = frinx? bufdiff(frbuf, m_prior): 1; //abs(ofs) - 1 == ofs first diff
             if (!ofs) outfr.dup = true; //flag dups even if dedup is not wanted

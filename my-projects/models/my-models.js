@@ -417,10 +417,10 @@ var ports = require('my-projects/models/my-ports').all;
 ports.forEach(function(port, inx) { if (!inx) ports.byname = {}; ports.byname[port.name || port.device || null] = port; });
 var assts =
 {
-//    'FTDI-Y': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, sheep, nat, donkey
-//    'FTDI-G': [mtree, gift, angel, cross], //city, tb
-    'FTDI-B': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
-//    'FTDI-W': [gece, floods12, floods34, shep1, shep2, shep3, shep4, star],
+//    'FTDI-G': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, cross, sheep, nat, donkey
+//    'FTDI-B': [angel, mtree, gift, star], //city, tb
+    'FTDI-W': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
+//    'FTDI-Y': [gece, floods12, floods34, shep1, shep2, shep3, shep4],
     'none': [fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
 }.forEach(function(models, portname)
 {
@@ -466,7 +466,7 @@ Model2D.all.forEach(function(model)
         if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
 //    portmap(model);
 });
-console.log("mapped vix2 ch", JSON.stringify(mapped_vix2ch));
+console.log("mapped vix2 ch", JSON.stringify(mapped_vix2ch)); //TODO: consolidate
 var vix2chlist = module.exports.vix2chlist = Object.keys(mapped_vix2ch).sort(function(lhs, rhs) { return 1 * lhs - 1 * rhs; });
 logger("Vixen2 channels mapped: %s/%s (%d%%), %s..%s".cyan, vix2chlist.length, vix2prof.channels.length, Math.round(100 * vix2chlist.length / vix2prof.channels.length), vix2chlist.length? vix2chlist[0]: '-', vix2chlist.length? vix2chlist[vix2chlist.length - 1]: '-');
 
