@@ -74,6 +74,7 @@
 		<Unit filename="my-plugins/hw/pic32.cpp-ex" />
 		<Unit filename="my-plugins/hw/serial-bk.js" />
 		<Unit filename="my-plugins/media/my-player.js" />
+		<Unit filename="my-plugins/my-extensions/array-ends.js" />
 		<Unit filename="my-plugins/my-extensions/enforce-strict.js" />
 		<Unit filename="my-plugins/my-extensions/expand-macros-bk.js" />
 		<Unit filename="my-plugins/my-extensions/expand-suffix-bk.js" />
@@ -101,6 +102,7 @@
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/routes/use/99-error.js" />
 		<Unit filename="my-plugins/streamers/YalpStream.js" />
+		<Unit filename="my-plugins/streamers/fxstream.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
@@ -230,6 +232,7 @@
 		<Unit filename="tests/mail.js" />
 		<Unit filename="tests/more-tests.js" />
 		<Unit filename="tests/multi-class.js" />
+		<Unit filename="tests/namespace.js" />
 		<Unit filename="tests/pi-led.js" />
 		<Unit filename="tests/playback-test.js" />
 		<Unit filename="tests/playback.js" />

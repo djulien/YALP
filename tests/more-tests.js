@@ -16,6 +16,7 @@ const stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
 //var Writable = stream.Writable || require('readable-stream').Writable; //http://codewinds.com/blog/2013-08-19-nodejs-writable-streams.html
 const PassThrough = stream.PassThrough || require('readable-stream').PassThrough;
+const split = require('split');
 const zlib = require('zlib');
 
 
@@ -120,14 +121,15 @@ function send_next(inx)
 debugger;
 function playback()
 {
-const infile = (process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
+const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
 
 //NO; clogs up   var data = hardwired();
 //NO    var data = vix2();
     var data = stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
-    var myfx = require('my-projects/effects/myfx').myfx; //CAUTION: instance, not ctor
+    const FxPlayback = require('my-plugins/streamers/fxstream');
+    var myfx = new FxPlayback();
 //    myfx.FxPlayback(data);
-    data.pipe(myfx);
+    data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
 //NO    data.end(); //close pipe after data all read??
 }
 playback();

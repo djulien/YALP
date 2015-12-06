@@ -4,6 +4,7 @@
 require('colors');
 const fs = require('fs');
 const inherits = require('inherits');
+const makenew = require('my-plugins/utils/makenew');
 const streamBuffer = require('stream-buffers'); //https://github.com/samcday/node-stream-buffer
 const logger = require('my-plugins/utils/logger')();
 
@@ -18,16 +19,10 @@ const logger = require('my-plugins/utils/logger')();
 //also defines an I/O buffer (stream)
 function PortBase(args)
 {
-//    if (!(this instanceof PortBase)) return makenew(PortBase, arguments);
+//no    if (!(this instanceof PortBase)) return makenew(PortBase, arguments);
 //    streamBuffers.WritableStreamBuffer.apply(this, args);
 
     this.models = [];
-    this.assign = function(model)
-    {
-        logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
-        this.models.push(model);
-//no; already done        model.port = this;
-    }
 //    this.dirty = false;
 //    var m_outbufs = [new Buffer(4096), new Buffer(4096)], m_ff = 0; //double buffered for dedup
     this.outbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
@@ -36,9 +31,9 @@ function PortBase(args)
         get() { return this.outbuf.size(); }, //this will automatically be reset after outbuf.getContents()
         set(newval)
         {
-            if (newval) throw "PortBase: dirty flag can only be set indirectly by writing data";
+            if (newval && !this.dirty) throw "PortBase: dirty flag can only be set indirectly by writing data";
 //            this.reset();
-            this.outbuf.getContents(); //clear current contents
+            if (!newval) this.outbuf.getContents(); //clear current contents
         },
     });
     PortBase.all.push(this); //allows easier enum over all instances
@@ -54,6 +49,14 @@ PortBase.all = [];
 //{
 //    this.outbuf.getContents(); //clear current contents
 //}
+
+
+PortBase.prototype.assign = function(model)
+{
+    logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
+    this.models.push(model);
+//no; already done        model.port = this;
+}
 
 
 //dump current buffer contents (for debug):

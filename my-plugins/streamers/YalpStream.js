@@ -22,6 +22,7 @@ var bufdiff = require('my-plugins/utils/buf-diff');
 var MruArray = require('my-plugins/utils/mru-array');
 /*var sprintf =*/ require('sprintf.js'); //.sprintf; //, vsprintf = require('sprintf-js').vprintf;
 var clock = require('my-plugins/utils/clock');
+require('my-plugins/my-extensions/array-ends');
 var Elapsed = require('my-plugins/utils/elapsed');
 var makenew = require('my-plugins/utils/makenew');
 require('my-plugins/my-extensions/object-enum');
@@ -44,14 +45,6 @@ function abspath(relpath) { return relpath; } //doesn't seem to be needed; //fs.
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // older stuff (to convert):
-
-//easier access to last element in array:
-if (!Array.prototype.last) Object.defineProperty(Array.prototype, 'last',
-{
-    get() { return this.length? this[this.length - 1]: null; },
-    enumerable: true,
-});
-
 
 //read-only collection:
 function ReadOnlyArray()

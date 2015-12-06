@@ -229,13 +229,22 @@ module.exports.AddProtocol = function(port)
 {
 //    if (!port) return;
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
-    var svport = {render: port.render, verify: port.verify, assign: port.assign};
-    port.render = function(frtime, force) //encode raw nodes
+    var svmethods = {assign: port.assign, render: port.render, verify: port.verify};
+    /*if (!this.encbuf)*/ port.encbuf = new RenXtBuffer(4000); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
+    port.assign = function(model) //assign controller address
     {
-        if (!this.encbuf) this.encbuf = new RenXtBuffer(4000); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
+        if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes";
+        svmethods.assign.call(port, model);
+        model.adrs = port.models.length; //assign unique adrs for each prop on this port
+        model.setRenderType('raw'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
+//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
+//        model.cfg_sent = false; //force config info to be sent first time
+    }.bind(port);
+    port.render = function(frtime, force) //encode/compress raw nodes
+    {
 debugger;
         (this.models || []).forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
-        var retval = svport.render.apply(this, arguments); //svrender(frtime, force); //ChannelPool.prototype.render.call(port, frtime, force);
+        var retval = svmethods.render.apply(this, arguments); //svrender(frtime, force); //ChannelPool.prototype.render.call(port, frtime, force);
 //        var encbuf = (retval && retval.buf)? encode(port, retval.buf, !frtime): null;
 //        if (encbuf) { retval.rawbuf = retval.buf; retval.buf = encbuf; } //swap in encoded buf but preserve original (mainly for debug)
         console.log("renxt: got base port '%s' render frtime %s, frnext %s, buflen %s, buf", this.name, retval.frtime, retval.frnext || '-', retval.buflen || '-', retval.buf || []);
@@ -249,19 +258,10 @@ debugger;
     port.verify = function(outbuf, inbuf) //verify outbuf was received and processed
     {
 debugger;
-        var cmp = svport.verify? svport.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
+        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
         if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
-    }
-    port.assign = function(model) //assign controller address
-    {
-        if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes";
-        svport.assign.call(port, model);
-        model.adrs = port.models.length; //assign unique adrs for each prop on this port
-        model.setRenderType('raw'); //RgbQuant in encode() wants raw pixel data
-//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
-//        model.cfg_sent = false; //force config info to be sent first time
-    }
+    }.bind(port)
     port.cfg_sent = false; //force config info to be sent first time
     console.log("RenXt protocol added to %s".yellow, port.name);
 }

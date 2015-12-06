@@ -163,7 +163,7 @@ function Vixen2Sequence(opts)
         outstream.write({filename: this.filename, filetime: filetime.asString(this.filename), duration: this.duration, interval: this.FixedFrameInterval,
             numfr: m_numfr, numch: m_numch, last_partial: this.partial,
             audiofile: this.top.byname.Audio.attr.filename, audiofile2: (this.top.byname.Audio.attr.filename != this.top.byname.Audio.value)? this.top.byname.Audio.value: undefined,
-            audiolen: this.top.byname.Audio.attr.duration, fx: "vix2json.Sequence",
+            audiolen: this.top.byname.Audio.attr.duration, fx: "vix2.Sequence",
         });
         outstream.write({comment: (this.channels || this.chcolors).length + " channel defs"});
 //        this.channels.forEach(function(channel)
@@ -176,7 +176,7 @@ function Vixen2Sequence(opts)
         for (var frinx = 0; frinx < m_numfr; ++frinx)
         {
             var frbuf = this.chvals(frinx), nonz = bufdiff(frbuf, null);
-            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'vix2raw'}; //, buf: frbuf};
+            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'vix2.rawbuf'}; //, buf: frbuf};
             if (this.opts.dedup === false) { outfr.buf = frbuf; outfr.buflen = frbuf.length; }
             var ofs = frinx? bufdiff(frbuf, m_prior): 1; //abs(ofs) - 1 == ofs first diff
             if (!ofs) outfr.dup = true; //flag dups even if dedup is not wanted
@@ -194,7 +194,7 @@ function Vixen2Sequence(opts)
                 {
                     outfr.buf = frbuf.slice(Math.abs(ofs), Math.abs(ofs2) + 4); //just keep the part that changed
                     outfr.buflen = outfr.buf.length;
-                    outfr.diff = [ofs, ofs2];
+                    outfr.diff = [ofs, ofs2]; //TODO: multiple ranges?
                 }
             }
             if (nonz) outfr.nonzofs = nonz - 1;
@@ -258,7 +258,7 @@ function Vixen2Profile(opts)
     this.toJSON = function(outstream)
     {
         outstream.write({comment: "profile begin " + clock.asDateTimeString()});
-        outstream.write({filename: this.filename, filetime: filetime.asString(this.filename), numch: m_numch, fx: "vix2json.Profile"});
+        outstream.write({filename: this.filename, filetime: filetime.asString(this.filename), numch: m_numch, fx: "vix2.Profile"});
         outstream.write({comment: this.channels.length + " channel defs"});
         this.channels.forEach(function(channel)
         {
