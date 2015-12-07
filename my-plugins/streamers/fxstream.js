@@ -37,8 +37,8 @@ models_byzord.sort(function(lhs, rhs) { return (lhs.zorder || 0) - (rhs.zorder |
 
 //writable effects stream:
 //this is the main fx interpreter
-//responsible for sending out all hardware updates at the correct time
-//it will process incoming stream at full speed and use timers to throttle output (backpressure will limit memory consumption)
+//responsible for interpreting fx and sending out all hardware updates at the correct time
+//incoming stream is processed at full speed then timers are used to throttle output (backpressure will limit memory consumption)
 //runs ~ 1 frame ahead to eliminate fx render latency and reduce timing jitter
 function FxPlayback(opts)
 {
@@ -52,7 +52,7 @@ function FxPlayback(opts)
     stmon(this, "FxStream");
     this.stats = {opcodes: {}, withfx: 0, without: 0, unkn: 0, errors: 0, delay_buckets: {}, render_count: 0, render_delay: 0, render_premature: 0};
     ports.forEach(function(port) { port.dirty = false; }); //reset(); }); //clear port I/O buffers
-    this.on('data', function(data) //NOTE: evt is explicitly generated to resemble readable stream api even tho this is a writable stream
+    this.on('data', function fxstream_ondata(data) //NOTE: evt is explicitly generated to resemble readable stream api even tho this is a writable stream
     {
 //debugger;
         if (!(this instanceof FxPlayback)) throw "wrong this";
@@ -71,8 +71,8 @@ debugger;
         var target = models_byname[data.target || 'entire'];
         var model = target;
 //        console.log("looking for fx '%s' in target '%s'", data.fx, target.name, target.fx);
-        ('fx.' + data.fx).split('.').forEach(function(name) { if (target) target = target[name]; });
-        if (target) target.call(model, data); //apply fx to whole-house if target model not specified
+        ('MyFx.' + data.fx).split('.').forEach(function(name) { if (target) target = target[name]; });
+        if (typeof target == 'function') target.call(model, data); //apply fx to whole-house if target model not specified
         else this.nofx(data);
         if (!has_time) return; //don't need to refresh hardware on this frame
 debugger;

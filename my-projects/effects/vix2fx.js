@@ -2,6 +2,7 @@
 'use strict';
 
 const bufdiff = require('my-plugins/utils/buf-diff');
+const showthis = require('my-plugins/utils/showthis');
 const logger = require('my-plugins/utils/logger')();
 
 module.exports = Vix2Fx; //main export item
@@ -31,12 +32,12 @@ function Vix2Fx(opts)
     {
 //        /*if (!this.vix2info)*/ this.vix2 = Object.assign({}, Vix2Fx.prototype);
         this.vix2 = {};
-        this.vix2.chbuf = new Buffer(this.fx.vix2.chbuflen); //"channel" (control value) list; used for Vixen2 channels
-        this.vix2.prior = new Buffer(this.fx.vix2.chbuflen); //for dedup
+        this.vix2.chbuf = new Buffer(this.MyFx.vix2.chbuflen); //"channel" (control value) list; used for Vixen2 channels
+        this.vix2.prior = new Buffer(this.MyFx.vix2.chbuflen); //for dedup
     }
     else if (typeof this.opts.vix2ch != 'undefined') //child model ch bufs just ref into whole-house bufs
     {
-//too soon        if (!this.vix2render) throw "Vixen2-aware model '" + this.name + "' has no vix2render()";
+//too soon:        if (!this.vix2render) throw "Vixen2-aware model '" + this.name + "' has no vix2render()";
         this.vix2 = {}; ///*if (!this.vix2info)*/ this.vix2 = Object.assign({}, Vix2Fx.prototype);
         if (!Array.isArray(this.opts.vix2ch)) this.opts.vix2ch = [this.opts.vix2ch, 1]; //[0] = startch, [1] = count (optional)
         if (typeof this.opts.vix2alt != 'undefined')
@@ -47,7 +48,7 @@ function Vix2Fx(opts)
         vix2_minch = vix2models.length? Math.min(vix2_minch, this.opts.vix2ch[0]): this.opts.vix2ch[0];
         vix2_maxch = vix2models.length? Math.max(vix2_maxch, this.opts.vix2ch[0]): this.opts.vix2ch[0];
         if (vix2_maxch - vix2_minch + 1 > this.parent.vix2.chbuf.length) throw "Vix2 chbuf on whole-house too small: is " + this.parent.vix2.chbuf.length + ", needs to be " + (vix2_maxch - vix2_minch + 1);
-        vix2models.push(this);
+        vix2models.unshift(this); //kludge: insert in reverse order to force z-order sort
     }
 }
 
@@ -55,6 +56,7 @@ function Vix2Fx(opts)
 Vix2Fx.prototype.chbuflen = 512; //must be large enough to hold all Vixen channels
 
 
+//save profile info for future ref:
 Vix2Fx.prototype.Profile = function vix2prof(data)
 {
 //console.log("this", this);
@@ -62,6 +64,7 @@ Vix2Fx.prototype.Profile = function vix2prof(data)
     this.vix2.prof = data; //Object.assign(this.seq_info || {}, data); //just store profile props for access later
 }
 
+//save seq info for future ref:
 Vix2Fx.prototype.Sequence = function vix2seq(data)
 {
     if (this.parent) throw "not whole-house model";
@@ -72,6 +75,7 @@ Vix2Fx.prototype.Sequence = function vix2seq(data)
 //Vixen2 raw buffer data:
 //dedups and renders to model canvas
 //FxPlayback.prototype.
+Vix2Fx.prototype.partbuf =
 Vix2Fx.prototype.rawbuf = function rawbuf(data)
 {
 //    if (!(this instanceof Model2D)) throw "wrong this in vix2fx";
@@ -83,38 +87,30 @@ Vix2Fx.prototype.rawbuf = function rawbuf(data)
         {
 //            var altbuf = this.chbuf.slice(model.vix2alt[0], model.vix2alt[0] + model.vix2alt[1]);
             var cmp = bufdiff(this.vix2.chbuf, this.vix2.altbuf);
-            if (cmp) logger("model '%s' vix2ch buf != altbuf: time %s, ofs %s", this.name, data.time, cmp, this.vix2.chbuf, this.vix2.altbuf);
+            if (cmp) logger("model '%s' vix2ch buf != altbuf: time %s, ofs %s, bufs: %j vs. %j", this.name, data.time, cmp, this.vix2.chbuf, this.vix2.altbuf);
         }
-//        showthis();
+//        showthis.call(this, "vix2fx.rawbuf");
 //            model.vix2render(vix2chbuf); //populate port buffers
         if ((this.opts.dedup !== false) && /*model.priorbuf*/ data.time && !bufdiff(this.vix2.chbuf, this.vix2.prior)) return; //no change
 //        model.priorbuf = partbuf; //CAUTION: ref to parent buffer
-        this.vix2render(this.parent.vix2.chbuf); //partbuf); //project vix2 channels onto model canvas
+        this.vix2render(this.parent.vix2.chbuf); //partbuf); //project vix2 channels onto model canvas; use full chbuf to preserve offsets
         this.dirty = true;
         return;
     }
     if (data.dup) return; //already deduped; no change to channel data
-    data.buf.copy(this.vix2.chbuf, Math.abs(data.diff[0] || 0)); //use copy rather than slice in case buffer contents change later or are shared
+    data.buf.copy(this.vix2.chbuf, Math.abs((data.bufdiff || [0])[0])); //use copy rather than slice in case buffer contents change later or are shared
     if ((this.opts.dedup !== false) && /*this.priorbuf*/ data.frtime && !bufdiff(this.vix2.chbuf, this.vix2.prior)) return; //no change
 //    this.priorbuf = data.buf;
     this.dirty = true; //redundant, set it for completeness
-    vix2models.forEach(function(model)
+    if (vix2models.first.parent) vix2models.sort(function(lhs, rhs) { return (lhs.parent? lhs.opts.zorder || 0: -1) - (rhs.parent? rhs.opts.zorder || 0: -1); });
+    vix2models.forEach(function vix2_rawbuf_propagate(model)
     {
         if (!model.parent) return; //skip self (whole-house is only model without a parent)
 //            if (!model.vix2ch) return; //continue; //[0] = startch, [1] = count (optional)
-        model.fx.vix2.rawbuf.call(model, data);
+        model.MyFx.vix2.rawbuf.call(model, data);
     }.bind(this));
     data.buf.copy(this.vix2.prior, Math.abs(data.diff[0] || 0)); //need copy rather than slice/ref; do this after child models so they can dedup
     this.dirty = false;
-}
-
-
-function showthis()
-{
-    var buf = '';
-    for (var i in this)
-        buf += ', ' + (this.hasOwnProperty(i)? i: '(' + i + ')');
-    console.log("this has", buf.substr(2));
 }
 
 //eof

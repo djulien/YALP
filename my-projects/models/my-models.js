@@ -9,7 +9,6 @@ require('my-plugins/my-extensions/array-ends');
 const logger = require('my-plugins/utils/logger')();
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
 
-
 function hex8(val) { return ('00000000' + (val >>> 0).toString(16)).slice(-8); }
 
 
@@ -163,8 +162,7 @@ const Model2D = require('my-projects/models/model-2d');
 module.exports.models = Model2D.all; //export all model instances from below
 const RenXt = require('my-plugins/hw/RenXt');
 
-
-vix2prof.chcolors;
+//apply vix2prof.chcolors;
 
 
 //RenXT chipiplexed SSRs:
@@ -217,7 +215,7 @@ gdoor_fx.vix2render = function(vix2buf)
     switch (vix2buf[416]) //macro
     {
         case 0: break; //Noop
-        case 180: this.fx.vix2.EqBar0(); break;
+        case 180: this.MyFx.vix2.EqBar0.call(this); break;
         case 181: this.fx.vix2.EqBar1(); break;
         case 182: this.fx.vix2.EqBar2(); break;
         case 183: this.fx.vix2.EqBar3(); break;
@@ -338,9 +336,9 @@ const SheColors = ['#FCA', '#0F0', '#F00', '#00F', 0, 0, '#FCA', '#FCA'];
 const CaneColors = [0, 0, 0, 0, '#FCA', '#F00', '#FCA', '#F00'];
 sh_bank.vix2render = function(vix2buf)
 {
-    this.shepColor = SheColors[(vix2chbuf[113]? 1: 0) + (vix2chbuf[115]? 2: 0) + (vix2chbuf[114]? 4: 0)];
-    this.caneColor = CaneColors[(vix2chbuf[113]? 1: 0) + (vix2chbuf[115]? 2: 0) + (vix2chbuf[114]? 4: 0)];
-    this.sheepColor = SheColors[(vix2chbuf[116]? 1: 0) + (vix2chbuf[115]? 2: 0)];
+    this.shepColor = SheColors[(vix2buf[113]? 1: 0) + (vix2buf[115]? 2: 0) + (vix2buf[114]? 4: 0)];
+    this.caneColor = CaneColors[(vix2buf[113]? 1: 0) + (vix2buf[115]? 2: 0) + (vix2buf[114]? 4: 0)];
+    this.sheepColor = SheColors[(vix2buf[116]? 1: 0) + (vix2buf[115]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
     console.log("%s: vix2render %s %s %s %s => shep %s, canes %s, sheep %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.shepColor, this.caneColor, this.sheepColor);
@@ -376,10 +374,10 @@ var acc_bank = new Model2D({name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, 
 const AccBanks = ['FPArch', 'Instr', 'Sidewalk', 'Heart'];
 acc_bank.vix2render = function(vix2buf)
 {
-    this.bankAcc = AccBanks[(vix2chbuf[101]? 2: 0) + (vix2chbuf[102]? 1: 0)];
+    this.bankAcc = AccBanks[(vix2buf[101]? 2: 0) + (vix2buf[102]? 1: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s", this.name, vix2buf[ch++], vix2buf[ch++]);
+    console.log("%s: vix2render %s %s => %s", this.name, vix2buf[ch++], vix2buf[ch++], this.bankAcc);
 }
 
 
@@ -442,22 +440,30 @@ colR.vix2render = function() {} //TODO
 //colH.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 
-/*
 //show_group('mtree', [47, +24]);
 var mtree = new Model2D({name: 'mtree', w: 36, h: 32, zinit: false, vix2ch: [47, +24]}); //1A, 1B, 2A, ..., 12A, 12B
-mtree.vix2render = function() {} //TODO
-*/
+mtree.vix2render = function(vix2buf)
+{
+//    var ch = this.opts.vix2ch[0];
+//    console.log("%s: vix2render %s %s => A %s, B %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], mtree.bankAcolor, mtree.bankBcolor);
+    for (var br = 0; br < 36; ++br) //24 branches => 36 columns == 1.5 columns per branch
+    {
+        var brcolor = dim((br & 1)? this.bankAcolor: this.bankBcolor, vix2buf[47 + Math.floor(24 * br / 36)]);
+        this.MyFx.column.call(this, br, brcolor);
+    }
+    this.dirty = true;
+}
 
 //show_group('mtree_bank', [71, +4]);
 var mtree_bank = new Model2D({name: 'mtree-bank', w: 4, h: 1, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
 const MtreeColors = ['#0f0', '#00F', '#F00', '#FCA'];
 mtree_bank.vix2render = function(vix2buf)
 {
-    this.bankAcolor = MtreeColors[(vix2chbuf[71]? 1: 0) + (vix2chbuf[72]? 2: 0)];
-    this.bankBcolor = MtreeColors[(vix2chbuf[73]? 1: 0) + (vix2chbuf[74]? 2: 0)];
+    mtree.bankAcolor = MtreeColors[(vix2buf[71]? 1: 0) + (vix2buf[72]? 2: 0)];
+    mtree.bankBcolor = MtreeColors[(vix2buf[73]? 1: 0) + (vix2buf[74]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s => A %s, B %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.bankAcolor, this.bankBcolor);
+    console.log("%s: vix2render %s %s => A %s, B %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], mtree.bankAcolor, mtree.bankBcolor);
     mtree.dirty = true; //already deduped
 }
 
@@ -523,6 +529,12 @@ ic_all.vix2render = function(vix2buf)
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
     console.log("%s: vix2render %s %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    for (var col = 0; col < 207; ++col) //14 segments => 207 columns ~= 15 columns per segment
+    {
+        var color = dim('#FCA', vix2buf[2 + Math.floor(14 * col / 206)]);
+        this.MyFx.column.call(this, col, color);
+    }
+    this.dirty = true;
 }
 
 /*
@@ -568,11 +580,15 @@ var assts = //kludge: need var name here to keep Javascript happy
 //    'FTDI-B': [angel, mtree, gift, star], //city, tb
     'FTDI-W': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
 //    'FTDI-Y': [gece, floods12, floods34, shep1, shep2, shep3, shep4],
-    'none': [macro_fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
+    'none': [mtree, macro_fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
 }.forEach(function(models, portname)
 {
     if (/*(portname !== null) &&*/ !ports.byname[portname]) throw "Unknown port: '" + portname + "'";
-    models.forEach(function(model) { model.port = ports.byname[portname]; }); //(portname !== null)? ports.byname[portname]: null; });
+    models.forEach(function(model)
+    {
+        if (model.port) throw "Model '" + model.name + "' asst to '" + portname + "': already assigned to port '" + model.port.name + "'";
+        model.port = ports.byname[portname];  //(portname !== null)? ports.byname[portname]: null; });
+    });
 });
 var unassigned = '';
 Model2D.all.forEach(function(model) { if (typeof model.port == 'undefined') unassigned += ', ' + model.name || model.device; });
@@ -654,5 +670,35 @@ function classname(thing) { return thing.constructor.name; } //.prototype.constr
 });
 console.log("total: active ports: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", total_ports, total_models, total_nodes, total_models? Math.round(total_nodes / total_models): 0, total_ports? Math.round(total_nodes / total_ports): 0);
 */
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// helper functions:
+//
+
+const color_cache = require('my-projects/models/color-cache').cache;
+const color_cache_stats = require('my-projects/models/color-cache').stats;
+
+//convert rgba color to hsv and then dim it:
+var rgba_split = new Buffer([255, 255, 255, 255]);
+function dim(rgba, brightness)
+{
+    if (!brightness) return 0;
+    if (!rgba) throw "Dim: no color found"; //this will cause dropped data so check it first
+    if (brightness == 255) return rgba;
+    rgba = color_cache(rgba + '^' + brightness, function()
+    {
+//        if (brightness == 255) return rgba;
+        rgba_split.writeUInt32BE(rgba, 0);
+//    if (rgba_split[3] != 255) throw "Unusual color: " + rgba;
+        var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+//TODO?   c = Color(hex8(rgba)).hsv(); c.v *= brightness/255; c = c.rgba(); c.a *= 255;
+        c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
+        rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a * 255; //1.0 => 255
+        return rgba_split.readUInt32BE(0); //>>> 0;
+    });
+    return rgba;
+}
 
 //eof

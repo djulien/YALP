@@ -25,34 +25,6 @@ const zlib = require('zlib');
 //rd('zout2.json').pipe(process.stdout); //cat
 
 
-function vix2json_obsolete()
-{
-const outfile = "zout.json";
-const profile = 'my-projects/playlists/!(*RGB*).pro';
-const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
-
-//var vix2prof = new require('my-plugins/streamers/vix2json').Profile(profile);
-//var vix2seq = new require('my-plugins/streamers/vix2json').Sequence({filename: sequence, profile: vix2prof});
-var outs = stmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
-//var outs = stmon.rdwr("vix2 in/outfile");
-//outs.pipe(process.stdout);
-//outs.pipe(zlib.createGzip()).pipe(stmon.wr('zout.json.gz')); //compress
-
-//outs.write("["); //wrap in one large json array
-//outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + ',\n'); };
-//vix2prof.toJSON(outs); //put channel + profile info in front of seq
-//vix2seq.toJSON(outs);
-//outs.write = outs.svwrite;
-//outs.write(JSON.stringify("eof") + "]");
-    require('my-plugins/streamers/vix2json').Vixen2json(outs, profile, sequence);
-    outs.end(); //eof
-//logger("written".cyan);
-//return outs;
-}
-//vix2json();
-//NO process.exit(0); //DO NOT DO THIS; async stream not written yet!
-
-
 const outfile = "zout.json";
 function vix2(seq, cb)
 {
@@ -65,7 +37,7 @@ return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, seq || seq
 }
 //vix2(function(data) { console.log(data); }); //.pipe(process.stdout);
 //vix2().pipe(process.stdout);
-//vix2().pipe(stmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'"));
+//vix2().pipe(stmon(fs.createWriteStream(outfile), "vix2 outfile '" + outfile + "'"));
 
 
 function hardwired()
@@ -147,6 +119,34 @@ const models = require('my-projects/models/my-models').models;
 ////
 /// other
 //
+
+
+function vix2json_obsolete()
+{
+const outfile = "zout.json";
+const profile = 'my-projects/playlists/!(*RGB*).pro';
+const sequence = 'my-projects/songs/xmas/Amaz*/*Amaz*.vix';
+
+//var vix2prof = new require('my-plugins/streamers/vix2json').Profile(profile);
+//var vix2seq = new require('my-plugins/streamers/vix2json').Sequence({filename: sequence, profile: vix2prof});
+var outs = stmon.wr(outfile, "vix2 outfile"); //fs.createWriteStream(outfile);
+//var outs = stmon.rdwr("vix2 in/outfile");
+//outs.pipe(process.stdout);
+//outs.pipe(zlib.createGzip()).pipe(stmon.wr('zout.json.gz')); //compress
+
+//outs.write("["); //wrap in one large json array
+//outs.svwrite = outs.write; outs.write = function(buf) { outs.svwrite(JSON.stringify(buf) + ',\n'); };
+//vix2prof.toJSON(outs); //put channel + profile info in front of seq
+//vix2seq.toJSON(outs);
+//outs.write = outs.svwrite;
+//outs.write(JSON.stringify("eof") + "]");
+    require('my-plugins/streamers/vix2json').Vixen2json(outs, profile, sequence);
+    outs.end(); //eof
+//logger("written".cyan);
+//return outs;
+}
+//vix2json();
+//NO process.exit(0); //DO NOT DO THIS; async stream not written yet!
 
 
 function test6_json_stream_parse()

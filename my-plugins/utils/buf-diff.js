@@ -36,9 +36,9 @@ function bufdiff(buf1, buf2, rev)
     switch (taillen)
     {
         case 0: cmp = 0; break;
-        case 1: cmp = buf1.readUInt8(ofs) - ((buf2 !== null)? buf2.readUInt8(ofs): 0); break;
-        case 2: cmp = buf1.readUInt16BE(ofs) - ((buf2 !== null)? buf2.readUInt16BE(ofs): 0); break;
-        case 3: cmp = int24.readUInt24BE(buf1, ofs) - ((buf2 !== null)? int24.readUInt24BE(buf2, ofs): 0); break;
+        case 1: cmp = buf1.readUInt8(cmplen) - ((buf2 !== null)? buf2.readUInt8(cmplen): 0); break;
+        case 2: cmp = buf1.readUInt16BE(cmplen) - ((buf2 !== null)? buf2.readUInt16BE(cmplen): 0); break;
+        case 3: cmp = int24.readUInt24BE(buf1, cmplen) - ((buf2 !== null)? int24.readUInt24BE(buf2, cmplen): 0); break;
     }
     if (cmp < 0) return -cmplen - 1; //kludge: avoid 0 value; still < buflen
     if (cmp > 0) return +cmplen + 1;

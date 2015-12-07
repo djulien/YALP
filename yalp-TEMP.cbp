@@ -133,6 +133,7 @@
 		<Unit filename="my-plugins/utils/my-eventemitter2.js" />
 		<Unit filename="my-plugins/utils/relpath.js" />
 		<Unit filename="my-plugins/utils/shortname.js" />
+		<Unit filename="my-plugins/utils/showthis.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/effects/myfx.js" />

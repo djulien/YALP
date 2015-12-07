@@ -55,7 +55,7 @@ module.exports.Vixen2Stream = Vixen2Stream;
 function Vixen2json(outstream, profile, seqfile)
 {
     var vix2prof = new Vixen2Profile(profile);
-    var vix2seq = new Vixen2Sequence({filename: seqfile, profile: vix2prof});
+    var vix2seq = new Vixen2Sequence({filename: seqfile, profile: vix2prof, dedup: false});
 
 //no    outs.write("["); //wrap in one large json array
     outstream.svwrite = outstream.write;
@@ -121,6 +121,10 @@ function Vixen2Sequence(opts)
 ////    top.decoded = chvals;
 
     this.chcolors = (this.opts.profile? this.opts.profile.chcolors: null) || get_channels.call(this, this.top.byname.Channels, m_numch);
+    this.chcolor = function(frinx, chinx) //do this at render time so control ch#s remain intact
+    {
+        return this.opts.profile.chcolor(chinx, this.chvals(frinx, chinx));
+    }
 
     const BPCH = 1; //4; //#bytes per channel value
     var pivot = new Buffer(BPCH * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
@@ -147,6 +151,7 @@ function Vixen2Sequence(opts)
         if (arguments.length < 2) return m_chvals.slice(BPCH * frinx * m_numch, BPCH * (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
         return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[frinx * m_numch + chinx]: 0; //m_chvals.readUInt32BE(4 * (chinx * m_numfr + frinx)): 0; //[chinx * m_numfr + frinx]: 0; //single ch val
     }
+/*
     this.chcolor = function(frinx, chinx) //do this at render time so control ch#s remain intact
     {
         var rgba = this.chcolors[chinx], brightness = this.chvals(frinx, chinx);
@@ -158,6 +163,7 @@ function Vixen2Sequence(opts)
         });
         return rgba;
     }
+*/
 
     if (this.top.byname.Audio) //set audio after channel vals in case we are overriding duration
     {
@@ -182,34 +188,35 @@ function Vixen2Sequence(opts)
 //        {
 //            outstream.write(channel); //this.var line = this.channels[child.value || '??'] = {/*name: child.value,*/ enabled: child.attr.enabled == "True" /*|| true*/, index: 1 * child.attr.output || inx, color: child.attr.color? '#' + (child.attr.color >>> 0).toString(16).substr(-6): '#FFF'};
 //        });
-        outstream.write({pivot_color_cache_stats: color_cache_stats});
+//        outstream.write({pivot_color_cache_stats: color_cache_stats});
         outstream.write({comment: "channel values"});
         var m_prior;
         for (var frinx = 0; frinx < m_numfr; ++frinx)
         {
-            var frbuf = this.chvals(frinx), nonz = bufdiff(frbuf, null);
-            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: 'vix2.rawbuf'}; //, buf: frbuf};
-            if (this.opts.dedup === false) { outfr.buf = frbuf; outfr.buflen = frbuf.length; }
-            var ofs = frinx? bufdiff(frbuf, m_prior): 1; //abs(ofs) - 1 == ofs first diff
-            if (!ofs) outfr.dup = true; //flag dups even if dedup is not wanted
+//        debugger;
+            var frbuf = this.chvals(frinx), nonz = bufdiff(frbuf, null), nonz_rev = nonz? bufdiff.reverse(frbuf, null): 0; //do non-0 analysis before trim
+            var outfr = {frame: frinx, time: frinx * this.FixedFrameInterval, fx: (this.opts.dedup === false)? 'vix2.rawbuf': 'vix2.partbuf'}; //, buf: frbuf};
+//            if (this.opts.dedup === false) { outfr.buf = frbuf; outfr.buflen = frbuf.length; }
+            outfr.buf = frbuf; outfr.buflen = frbuf.length;
+//do buf diff analysis even if no dedup (for debug purposes):
+            var ofs = frinx? bufdiff(frbuf, m_prior): 0+1; //abs(ofs) - 1 == first diff ofs
+            var ofs_rev = ofs? (frinx? bufdiff.reverse(frbuf, m_prior): (frbuf.length & ~3) + 1): 0;
+            if (!ofs) outfr.dup = true; //flag dups even if dedup is not wanted (for debug)
             else
             {
-                var ofs2 = m_prior? bufdiff.reverse(frbuf, m_prior): frbuf.length & ~3;
-                if (ofs < 0) ++ofs; else --ofs; //adjust to actual ofs
-                if (ofs2 < 0) ++ofs2; else --ofs2;
-                if (!ofs && (Math.abs(ofs2) == frbuf.length & ~3)) //nothing to trim
+                if (ofs < 0) ++ofs; else --ofs; //adjust to actual quad-byte ofs
+                if (ofs_rev < 0) ++ofs_rev; else --ofs_rev;
+                if (ofs || (Math.abs(ofs_rev) != frbuf.length & ~3)) //trim off dup parts
                 {
-                    outfr.buf = frbuf;
-                    outfr.buflen = frbuf.length;
-                }
-                else if (this.opts.dedup !== false)
-                {
-                    outfr.buf = frbuf.slice(Math.abs(ofs), Math.abs(ofs2) + 4); //just keep the part that changed
-                    outfr.buflen = outfr.buf.length;
-                    outfr.diff = [ofs, ofs2]; //TODO: multiple ranges?
+                    outfr.bufdiff = [ofs, ofs_rev]; //TODO: multiple ranges?
+                    if (this.opts.dedup !== false)
+                    {
+                        outfr.buf = frbuf.slice(Math.abs(ofs), Math.abs(ofs_rev) + 4); //just keep the part that changed
+                        outfr.buflen = outfr.buf.length;
+                    }
                 }
             }
-            if (nonz) outfr.nonzofs = nonz - 1;
+            if (nonz) outfr.nonzofs = [nonz - 1, nonz_rev - 1];
 //            var dup = (m_prior && !bufdiff(frbuf, m_prior)); //tag dups now while they are sure to be using different buffer areas
             outstream.write(outfr);
             m_prior = frbuf;
@@ -265,6 +272,20 @@ function Vixen2Profile(opts)
 
 //    this.channels = {length: numch}; //tell caller #ch even if they have no data; http://stackoverflow.com/questions/18947892/creating-range-in-javascript-strange-syntax
     this.chcolors = get_channels.call(this, this.top.byname.ChannelObjects, m_numch, true);
+
+    this.chcolor = function(chinx, brightness)
+    {
+        if (!brightness) return 0;
+        var rgba = this.chcolors[chinx]; //, brightness = this.chvals(frinx, chinx);
+        if (!rgba) throw "Channel# " + (chinx + 1) + " no color found"; //this will cause dropped data so check it first
+        if (brightness == 255) return rgba;
+        rgba = color_cache(rgba + '^' + brightness, function()
+        {
+            if (brightness != 255) rgba = dim(rgba, brightness);
+            return rgba;
+        });
+        return rgba;
+    }
 
 //just write selected data, not everything:
     this.toJSON = function(outstream)

@@ -3,6 +3,7 @@
 
 //const inherits = require('inherits');
 //const makenew = require('my-plugins/utils/makenew');
+const showthis = require('my-plugins/utils/showthis');
 const logger = require('my-plugins/utils/logger')();
 //var buf = models.entire.imgdata();
 //require('my-plugins/my-extensions/json-revival');
@@ -42,7 +43,10 @@ const xLNc3Fx = require('my-projects/effects/xlnc3fx');
 //define top-level namespace for effects
 function MyFxMixin(opts)
 {
+//    this.fx = {myfx: true};
+//debugger;
     Vix2Fx.apply(this, arguments); //nested ctor for each sub-namespace of fx
+    xLNc3Fx.apply(this, arguments); //nested ctor for each sub-namespace of fx
 //    this.vix2 = new Vix2Fx();
 }
 module.exports = MyFxMixin;
@@ -64,6 +68,23 @@ MyFxMixin.prototype.rawbuf = function rawbuf(data)
 //    data.buf.copy(this.chbuf, Math.abs(data.diff[0] || 0)); //use copy rather than slice in case buffer contents change later or are shared
     throw "TODO: use imgdata()";
     this.imgdata(data);
+}
+
+
+//fill a column:
+MyFxMixin.prototype.column = function column(x, colors)
+{
+    showthis.call(this, "my fx mixin");
+    this.fill.call(this, x, 0, 1, this.height, colors); //TODO: stop points
+    return this; //fluent
+}
+
+
+//fill a row:
+MyFxMixin.prototype.row = function column(y, colors)
+{
+    this.fill(0, y, this.width, 1, colors); //TODO: stop points
+    return this; //fluent
 }
 
 

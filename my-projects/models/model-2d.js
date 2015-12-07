@@ -46,7 +46,7 @@ function Model2D(opts)
     this.BecomeChild(this.opts.parent || Model2D.entire); //NOTE: need to do this before bounds checking below
     /*else*/ Model2D.all[this.name] = this; //.push(this); //allow iteration thru all instances; /*don't*/ include first (root) instance
 //attach fx as namespace, call ctor to init mixin data:
-    this.fx = MyFxMixin.prototype; //Object.assign({}, MyFxMixin.prototype); //add fx methods to this model; CAUTION: shared ref, so don't put instance data in there
+//    this.fx = MyFxMixin.prototype; //Object.assign({}, MyFxMixin.prototype); //add fx methods to this model; CAUTION: shared ref, so don't put instance data in there
     MyFxMixin.apply(this, arguments); //initialize fx by calling nested fx namespace ctor; CAUTION: do this after prototype so supporting methods are there
 
 //set up size + position first (no re-flow):
@@ -182,12 +182,14 @@ function Model2D(opts)
 //defer    if (this.opts.zinit !== false) this.oninit.push(function() { this.clear(); }.bind(this)); //do this when canvas is instantiated
 }
 
+
 //shared class data:
 Model2D.all = {}; //[];
 
 
 //attach fx as namespace:
 //Model2D.prototype.fx = MyFxMixin.prototype; //Object.assign({}, MyFxMixin.prototype);
+Model2D.prototype.MyFx = MyFxMixin.prototype; //Object.assign({}, MyFxMixin.prototype); //add fx methods to this model; CAUTION: shared ref, so don't put instance data in there
 
 
 //sub-model ctor; adds parent/child links
