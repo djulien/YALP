@@ -136,6 +136,8 @@
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
 		<Unit filename="my-projects/effects/myfx.js" />
+		<Unit filename="my-projects/effects/vix2fx.js" />
+		<Unit filename="my-projects/effects/xlnc3fx.js" />
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool-bk.js" />
 		<Unit filename="my-projects/models/color-cache.js" />

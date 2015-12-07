@@ -122,29 +122,41 @@ function Vixen2Sequence(opts)
 
     this.chcolors = (this.opts.profile? this.opts.profile.chcolors: null) || get_channels.call(this, this.top.byname.Channels, m_numch);
 
-    var pivot = new Buffer(4 * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
+    const BPCH = 1; //4; //#bytes per channel value
+    var pivot = new Buffer(BPCH * m_chvals.length); //convert monochrome to RGBA at start so colors can be handled uniformly downstream
 //    var rgba = new DataView(pivot);
     var m_color_cache = {};
     for (var chinx = 0, chofs = 0; chinx < m_numch; ++chinx, chofs += m_numfr)
         for (var frinx = 0, frofs = 0; frinx < m_numfr; ++frinx, frofs += m_numch)
-        {
-//            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
-            var rgba = this.chcolors[chinx], brightness = m_chvals[chofs + frinx];
-            if (!rgba) throw "Channel# " + (chinx + 1) + " no color found"; //this will cause dropped data so check it first
-            rgba = color_cache(rgba + '^' + brightness, function()
-            {
-                if (brightness != 255) rgba = dim(rgba, brightness);
-                return rgba;
-            });
-            pivot.writeUInt32BE(rgba, 4 * (chofs + frinx));
-        }
+//        {
+            pivot[frofs + chinx] = m_chvals[chofs + frinx]; //pivot ch vals for faster frame retrieval
+//            var rgba = this.chcolors[chinx], brightness = m_chvals[chofs + frinx];
+//            if (!rgba) throw "Channel# " + (chinx + 1) + " no color found"; //this will cause dropped data so check it first
+//            rgba = color_cache(rgba + '^' + brightness, function()
+//            {
+//                if (brightness != 255) rgba = dim(rgba, brightness);
+//                return rgba;
+//            });
+//            pivot.writeUInt32BE(rgba, 4 * (chofs + frinx));
+//        }
     m_chvals = pivot; pivot = null;
 //    console.log("pivot color cache vix2 '%s': hits %d, misses %d", this.name, color_cache_stats.hits, color_cache_stats.misses);
 //    var m_frbuf = new Buffer(m_numch);
     this.chvals = function(frinx, chinx)
     {
-        if (arguments.length < 2) return m_chvals.slice(4 * frinx * m_numch, 4 * (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
-        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals.readUInt32BE(4 * (chinx * m_numfr + frinx)): 0; //[chinx * m_numfr + frinx]: 0; //single ch val
+        if (arguments.length < 2) return m_chvals.slice(BPCH * frinx * m_numch, BPCH * (frinx + 1) * m_numch); //all ch vals for this frame; NOTE: returns different buffer segment for each frame; this allows dedup with no mem copying
+        return ((chinx < m_numch) && (frinx < m_numfr))? m_chvals[frinx * m_numch + chinx]: 0; //m_chvals.readUInt32BE(4 * (chinx * m_numfr + frinx)): 0; //[chinx * m_numfr + frinx]: 0; //single ch val
+    }
+    this.chcolor = function(frinx, chinx) //do this at render time so control ch#s remain intact
+    {
+        var rgba = this.chcolors[chinx], brightness = this.chvals(frinx, chinx);
+        if (!rgba) throw "Channel# " + (chinx + 1) + " no color found"; //this will cause dropped data so check it first
+        rgba = color_cache(rgba + '^' + brightness, function()
+        {
+            if (brightness != 255) rgba = dim(rgba, brightness);
+            return rgba;
+        });
+        return rgba;
     }
 
     if (this.top.byname.Audio) //set audio after channel vals in case we are overriding duration

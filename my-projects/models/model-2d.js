@@ -65,8 +65,8 @@ function Model2D(opts)
 //canvas access:
 //canvas is shared, access is delegated thru parent
 //lazy instantiation, don't allow caller to change (property default is read-only)
-    this.dirty = true; //mark dirty to trigger first render
-    var m_ctx; //, /*m_pixelbuf,*/ m_dirty = true; //mark dirty to trigger first render
+//    this.dirty = true; //mark dirty to trigger first render
+    var m_ctx, m_dirty = true; //mark dirty to trigger first render
 //    var m_promise = this.parent? null: Q.Promise(function(resolve, reject, notify)
 //    {
 //        this.canvas_ready = function(val) { resolve(val); }
@@ -151,18 +151,18 @@ function Model2D(opts)
                 enumerable: true,
             },
 */
-//        dirty:
-//        {
+        dirty:
+        {
 //TODO: hit/overlap test to reduce unnecessary re-rendering
-//            get() { return m_dirty; }, // || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
-//            set(newval)
-//            {
-//                m_dirty = newval;
+            get() { return m_dirty; }, // || (this.parent && this.parent.dirty); }, //child dirty if parent is dirty
+            set(newval)
+            {
+                m_dirty = newval;
 //                if (newval && this.port) this.port.dirty = true;
-//                if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
-//            },
-//            enumerable: true,
-//        },
+                if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
+            },
+            enumerable: true,
+        },
     });
 
 //link to port:
@@ -673,9 +673,9 @@ Model2D.prototype.renderNodes_GRB = function(pxbuf)
 //render node values canvas pixels:
 Model2D.prototype.render = function(frnext)
 {
-    console.log("model '%s' render: dirty? %s %s, port? %s", this.name, this.dirty, (this.parent || {}).dirty, !!this.port); //, this.renderNode);
+    console.log("model '%s' render: me dirty? %s, parent dirty? %s, port %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name); //, this.renderNode);
     if (!this.dirty || !this.port) return; //if not dirty or no output port, no need to render
-    if (!this.renderNode) throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
+    if (!this.renderNode) { this.dirty = false; return; } //okay for dummy models to have no output; //throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
 //        this.buf_resize('outbuf', 4 * this.nodelist.length);
     var imgdata = this.imgdata(); //get all my pixels
     var pxbuf = imgdata.data; //? new DataView(imgdata.data.buffer): null; //Uint32Array(imgdata.data.buffer/*, 0, Uint32Array.BYTES_PER_ELEMENT*/): null;

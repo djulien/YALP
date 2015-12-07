@@ -20,9 +20,11 @@ const CatchMissing = true; //true => throw exc, false => log message, null => ig
 
 //const Model2D = require('my-projects/models/model-2d');
 const ports = require('my-projects/models/my-ports').all;
-const models = require('my-projects/models/my-models').models;
+const models_byname = require('my-projects/models/my-models').models;
+var models_byzord = [];
+models_byname.forEach(function(model) { models_byzord.push(model); });
+models_byzord.sort(function(lhs, rhs) { return (lhs.zorder || 0) - (rhs.zorder || 0); }); //overlapping models need to be rendered in the correct z-order
 //const vix2chlist = require('my-projects/models/my-models').vix2chlist;
-
 
 //debugger;
 //module.exports = MyFx;
@@ -65,8 +67,8 @@ function FxPlayback(opts)
 //        if (data.fx && /*(data.fx in this) &&*/ (typeof this[fxname] == 'function'); //.prototype;
 debugger;
 //        (FxPlayback.myfx.MyFx[data.fx] || this.nofx)(data); //apply fx; TODO: bind?
-//JS broken!        (models[data.target || 'entire'].fx[data.fx] || this.nofx)(data); //apply fx to whole-house if target model not specified
-        var target = models[data.target || 'entire'];
+//JS broken!        (models_byname[data.target || 'entire'].fx[data.fx] || this.nofx)(data); //apply fx to whole-house if target model not specified
+        var target = models_byname[data.target || 'entire'];
         var model = target;
 //        console.log("looking for fx '%s' in target '%s'", data.fx, target.name, target.fx);
         ('fx.' + data.fx).split('.').forEach(function(name) { if (target) target = target[name]; });
@@ -76,7 +78,8 @@ debugger;
 debugger;
 //        FxPlayback.myfx.MyFx.render(data.time);
 //NOTE: render runs about 1 frame ahead so port flush will be on time
-        models.forEach(function(model) { model.render(); }); //copy node data from canvas to port output buffer; protocol will populate port output buffers
+//models can have free-running animation/effects, but a timed frame must occur in stream in other to update/render model updates
+        models_byzord.forEach(function(model) { model.render(); }); //copy node data from canvas to port output buffer; protocol will populate port output buffers
         this.flush_ports(data.time); //send bytes to hardware at the correct time
     }.bind(this));
     this.on('error', function (err) //syntax errors will land here; note, this ends the stream.
@@ -115,10 +118,13 @@ FxPlayback.prototype._write = function writer(chunk, encoding, done)
 {
 //debugger;
     console.log("got chunk len %s", chunk.length, chunk.toString('utf8').substr(0, 100));
-    var buf = JSON.parse(chunk, bufferJSON.reviver);
+    if (chunk.length) //not eof
+    {
+        var buf = JSON.parse(chunk, bufferJSON.reviver);
 //    console.log('write: ', chunk.length, encoding, typeof chunk, typeof buf, chunk.toString()); //(encoding));
-    this.emit('data', buf); //kludge: force on() to see data (makes interface a little more consistent)
+        this.emit('data', buf); //kludge: force on() to see data (makes interface a little more consistent)
 //    this.onfxdata(buf);
+    }
     done();
 }
 
@@ -126,7 +132,7 @@ FxPlayback.prototype._write = function writer(chunk, encoding, done)
 //controls timing of port output:
 FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
 {
-    var delay = frtime - this.elapsed(); //always compare to start in order to minimize cumulative timing error
+    var delay = frtime - this.elapsed.now; //always compare to start in order to minimize cumulative timing error
     this.stats.render_delay += Math.abs(delay); //use abs() so premature events won't decrease apparent problems
     var delay_bucket = buckets(delay, 3);
     if (isNaN(++this.stats.delay_buckets[delay_bucket])) this.stats.delay_buckets[delay_bucket] = 1;
