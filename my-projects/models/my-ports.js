@@ -25,7 +25,10 @@ function PortBase(args)
     this.models = [];
 //    this.dirty = false;
 //    var m_outbufs = [new Buffer(4096), new Buffer(4096)], m_ff = 0; //double buffered for dedup
+    this.inbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
+//    this.verbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
     this.outbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
+    this.ioverify = [];
     Object.defineProperty(this, 'dirty',
     {
         get() { return this.outbuf.size(); }, //this will automatically be reset after outbuf.getContents()
@@ -70,14 +73,49 @@ PortBase.prototype.assign = function(model)
 
 //send current port contents immediately:
 //caller controls timing
-PortBase.prototype.flush = function reset()
+PortBase.prototype.sendout = function reset(seqnum)
 {
     if (!this.dirty) return;
     logger("write %d to port '%s':", this.outbuf.size(), this.name, "tbd");
-    throw "TODO: write to port";
+//    throw "TODO: write to port";
+//    this.encode();
+    var data = this.outbuf.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
+    var iorec = {seqnum: seqnum, data: data, len: data.length, sendtime: clock.Now()};
+//    this.verbuf.write(data);
+    this.ioverify.push(iorec);
+    var elapsed = new Elapsed();
+    this.write(data, function(err, results)
+    {
+//        console.log(typeof outbuf);
+//        var outdesc = outbuf.length + ':"' + ((typeof outbuf === 'string')? outbuf: (outbuf.toString('utf8').substr(0, 20) + '...')).replace(/\n/g, "\\n") + '"';
+        if (err) { iorec.err = err; iorec.errtime = elapsed.now; console.log('write seq# "%s" err after %s: '.red, seqnum, elapsed.scaled(), err); return; } //cb(err); }
+        console.log('write seq# "%s" ok after %s; results %d:'.green, seqnum, elapsed.scaled(), results.length, results);
+        iorec.writetime = elapsed.now;
+        this.drain(function(err)
+        {
+            if (err) { iorec.errtime = elapsed.now; console.log('drain %s err '.red + err, seqnum); return; } // cb(err); }
+            console.log("drain %s completed after %s".green, seqnum, elapsed.scaled());
+            iorec.draintime = elapsed.now;
+//            return cb();
+        }.bind(this));
+    }.bind(this));
+    this.verify();
 //    return {port: this.name || this.device, frtime: frtime, frnext: (frnext_min !== false)? frnext_min: undefined, buflen: buflen, buf: buf}; //this.outbuf.getContents()};
     this.dirty = false;
 }
+
+
+//verify integrity of outbound data:
+//data is discarded here; protocol-enabled caller can override
+PortBase.prototype.verify = function verify()
+{
+    this.ioverify.shift();
+    this.inbuf.getContents();
+}
+
+
+//allow protocol to compress outbound data:
+//PortBase.prototype.encode = function encode() {}
 
 
 /*
@@ -158,9 +196,19 @@ function MySerialPort(path, options, openImmediately, callback)
 {
     if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
 //    serial.SerialPort.apply(this, arguments);
-    serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), openImmediately || false, callback); //false => don't open immediately (default = true)
+    serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), false); //openImmediately || false, callback); //false => don't open immediately (default = true)
     PortBase.apply(this, arguments); //multiple inheritance
     this.device = this.path;
+
+//status tracking (for debug):
+    this.on("open", function () { console.log('opened %s'.green, this.path); }.bind(this));
+//.flush(cb(err)) data received but not read
+    this.on('data', function(data) { this.inbuf.write(data); console.log('data received on %s %d: "%s"'.blue, this.path, data.length, data.toString('utf8').replace(/\n/g, "\\n")); }.bind(this));
+    this.on('error', function(err) { console.log("ERR on %s: ".red, this.path, err); }.bind(this));
+    this.on('close', function() { console.log("closed %s".cyan); }.bind(this));
+    this.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
+    if (openImmediately) this.open(); //open after evt handlers are in place
+
 //    MySerialPort.all.push(this); //allows easier enum over all instances
 }
 inherits(MySerialPort, serial.SerialPort);

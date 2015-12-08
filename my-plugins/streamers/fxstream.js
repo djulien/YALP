@@ -145,7 +145,7 @@ FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
         setTimeout(function() { this.flush_ports(frtime, true); }.bind(this), delay);
         return;
     }
-    /*models.*/ ports.forEach(function(port) { port.flush(); });
+    /*models.*/ ports.forEach(function(port) { port.sendout(); });
 }
 
 

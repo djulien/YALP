@@ -74,7 +74,7 @@ MyFxMixin.prototype.rawbuf = function rawbuf(data)
 //fill a column:
 MyFxMixin.prototype.column = function column(x, colors)
 {
-    showthis.call(this, "my fx mixin");
+//    showthis.call(this, "my fx mixin");
     this.fill.call(this, x, 0, 1, this.height, colors); //TODO: stop points
     return this; //fluent
 }

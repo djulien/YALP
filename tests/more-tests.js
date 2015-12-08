@@ -107,6 +107,40 @@ const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process
 playback();
 
 
+debugger;
+
+function canv_test()
+{
+    const Canvas = require('canvas');
+    var canvas = new Canvas(3, 3);
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'blue';
+    ctx.clearRect(0, 0, 3, 3);
+    ctx.fillRect(0, 0, 2, 2);
+    var data = ctx.getImageData(0, 0, 3, 3);
+    console.log("img data %j", data);
+}
+//canv_test();
+
+function model_test()
+{
+    const Model2D = require('my-projects/models/model-2d');
+    const ports = require('my-projects/models/my-ports').all;
+
+    var amodel = new Model2D({name: 'amodel', w: 4, h: 4, zinit: false, order: Model2D.prototype.R2L_T2B}); //output: 'RGB'});
+    amodel.port = ports[0];
+    console.log("amodel node list", amodel.nodelist);
+    amodel.fill('#FFCCDDEE'); //argb  0xCCDDEEFF);
+    var data = amodel.imgdata();
+    console.log("amodel node buf", data);
+    amodel.render();
+    console.log("outbuf len", ports[0].outbuf.size(), ports[0].outbuf.getContents());
+    ports[0].flush();
+//        this.MyFx.column.call(this, br, brcolor);
+}
+//model_test();
+
+
 function model_reader()
 {
 const models = require('my-projects/models/my-models').models;

@@ -90,15 +90,16 @@ Vix2Fx.prototype.rawbuf = function rawbuf(data)
             if (cmp) logger("model '%s' vix2ch buf != altbuf: time %s, ofs %s, bufs: %j vs. %j", this.name, data.time, cmp, this.vix2.chbuf, this.vix2.altbuf);
         }
 //        showthis.call(this, "vix2fx.rawbuf");
-//            model.vix2render(vix2chbuf); //populate port buffers
+//            model.vix2render(data.time, vix2chbuf); //populate port buffers
         if ((this.opts.dedup !== false) && /*model.priorbuf*/ data.time && !bufdiff(this.vix2.chbuf, this.vix2.prior)) return; //no change
 //        model.priorbuf = partbuf; //CAUTION: ref to parent buffer
-        this.vix2render(this.parent.vix2.chbuf); //partbuf); //project vix2 channels onto model canvas; use full chbuf to preserve offsets
+        this.vix2render(data.time, this.parent.vix2.chbuf); //partbuf); //project vix2 channels onto model canvas; use full chbuf to preserve offsets
         this.dirty = true;
         return;
     }
     if (data.dup) return; //already deduped; no change to channel data
-    data.buf.copy(this.vix2.chbuf, Math.abs((data.bufdiff || [0])[0])); //use copy rather than slice in case buffer contents change later or are shared
+    var dataofs = Math.abs((data.bufdiff || [0])[0]);
+    data.buf.copy(this.vix2.chbuf, dataofs); //use copy rather than slice in case buffer contents change later or are shared
     if ((this.opts.dedup !== false) && /*this.priorbuf*/ data.frtime && !bufdiff(this.vix2.chbuf, this.vix2.prior)) return; //no change
 //    this.priorbuf = data.buf;
     this.dirty = true; //redundant, set it for completeness
@@ -109,7 +110,7 @@ Vix2Fx.prototype.rawbuf = function rawbuf(data)
 //            if (!model.vix2ch) return; //continue; //[0] = startch, [1] = count (optional)
         model.MyFx.vix2.rawbuf.call(model, data);
     }.bind(this));
-    data.buf.copy(this.vix2.prior, Math.abs(data.diff[0] || 0)); //need copy rather than slice/ref; do this after child models so they can dedup
+    data.buf.copy(this.vix2.prior, dataofs); //need copy rather than slice/ref; do this after child models so they can dedup
     this.dirty = false;
 }
 

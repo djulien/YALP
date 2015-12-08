@@ -5,6 +5,7 @@ const path = require('path');
 const hfmt = require('human-format');
 const inherits = require('inherits');
 function not_hfmt(val, scale) { return val; }
+const dim = require('my-projects/models/color-fx').dim;
 require('my-plugins/my-extensions/array-ends');
 const logger = require('my-plugins/utils/logger')();
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
@@ -163,7 +164,7 @@ module.exports.models = Model2D.all; //export all model instances from below
 const RenXt = require('my-plugins/hw/RenXt');
 
 //apply vix2prof.chcolors;
-
+const WHITE = '#FCA'; //warm white to simulate incandescent bulbs
 
 //RenXT chipiplexed SSRs:
 //8 "rows" of 7 "columns" = 56 channels
@@ -182,7 +183,7 @@ inherits(ACSSR, Model2D);
 
 //show_group('fx', [395, +5]);
 var macro_fx = new Model2D({name: 'macro-fx', x: 0, y: 0, w: 5, h: 1, zinit: false, vix2ch: [395, +5], color_a: 395, color_r: 396, color_g: 397, color_b: 398, text: 399});
-macro_fx.vix2render = function(vix2buf)
+macro_fx.vix2render = function(frtime, vix2buf)
 {
 //    this.textinx = vix2buf[399];
     switch (vix2buf[399])
@@ -194,68 +195,68 @@ macro_fx.vix2render = function(vix2buf)
         case 103: this.text = "Thanks for watching!"; break; //font="5x5font" hscroll="-1/7" xofs="15" loop="-1">
         default: throw "Unhandled fx text: " + vix2buf[399];
     }
-    this.rgba = (vix2buf[396] << 24) | (vix2buf[397] << 16) | (vix2buf[398] << 8) | vix2buf[399];
+    this.rgba = (vix2buf[396] << 24) | (vix2buf[397] << 16) | (vix2buf[398] << 8) | vix2buf[395];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s %s %s %s => text %s color %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.text || '(none)', hex8(this.rgba || 0));
+    console.log("%s vix2render[%s] '%s: %s %s %s %s %s => text %s color %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.text || '(none)', hex8(this.rgba || 0));
 }
 
 //show_group('snglobe', [300, +2], [418, +2]);
 var snglobe_fx = new Model2D({name: 'snglobe', y: 0, w: 2, zinit: false, vix2ch: [300, +2], vix2alt: [418, +2], macro: +0, bitmap: +1});
-snglobe_fx.vix2render = function(vix2buf)
+snglobe_fx.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s", this.name, vix2buf[ch++], vix2buf[ch++]);
+    console.log("%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++]);
 }
 
 var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +2], macro: +0, bitmap: +1});
-gdoor_fx.vix2render = function(vix2buf)
+gdoor_fx.vix2render = function(frtime, vix2buf)
 {
     switch (vix2buf[416]) //macro
     {
         case 0: break; //Noop
         case 180: this.MyFx.vix2.EqBar0.call(this); break;
-        case 181: this.fx.vix2.EqBar1(); break;
-        case 182: this.fx.vix2.EqBar2(); break;
-        case 183: this.fx.vix2.EqBar3(); break;
-        case 184: this.fx.vix2.EqBar4(); break;
-        case 200: this.fx.vix2.FillBkg(); break;
-        case 201: this.fx.vix2.FillFg(); break;
-        case 202: this.fx.vix2.FillRGBTest(); break;
-        case 203: this.fx.vix2.BTWipe(); break;
-        case 204: this.fx.vix2.TBWipe(); break;
-        case 205: this.fx.vix2.LRWipe(); break;
-        case 206: this.fx.vix2.MidWipe(); break;
-        case 207: this.fx.vix2.EdgeWipe(); break;
-        case 208: this.fx.vix2.Spiral(); break;
-        case 209: this.fx.vix2.GECETest_zzud(); break;
-        case 210: this.fx.vix2.GECETest_zzlr(); break;
-        case 211: this.fx.vix2.DrawBorder(); break;
-        case 212: this.fx.vix2.BTLine(); break;
-        case 213: this.fx.vix2.LRLine(); break;
-        case 214: this.fx.vix2.SpiralLine(); break;
-        case 215: this.fx.vix2.DrawColumn0(); break;
-        case 216: this.fx.vix2.DrawColumn1(); break;
-        case 217: this.fx.vix2.DrawColumn2(); break;
-        case 218: this.fx.vix2.DrawColumn3(); break;
-        case 219: this.fx.vix2.DrawRow(); break;
-        case 220: this.fx.vix2.Snow(); break;
-        case 221: this.fx.vix2.DrawCorners(); break;
-        case 222: this.fx.vix2.Fade(); break;
-        case 223: this.fx.vix2.Ramp(); break;
-        case 224: this.fx.vix2.TreeEcho(); break;
-        case 225: this.fx.vix2.SwirlCw(); break;
-        case 226: this.fx.vix2.SwirlCcw(); break;
-        case 227: this.fx.vix2.Burst(); break;
-        case 233: this.fx.vix2.ShowBitmap(); break;
-        case 234: this.fx.vix2.ShowText(); break;
-        case 235: this.fx.vix2.Countdown(); break;
-        case 236: this.fx.vix2.Timer(); break;
-        case 240: this.fx.vix2.Chase(); break;
-        case 241: this.fx.vix2.Talk(); break;
-        case 242: this.fx.vix2.One2Many(); break;
-        case 243: this.fx.vix2.SpiralXition(); break;
+        case 181: this.MyFx.vix2.EqBar1.call(this); break;
+        case 182: this.MyFx.vix2.EqBar2.call(this); break;
+        case 183: this.MyFx.vix2.EqBar3.call(this); break;
+        case 184: this.MyFx.vix2.EqBar4.call(this); break;
+        case 200: this.MyFx.vix2.FillBkg.call(this); break;
+        case 201: this.MyFx.vix2.FillFg.call(this); break;
+        case 202: this.MyFx.vix2.FillRGBTest.call(this); break;
+        case 203: this.MyFx.vix2.BTWipe.call(this); break;
+        case 204: this.MyFx.vix2.TBWipe.call(this); break;
+        case 205: this.MyFx.vix2.LRWipe.call(this); break;
+        case 206: this.MyFx.vix2.MidWipe.call(this); break;
+        case 207: this.MyFx.vix2.EdgeWipe.call(this); break;
+        case 208: this.MyFx.vix2.Spiral.call(this); break;
+        case 209: this.MyFx.vix2.GECETest_zzud.call(this); break;
+        case 210: this.MyFx.vix2.GECETest_zzlr.call(this); break;
+        case 211: this.MyFx.vix2.DrawBorder.call(this); break;
+        case 212: this.MyFx.vix2.BTLine.call(this); break;
+        case 213: this.MyFx.vix2.LRLine.call(this); break;
+        case 214: this.MyFx.vix2.SpiralLine.call(this); break;
+        case 215: this.MyFx.vix2.DrawColumn0.call(this); break;
+        case 216: this.MyFx.vix2.DrawColumn1.call(this); break;
+        case 217: this.MyFx.vix2.DrawColumn2.call(this); break;
+        case 218: this.MyFx.vix2.DrawColumn3.call(this); break;
+        case 219: this.MyFx.vix2.DrawRow.call(this); break;
+        case 220: this.MyFx.vix2.Snow.call(this); break;
+        case 221: this.MyFx.vix2.DrawCorners.call(this); break;
+        case 222: this.MyFx.vix2.Fade.call(this); break;
+        case 223: this.MyFx.vix2.Ramp.call(this); break;
+        case 224: this.MyFx.vix2.TreeEcho.call(this); break;
+        case 225: this.MyFx.vix2.SwirlCw.call(this); break;
+        case 226: this.MyFx.vix2.SwirlCcw.call(this); break;
+        case 227: this.MyFx.vix2.Burst.call(this); break;
+        case 233: this.MyFx.vix2.ShowBitmap.call(this); break;
+        case 234: this.MyFx.vix2.ShowText.call(this); break;
+        case 235: this.MyFx.vix2.Countdown.call(this); break;
+        case 236: this.MyFx.vix2.Timer.call(this); break;
+        case 240: this.MyFx.vix2.Chase.call(this); break;
+        case 241: this.MyFx.vix2.Talk.call(this); break;
+        case 242: this.MyFx.vix2.One2Many.call(this); break;
+        case 243: this.MyFx.vix2.SpiralXition.call(this); break;
         default: throw "Gdoor: unhandled macro " + vix2buf[416];
     }
     switch (vix2buf[417]) //bitmap
@@ -277,7 +278,7 @@ gdoor_fx.vix2render = function(vix2buf)
     }
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s => fx %s, bitmap %s", this.name, vix2buf[ch++], vix2buf[ch++], this.fxname, this.bitmap);
+    console.log("%s vix2render[%s] '%s: %s %s => fx %s, bitmap %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], this.fxname, this.bitmap);
 }
 
 //archfans near bottom:
@@ -296,12 +297,12 @@ fans.vix2render = function() {} //TODO
 */
 
 //show_group('tuneto', 205);
-var tune_to = new Model2D({name: 'tune-to', w: 1, h: 1, zinit: false, vix2ch: 205, tuneto: 205});
-tune_to.vix2render = function(vix2buf)
+var tune_to = new Model2D({name: 'tune-to', w: 1, h: 1, zinit: false, zorder: 2, vix2ch: 205, tuneto: 205});
+tune_to.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s", this.name, vix2buf[ch++]);
+    console.log("%s vix2render[%s] '%s: %s", this.name, frtime, ch, vix2buf[ch++]);
 }
 
 /*
@@ -322,31 +323,31 @@ var acssr7 = new ACSSR({name: 'ACSSR7', zinit: false});
 
 /*
 //show_group('shep', [103, +4]);
-var shep = new Model2D({name: 'shep', w: 4, zinit: false, vix2ch: [103, +4], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
+var shep = new Model2D({name: 'shep', w: 4, zinit: false, zorder: 1, vix2ch: [103, +4], shep_1guitar: 103, shep_2drums: 104, shep_3oboe: 105, shep_4sax: 106});
 const ShepInstr = ['Guitar', 'Drums', 'Oboe-shorter', 'Sax-longer'];
 shep.vix2render = function() {} //TODO
 //show_group('sheep', [107, +6]);
-var sheep = new Model2D({name: 'sheep', w: 6, zinit: false, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
+var sheep = new Model2D({name: 'sheep', w: 6, zinit: false, zorder: 1, vix2ch: [107, +6], sheep_1: 107, sheep_2: 108, sheep_3cymbal: 109, sheep_4: 110, sheep_5snare: 111, sheep_6tap: 112});
 const SheepRoles = [null, null, 'Cymbal', null, 'Snare', 'Tap'];
 sheep.vix2render = function() {} //TODO
 */
 //show_group('sh_bank', [113, +4]);
 var sh_bank = new Model2D({name: 'sh-bank', w: 4, zinit: false, vix2ch: [113, +4], onShep_RG_offShep_WB: 113, onCane: 114, onSh_BG_offSh_WR: 115, onSheep_RB_offSheep_WG: 116});
-const SheColors = ['#FCA', '#0F0', '#F00', '#00F', 0, 0, '#FCA', '#FCA'];
-const CaneColors = [0, 0, 0, 0, '#FCA', '#F00', '#FCA', '#F00'];
-sh_bank.vix2render = function(vix2buf)
+const SheColors = [WHITE, '#0F0', '#F00', '#00F', 0, 0, WHITE, WHITE];
+const CaneColors = [0, 0, 0, 0, WHITE, '#F00', WHITE, '#F00'];
+sh_bank.vix2render = function(frtime, vix2buf)
 {
     this.shepColor = SheColors[(vix2buf[113]? 1: 0) + (vix2buf[115]? 2: 0) + (vix2buf[114]? 4: 0)];
     this.caneColor = CaneColors[(vix2buf[113]? 1: 0) + (vix2buf[115]? 2: 0) + (vix2buf[114]? 4: 0)];
     this.sheepColor = SheColors[(vix2buf[116]? 1: 0) + (vix2buf[115]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s %s %s => shep %s, canes %s, sheep %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.shepColor, this.caneColor, this.sheepColor);
+    console.log("%s vix2render[%s] '%s: %s %s %s %s => shep %s, canes %s, sheep %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.shepColor, this.caneColor, this.sheepColor);
 }
 
 /*
 //show_group('nat', 46, [83, +8], 232);
-var cross = new Model2D({name: 'cross', numch: 1, zinit: false, vix2ch: 46, cross: 46});
+var cross = new Model2D({name: 'cross', numch: 1, zinit: false, zorder: 2, vix2ch: 46, cross: 46});
 cross.vix2render = function() {} //TODO
 var nat = new Model2D({name: 'nat-people', w: 9, vix2ch: [83, +9], mary: 83, joseph: 84, cradle: 85, stable: 86, king_R1: 87, king_B2: 88, king_G3: 89, fireplace: 90});
 nat.vix2render = function() {} //TODO
@@ -363,21 +364,21 @@ city.vix2render = function() {} //TODO
 
 //show_group('acc', [96, +5]);
 var acc = new Model2D({name: 'acc', w: 5, zinit: false, vix2ch: [96, +5], guitar_1: 96, stick_2a: 97, stick_2b: 98, oboe: 99, sax: 100});
-acc.vix2render = function(vix2buf)
+acc.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    console.log("%s vix2render[%s] '%s: %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
 }
 //show_group('acc_bank', [101, +2]);
 var acc_bank = new Model2D({name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
 const AccBanks = ['FPArch', 'Instr', 'Sidewalk', 'Heart'];
-acc_bank.vix2render = function(vix2buf)
+acc_bank.vix2render = function(frtime, vix2buf)
 {
     this.bankAcc = AccBanks[(vix2buf[101]? 2: 0) + (vix2buf[102]? 1: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s => %s", this.name, vix2buf[ch++], vix2buf[ch++], this.bankAcc);
+    console.log("%s vix2render[%s] '%s: %s %s => %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], this.bankAcc);
 }
 
 
@@ -404,19 +405,19 @@ var gdoor_all = new Model2D({name: 'gdoor-all', x: gdoorL.left, y: 33, w: gdoorR
 //canvas is 2D rectangle (sparsely populated)
 //Vixen2 channels are T2B
 
-//maps sparse 42 x 51 rect to 4 x 80 rect
+//maps sparse 42 x 51 rect to 3 columns of 1 x 50 + 1 row of 42 x 1
 //(0, 0) in lower left corner
 Model2D.prototype.ColumnNodes = function()
 {
 //    console.log("columns: %s x %s @(%s..%s, %s..%s)", this.width, this.height, this.left, this.right, this.bottom, this.top);
     for (var i = 0; i < 37+42+1; ++i)
-        if (i < 37) this.nodelist.push(this.pixelXY(0, this.T2B(i))); //colL is upper part of left edge of canvas
-        else if (i < 37+42) this.nodelist.push(this.pixelXY(i - 37, 0)); //colH is bottom edge of canvas
+        if (i < 37) this.nodelist.push(this.pixelXY(this.left + 0, /*this.bottom +*/ this.T2B(i))); //colL is upper part of left edge of canvas
+        else if (i < 37+42) this.nodelist.push(this.pixelXY(this.left + i - 37, this.bottom + 0)); //colH is bottom edge of canvas
         else this.nodelist.push(null); //pad out remaining nodes
     for (var y = 0; y < 50+30; ++y)
-        this.nodelist.push((y < 50)? this.pixelXY(Math.round((this.left + this.right) / 2), this.T2B(y)): null);
+        this.nodelist.push((y < 50)? this.pixelXY(Math.round((this.left + this.right) / 2), /*this.bottom +*/ this.T2B(y)): null);
     for (var y = 0; y < 50+30; ++y)
-        this.nodelist.push((y < 50)? this.pixelXY(this.right - 1, this.T2B(y)): null);
+        this.nodelist.push((y < 50)? this.pixelXY(this.right - 1, /*this.bottom +*/ this.T2B(y)): null);
     for (var y = 0; y < 80; ++y)
         this.nodelist.push(null); //set 4th parallel string even tho there is no hardware; this reduces parallel palette entropy
 //    console.log("columns %d nodes", this.nodelist.length);
@@ -425,30 +426,30 @@ Model2D.prototype.ColumnNodes = function()
 //show_group('col', [181, +24]);
 var cols_LMRH = new Model2D({name: 'cols-LMRH', y: 33, w: 42, h: 51, zinit: false, order: Model2D.prototype.ColumnNodes, output: 'GRB', nodetype: RenXt.WS2811(RenXt.PARALLEL)}); //, vix2ch: [181, +24], noop: [181, 182, 189, 197, 198]}); //w: 42, h: 51, numnodes: 3 * 80,
 //show_group('colL', [181, +8]);
-var colL = new Model2D({name: 'colL', x: cols_LMRH.left, y: cols_LMRH.top - 37, w: 1, h: 37, zinit: false, vix2ch: [183, +6]}); //, adrs: cols_, startch: cols_LMR.startch}); //, top: 183, bottom: 188}); //overlay
+var colL = new Model2D({name: 'colL', x: cols_LMRH.left, y: cols_LMRH.top - 37, w: 1, h: 37, zinit: false, zorder: 1, vix2ch: [183, +6]}); //, adrs: cols_, startch: cols_LMR.startch}); //, top: 183, bottom: 188}); //overlay
 //L.8 .. L.1
 colL.vix2render = function() {} //TODO
 //show_group('colM', [189, +8]);
-var colM = new Model2D({name: 'colM', x: Math.round((cols_LMRH.left + cols_LMRH.right) / 2), y: cols_LMRH.top - 50, h: 50, zinit: false, vix2ch: [190, +7]}); //, startch: cols_LMR.startch, top: 190, bottom: 196});
+var colM = new Model2D({name: 'colM', x: Math.round((cols_LMRH.left + cols_LMRH.right) / 2), y: cols_LMRH.top - 50, h: 50, zinit: false, zorder: 1, vix2ch: [190, +7]}); //, startch: cols_LMR.startch, top: 190, bottom: 196});
 //M.8 .. M.1
 colM.vix2render = function() {} //TODO
 //show_group('colR', [197, +8]);
-var colR = new Model2D({name: 'colR', x: cols_LMRH.right - 1, y: cols_LMRH.top - 50, zinit: false, vix2ch: [199, +6]}); //, top: 199, bottom: 204});
+var colR = new Model2D({name: 'colR', x: cols_LMRH.right - 1, y: cols_LMRH.top - 50, zinit: false, zorder: 1, vix2ch: [199, +6]}); //, top: 199, bottom: 204});
 //R.8 .. R.1
 colR.vix2render = function() {} //TODO
 //var colH = new Model2D({name: 'colH', x: cols_LMRH.left, y: cols_LMRH.bottom, zinit: false}); //, top: 199, bottom: 204});
-//colH.vix2render = function(vix2buf) { this.vix2buf = vix2buf; } //just save the values
+//colH.vix2render = function(frtime, vix2buf) { this.vix2buf = vix2buf; } //just save the values
 
 
 //show_group('mtree', [47, +24]);
-var mtree = new Model2D({name: 'mtree', w: 36, h: 32, zinit: false, vix2ch: [47, +24]}); //1A, 1B, 2A, ..., 12A, 12B
-mtree.vix2render = function(vix2buf)
+var mtree = new Model2D({name: 'mtree', w: 36, h: 32, zinit: false, zorder: 1, vix2ch: [47, +24]}); //1A, 1B, 2A, ..., 12A, 12B; NOTE: tree must come after banks
+mtree.vix2render = function(frtime, vix2buf)
 {
-//    var ch = this.opts.vix2ch[0];
-//    console.log("%s: vix2render %s %s => A %s, B %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], mtree.bankAcolor, mtree.bankBcolor);
+    var ch = this.opts.vix2ch[0];
+    console.log("%s vix2render[%s] '%s: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
     for (var br = 0; br < 36; ++br) //24 branches => 36 columns == 1.5 columns per branch
     {
-        var brcolor = dim((br & 1)? this.bankAcolor: this.bankBcolor, vix2buf[47 + Math.floor(24 * br / 36)]);
+        var brcolor = dim(((br & 1)? this.bankAcolor: this.bankBcolor) || '#0F0', vix2buf[47 + Math.floor(24 * br / 36)]);
         this.MyFx.column.call(this, br, brcolor);
     }
     this.dirty = true;
@@ -456,21 +457,21 @@ mtree.vix2render = function(vix2buf)
 
 //show_group('mtree_bank', [71, +4]);
 var mtree_bank = new Model2D({name: 'mtree-bank', w: 4, h: 1, zinit: false, vix2ch: [71, +4], onA_BW_offA_GR: 71, onA_RW_offA_GB: 72, onB_BW_offB_GR: 73, onB_RW_offB_GB: 74});
-const MtreeColors = ['#0f0', '#00F', '#F00', '#FCA'];
-mtree_bank.vix2render = function(vix2buf)
+const MtreeColors = ['#0F0', '#00F', '#F00', WHITE];
+mtree_bank.vix2render = function(frtime, vix2buf)
 {
     mtree.bankAcolor = MtreeColors[(vix2buf[71]? 1: 0) + (vix2buf[72]? 2: 0)];
     mtree.bankBcolor = MtreeColors[(vix2buf[73]? 1: 0) + (vix2buf[74]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s => A %s, B %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], mtree.bankAcolor, mtree.bankBcolor);
+    console.log("%s vix2render[%s] '%s: %s %s => A %s, B %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], hex8(mtree.bankAcolor), hex8(mtree.bankBcolor));
     mtree.dirty = true; //already deduped
 }
 
 /*
 //show_group('tb', [75, +2]);
-var tb = new Model2D({name: 'tb', w: 2, zinit: false, zorder: 1, vix2ch: [75, +2], ball1: 75, ball2: 76});
-const TBColors = ['#FF0', '#FCA'];
+var tb = new Model2D({name: 'tb', w: 2, zinit: false, zorder: 2, vix2ch: [75, +2], ball1: 75, ball2: 76});
+const TBColors = ['#FF0', WHITE];
 tb.vix2render = function() {} //TODO
 
 //show_group('angel', [40, +3]);
@@ -503,10 +504,10 @@ Model2D.prototype.CustomX_T2B = function(x_ranges)
 //        console.log("x range", range, range[0] + '++' + range[1], this.top + '--' + this.bottom, range[0] + '--' + range[1], this.top + '--' + this.bottom);
         for (var x = range[0]; x <= range[1]; ++x) //L->R
             for (var y = this.top - 1; y >= this.bottom; --y) //T->B
-                this.nodelist.push(this.pixelXY(x, y));
+                this.nodelist.push(this.pixelXY(this.left + x - 1, y));
         for (var x = range[0]; x >= range[1]; --x) //R->L
             for (var y = this.top - 1; y >= this.bottom; --y) //T->B
-                this.nodelist.push(this.pixelXY(x, y));
+                this.nodelist.push(this.pixelXY(this.left + x - 1, y));
     }.bind(this));
 //    console.log("node list ", this.nodelist.length);
 //    return this.nodelist;
@@ -524,15 +525,17 @@ var ic5 = new Model2D({name: 'ic5', y: 100, w: 34, zinit: false, order: Model2D.
 var icbig = new Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { Model2D.prototype.CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14])(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 //var icbig = new Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { (CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14]))(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 var ic_all = new Model2D({name: 'ic-all', x: ic1.left, y: 100, w: icbig.right - ic1.left, zinit: false, vix2ch: [2, +14]}); //yport.alloc(IcicleSegment2D.all, {name: 'ic-all', x: 0, y: 0, w: 207, h: 10, zinit: false}); //CAUTION: must use same port as segments
-ic_all.vix2render = function(vix2buf)
+ic_all.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s: vix2render %s %s", this.name, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
-    for (var col = 0; col < 207; ++col) //14 segments => 207 columns ~= 15 columns per segment
+    console.log("%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    for (var x = 0, col = 0; x < 207; x += 207.1/14, ++col) //14 segments => 207 columns ~= 15 columns per segment; add a little to force loop exit even with rounding errors
     {
-        var color = dim('#FCA', vix2buf[2 + Math.floor(14 * col / 206)]);
-        this.MyFx.column.call(this, col, color);
+        var color = dim(WHITE, vix2buf[2 + col]);
+        console.log("ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
+//        this.MyFx.column.call(this, col, color);
+        this.fill(Math.round(x), 0, Math.round(x + 207.1/14) - Math.round(x), this.height, color);
     }
     this.dirty = true;
 }
@@ -676,29 +679,5 @@ console.log("total: active ports: %d, #real models: %d, #nodes: %d, avg %d nodes
 ////
 /// helper functions:
 //
-
-const color_cache = require('my-projects/models/color-cache').cache;
-const color_cache_stats = require('my-projects/models/color-cache').stats;
-
-//convert rgba color to hsv and then dim it:
-var rgba_split = new Buffer([255, 255, 255, 255]);
-function dim(rgba, brightness)
-{
-    if (!brightness) return 0;
-    if (!rgba) throw "Dim: no color found"; //this will cause dropped data so check it first
-    if (brightness == 255) return rgba;
-    rgba = color_cache(rgba + '^' + brightness, function()
-    {
-//        if (brightness == 255) return rgba;
-        rgba_split.writeUInt32BE(rgba, 0);
-//    if (rgba_split[3] != 255) throw "Unusual color: " + rgba;
-        var c = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
-//TODO?   c = Color(hex8(rgba)).hsv(); c.v *= brightness/255; c = c.rgba(); c.a *= 255;
-        c = c.darken(100 * (255 - brightness) / 255).toRgb(); //100 => completely dark
-        rgba_split[0] = c.r; rgba_split[1] = c.g; rgba_split[2] = c.b; rgba_split[3] = c.a * 255; //1.0 => 255
-        return rgba_split.readUInt32BE(0); //>>> 0;
-    });
-    return rgba;
-}
 
 //eof

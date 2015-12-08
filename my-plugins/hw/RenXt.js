@@ -229,7 +229,7 @@ module.exports.AddProtocol = function(port)
 {
 //    if (!port) return;
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
-    var svmethods = {assign: port.assign, render: port.render, verify: port.verify};
+    var svmethods = {assign: port.assign, render: port.render}; //, verify: port.verify};
     /*if (!this.encbuf)*/ port.encbuf = new RenXtBuffer(4000); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
     port.assign = function(model) //assign controller address
     {
@@ -255,11 +255,18 @@ debugger;
         retval.buflen = this.encbuf.wrlen;
         return retval;
     }.bind(port);
-    port.verify = function(outbuf, inbuf) //verify outbuf was received and processed
+    port.verify = function() //verify outbuf was received and processed
     {
 debugger;
-        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
-        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
+        if (this.inbuf.size() < this.ioverify.first.len) return; //not enough data to verify
+    var data = this.outbuf.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
+    var iorec = {seqnum: seqnum, data: data, len: data.length, sendtime: clock.Now()};
+//    this.verbuf.write(data);
+    this.ioverify.push(iorec);
+    var elapsed = new Elapsed();
+
+//        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
+//        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
     }.bind(port)
     port.cfg_sent = false; //force config info to be sent first time

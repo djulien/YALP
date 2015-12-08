@@ -6,15 +6,14 @@
 
 //var Color = require('tinycolor2'); //'onecolor').color;
 
-module.exports.cache = color_cache; //common.js
-var stats = module.exports.stats = {hits: 0, misses: 0, length: 0}; //NOTE: cache size == #misses unless pruning occurs
-
 //TODO: track frequency, pruning?
 //TODO: quantize?
+//TODO: allow partitioned cache?
 
 var m_cache = {};
 //var hits = 0, misses = 0;
 
+module.exports.cache =
 function color_cache(key, computation)
 {
     var retval = m_cache[key];
@@ -22,5 +21,8 @@ function color_cache(key, computation)
     else ++stats.hits;
     return retval;
 }
+
+var stats = module.exports.cache.stats = {hits: 0, misses: 0, length: 0}; //NOTE: cache size == #misses unless pruning occurs
+
 
 //eof

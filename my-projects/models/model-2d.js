@@ -58,7 +58,7 @@ function Model2D(opts)
     this.height = this.opts.h || this.opts.height || (m_canvas || {}).height || (this.prior_sibling || {}).height || 1;
     this.left = isdef(this.opts.x)? this.opts.x: isdef(this.opts.left)? this.opts.left: (this.prior_sibling || {}).right || 0;
     this.bottom = isdef(this.opts.y)? this.opts.y: isdef(this.opts.bottom)? this.opts.bottom: (this.prior_sibling || {}).bottom || 0;
-    this.right = this.left + this.width;
+    this.right = this.left + this.width; // 1 past edge
     this.top = this.bottom + this.height; //CAUTION: y coordinate is inverted; try to turn it right side here (origin is lower left corner)
     if (this.parent) this.parent.enlarge(this); //NOTE: need to do this after bounds checking above
 
@@ -243,6 +243,7 @@ Model2D.prototype.enlarge = function(x, y, w, h)
 
 
 //graphics:
+//image data is RGBA array
 Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord is reversed)
 {
     switch (arguments.length) //shuffle optional params
@@ -272,7 +273,7 @@ Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top
             for (var ofs = 0, limit = /*retval*/ this.data.length /*numch*/; ofs < limit; ofs += 4)
             {
                 if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-                buf += ' ' + hex8(this.data.readUInt32BE(ofs)); //toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
+                buf += ' ' + hex8(this.data.readUInt32BE(ofs) >>> 0); //toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
             }
             return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
         }.bind(retval);
@@ -293,13 +294,17 @@ Model2D.prototype.save = function()
 var Color = require('tinycolor2'); //'onecolor');
 var color_cache = require('my-projects/models/color-cache').cache;
 
-Model2D.prototype.fillStyle = function(color)
+Model2D.prototype.fillStyle = function(color) //context2d wants RGBA
 {
 //    color = fromRGBA(color);
 //    color = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
-    var rgba = color_cache('=' + color, function() { return Color(color).toRgbString(); }); //allows CSS color formats
+    var rgba = color_cache('=' + color, function() //allows CSS color formats
+    {
+        if (typeof color == 'number') color = '#' + hex8(color);
+        return Color(color).toRgbString();
+    });
     this.ctx.fillStyle = rgba; //sprintf("rgba(%d, %d, %d, %d)", rgba.r, rgba.g, rgba.b, rgba.a); //'#' + hex8(color);
-    console.log("fill style '%s'", this.name, this.ctx.fillStyle, color);
+    console.log("fill style for '%s': %s => %s", this.name, color, this.ctx.fillStyle);
     return this; //fluent
 }
 
@@ -333,7 +338,7 @@ Model2D.prototype.fill = function(x, y, w, h, color)
 //        w = Math.max(0, Math.min(this.width - x - 1, w));
 //        h = Math.max(0, Math.min(this.height - y - 1, h));
     if (isdef(color)) this.save().fillStyle(color);
-    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w, y, y + h, this.ctx.fillStyle); //hex8(color));
+    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w - 1, y, y + h - 1, this.ctx.fillStyle); //hex8(color));
     this.ctx.fillRect(x, y, w, h);
     if (isdef(color)) this.restore();
     this.dirty = true;
@@ -359,14 +364,16 @@ Model2D.prototype.restore = function()
 //node ordering:
 //generic ordering defined below.  caller can supply custom ordering.
 
-Model2D.prototype.R2L = function(x) { return this.width - x - 1; }
+Model2D.prototype.R2L = function(x) { return this.right /*width*/ - x - 1; }
 
-Model2D.prototype.T2B = function(y) { return this.height - y - 1; } //CAUTION: canvas y coordinate is inverted; this puts origin in lower left corner
+Model2D.prototype.T2B = function(y) { return this.top /*height*/ - y - 1; } //CAUTION: canvas y coordinate is inverted; this puts origin in lower left corner
 
 //NOTE: pixelXY must be defined on prototype, not within ctor (because L/R, T/B node list generators are passed into ctor)
 Model2D.prototype.pixelXY = function(x, y) //map relative (X, Y) to my local imgData offset
 {
-    return ((x >= this.left) && (x < this.right) && (y >= this.bottom) && (y < this.top))? 4 * (this.width * this.T2B(y - this.bottom) + x - this.left): -1;
+    var retval = ((x >= this.left) && (x < this.right) && (y >= this.bottom) && (y < this.top))? 4 * (this.width * this.T2B(y /*- this.bottom*/) + x - this.left): -1;
+    if (retval < 0) throw sprintf("bad xy (%s, %s) on model '%s', L %s, B %s, R %s, T %s", x, y, this.name, this.left, this.bottom, this.right, this.top);
+    return retval;
 }
 
 //provide generic variations here
@@ -495,8 +502,8 @@ Model2D.prototype.buf_resize = function(bufname, needlen, grouping)
             if (!(items % 16)) buf += " 'x" + ofs.toString(16) + " "; //show byte offset periodically
             switch (grouping)
             {
-                case 3: buf += ' ' + hex6(this.readUInt24BE(ofs)); break;
-                case 4: buf += ' ' + hex8(this.readUInt32BE(ofs)); break;
+                case 3: buf += ' ' + hex6(this.readUInt24BE(ofs) >>> 0); break;
+                case 4: buf += ' ' + hex8(this.readUInt32BE(ofs) >>> 0); break;
                 default: throw "Unhandled chunk size: " + grouping;
             }
         }
@@ -539,7 +546,7 @@ Model2D.prototype.pixel = function(x, y, color)
 //TODO: cache pixel values
         var retval = this.has_ctx? this.ctx.getImageData(x, this.T2B(y), 1, 1): null; //avoid creating canvas when getting data
 //        if (retval) retval = toRGBA(retval.data[0], retval.data[1], retval.data[2], retval.data[3]);
-        if (retval) retval = retval.data.readUInt32BE(0); //want RGBA
+        if (retval) retval = retval.data.readUInt32BE(0) >>> 0; //want RGBA
         return retval;
     }
 //    color = fromRGBA(color);
@@ -569,8 +576,11 @@ Model2D.prototype.renderNodes_raw = function(pxbuf)
 //    var outofs = 0;
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
-//NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        this.port.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0); //RGBA; endianness doesn't matter here as long as it's preserved
+//NOTE: null is used as a placeholder node and should be set to off even if node is absent (to reduce encoding entropy)
+//        require('my-plugins/utils/showthis').call(this.port.outbuf, "port.outbuf");
+//    try{
+        if (pxofs !== null) this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA; endianness doesn't matter here as long as it's preserved
+//        }catch(exc){ throw "ERROR:" + exc + ", pxofs " + pxofs + ", pxlen " + pxbuf.length + ", inx " + inx + ", buflen " + this.port.outbuf.size() + ", val " + (pxbuf.readUInt32BE(pxofs) >>> 0); }
     }.bind(this));
 }
 
@@ -600,8 +610,9 @@ Model2D.prototype.renderNodes_mono = function(pxbuf)
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        var brightness = (pxofs !== null)? Math.max(pxbuf[pxofs + 0], pxbuf[pxofs + 1], pxbuf[pxofs + 2]): 0; //TODO: weighted?
-        this.port.outbuf.writeUInt8(brightness);
+        if (pxofs === null) return;
+        var brightness = Math.max(pxbuf[pxofs + 0], pxbuf[pxofs + 1], pxbuf[pxofs + 2]); //TODO: weighted?
+        this.port.outbuf.writeUInt8(brightness >>> 0);
     }.bind(this));
 }
 
@@ -620,7 +631,7 @@ Model2D.prototype.renderNodes_RGBA = function(pxbuf)
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        this.port.outbuf.writeUInt32BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs): 0); //RGBA
+        if (pxofs !== null) this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA
     }.bind(this));
 }
 
@@ -642,7 +653,7 @@ Model2D.prototype.renderNodes_RGB = function(pxbuf)
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        this.port.outbuf.writeUInt24BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs) >>> 8: 0); //RGB, drop A
+        if (pxofs !== null) this.port.outbuf.writeUInt24BE(pxbuf.readUInt32BE(pxofs) >>> 8); //RGB, drop A
     }.bind(this));
 }
 
@@ -664,8 +675,9 @@ Model2D.prototype.renderNodes_GRB = function(pxbuf)
 {
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
+        if (pxofs === null) return;
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        var abgr = (pxofs !== null)? pxbuf.readUInt32LE(pxofs): 0; //ABGR
+        var abgr = pxbuf.readUInt32LE(pxofs); //ABGR
         var grb = ((abgr & 0xFFFF) << 8) | ((abgr & 0xFF0000) >>> 16); // ABGR -> GRB
         this.port.outbuf.writeUInt24BE(grb);
     }.bind(this));
@@ -675,9 +687,9 @@ Model2D.prototype.renderNodes_GRB = function(pxbuf)
 //render node values canvas pixels:
 Model2D.prototype.render = function(frnext)
 {
-    console.log("model '%s' render: me dirty? %s, parent dirty? %s, port %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name); //, this.renderNode);
+    console.log("model '%s' render: me? %s, parent? %s, port %s, send nodes? %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name, !!this.renderNodes);
     if (!this.dirty || !this.port) return; //if not dirty or no output port, no need to render
-    if (!this.renderNode) { this.dirty = false; return; } //okay for dummy models to have no output; //throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
+    if (!this.renderNodes) { this.dirty = false; return; } //okay for dummy models to have no output; //throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
 //        this.buf_resize('outbuf', 4 * this.nodelist.length);
     var imgdata = this.imgdata(); //get all my pixels
     var pxbuf = imgdata.data; //? new DataView(imgdata.data.buffer): null; //Uint32Array(imgdata.data.buffer/*, 0, Uint32Array.BYTES_PER_ELEMENT*/): null;
@@ -915,8 +927,8 @@ Model2D.entire = new Model2D('entire'); //define super-model (first) to include 
 function extensions()
 {
     buffer.INSPECT_MAX_BYTES = 800;
-    Buffer.prototype.readUInt24BE = function(ofs) { return int24.readUInt24BE(this, ofs); };
-    Buffer.prototype.writeUInt24BE = function(val, ofs) { return int24.writeUInt24BE(this, val, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
+    Buffer.prototype.readUInt24BE = function(ofs) { return int24.readUInt24BE(this, ofs) >>> 0; };
+    Buffer.prototype.writeUInt24BE = function(val, ofs) { return int24.writeUInt24BE(this, val >>> 0, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
 
     ['readUInt32BE', 'readUInt32LE'].forEach(function(ignored, inx, both)
     {

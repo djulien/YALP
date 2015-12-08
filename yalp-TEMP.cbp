@@ -103,6 +103,7 @@
 		<Unit filename="my-plugins/routes/use/99-error.js" />
 		<Unit filename="my-plugins/streamers/YalpStream.js" />
 		<Unit filename="my-plugins/streamers/fxstream.js" />
+		<Unit filename="my-plugins/streamers/iomon.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
@@ -142,6 +143,7 @@
 		<Unit filename="my-projects/models/ArchFan8+8.js" />
 		<Unit filename="my-projects/models/chpool-bk.js" />
 		<Unit filename="my-projects/models/color-cache.js" />
+		<Unit filename="my-projects/models/color-fx.js" />
 		<Unit filename="my-projects/models/columns-bk.js" />
 		<Unit filename="my-projects/models/growable-canvas-bk.js" />
 		<Unit filename="my-projects/models/icicles-bk.js" />
