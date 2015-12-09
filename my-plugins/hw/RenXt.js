@@ -251,7 +251,7 @@ module.exports.AddProtocol = function(port)
         this.old_assign /*.bind(port)*/(model);
         var nodetype = model.opts.nodetype || RenXt.WS2811(RenXt.SERIES);
         model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
-        model.setRenderType('raw'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
+        model.setRenderType('ARGB'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
         model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
         var old_render = model.render;
         model.render = function model_render()
@@ -264,6 +264,7 @@ debugger;
             var retval = old_render.call(this);
             if (this.port.outbuf.size())
             {
+/*
 //                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
 //                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
                 var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
@@ -271,6 +272,10 @@ debugger;
 //                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
                 for (var i = 0; i < nodes.length; i += 4)
                     this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
+                this.raw_nodes = this.imgdata();
+                console.log("raw nodes", this.raw_nodes);
+*/
+                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
                 var oldlen = this.port.encbuf.wrlen;
                 this.encode();
                 console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
@@ -366,8 +371,21 @@ var RgbQuant = require('rgbquant');
 //NOTE: runs in model context
 function encode_series(first) //_smart(model) //, nodes)
 {
-    analyze(this.raw_nodes, "raw");
-    var quant = new RgbQuant({colors: 16}); //need new object each time
+    console.log("raw nodes", this.raw_nodes);
+    console.log("series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
+//    if (this.raw_nodes.length > 16) //do this even if <= 16 nodes (need to invert anyway)
+    {
+        analyze(this.raw_nodes, "raw");
+//    var quant = new RgbQuant({colors: 16, boxSize: [4, 4], boxPxls: 1}); //need new object each time?
+        var quant = new RgbQuant({ colors: 16, method: 1}); //4 bpp, 1D (no sub-boxes)
+//    boxSize: [4, 4], boxPxls: 1,
+//    dithXXXX: true, //maybe try dithKern, dithSerp, etc
+//    colorDist: ??, //select color distance eqn?
+    //?? send in Uint32Array, .buffer = bytes, .length = 4,
+    //send in ? with .buf32 = values, .width = width
+//    quant.colorStats2D(buf32, width)
+//    quant.colorStats1D(buf32) //wants ARGB, .length
+
     quant.sample(this.raw_nodes); //analyze histogram
 //TODO: share palette across frames to reduce frame-to-frame color variations
     var pal = quant.palette(); //build palette
@@ -375,6 +393,7 @@ function encode_series(first) //_smart(model) //, nodes)
 //then generate reduced palette:
     var reduced = quant.reduce(this.raw_nodes); //reduce colors in image
     analyze(reduced, "reduced");
+    }
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
 //start encoding:
@@ -410,7 +429,11 @@ function encode_chplex(first) //, nodes)
 }
 
 
-function hex8(val) { return ('00000000' + (val >>> 0).toString(16)).slice(-8); }
+function hex(val, len)
+{
+    if (!len) len = 8;
+    return ('00000000' + (val >>> 0).toString(16)).slice(-len);
+}
 
 
 //first analyze nodes:
@@ -420,9 +443,10 @@ function analyze(nodes, desc)
 //    var keys = {}, counts = [];
     require('my-plugins/utils/showthis').call(nodes, "nodes");
     var counts = {};
+    if (nodes.data) nodes = nodes.data;
     for (var i = 0; i < nodes.length; ++i) //i += 4)
     {
-        var color = nodes[i] >>> 8; //.readUInt32BE(i) >>> 8; //RGB, drop A
+        var color = nodes[i] & 0x00FFFFFF; //>>> 8; //.readUInt32BE(i) >>> 8; //RGB, drop A
         if (isNaN(++counts[color])) counts[color] = 1;
 /*
         var inx = keys[color];
@@ -434,7 +458,7 @@ function analyze(nodes, desc)
     var palette = Object.keys(counts);
     palette.sort(function(lhs, rhs) { return (counts[lhs] - counts[rhs]) || (lhs - rhs); });
     var buf = '';
-    palette.forEach(function(color) { buf += ', ' + hex8(color) + ' * ' + counts[color]; });
+    palette.forEach(function(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
     console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
 }
 
