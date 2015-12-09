@@ -3,6 +3,11 @@
 
 'use strict';
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// Protocol definitions:
+//
+
 var RENXt = module.exports = {}; //namespace
 function Const_RENXt(name, value)
 {
@@ -222,46 +227,70 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
     RENXt.MakeNode = function(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// Protocol handler:
+//
 
 module.exports.AddProtocol = function(port)
 {
 //    if (!port) return;
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
 //    var oldmethods = {assign: port.assign, flush: port.flush}; //, verify: port.verify};
-    /*if (!this.encbuf)*/ 
-    port.encbuf = new RenXtBuffer(4096); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
+    /*if (!this.encbuf)*/
+    port.encbuf = new RenXtBuffer(4096); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned; TODO: replace with stream-buffer?
+    port.encbuf.emit_raw(RenXt.RENARD_SYNC, 5); //allow controllers to auto-detect baud rate or stop what they were doing first time
+    port.old_outbuf = port.outbuf;
+    port.outbuf = {getContents: function() { return port.encbuf.usedbuf; }, size: function() { return port.encbuf.wrlen; }}; //kludge: make it look like stream-buffer
+//        .rewind()
 //    port.encode = encode.bind(port);
     port.old_assign = port.assign;
     port.assign = function(model) //assign controller address
     {
         if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes";
-        old_assign /*.bind(port)*/(model);
+        this.old_assign /*.bind(port)*/(model);
+        var nodetype = model.opts.nodetype || RenXt.WS2811(RenXt.SERIES);
         model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
-        model.setRenderType('raw'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
-//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
-//        model.cfg_sent = false; //force config info to be sent first time
-        model.encode = encode.bind(model);
-        model.want_cfg = true; //force config info to be sent first time
+        model.setRenderType('raw'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
+        model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
         var old_render = model.render;
-        model.render = function()
+        model.render = function model_render()
         {
 debugger;
 //            this.was_dirty = this.dirty;
 //            var oldlen = port.outbuf.size();
+            var my_outbuf = this.port.outbuf; this.port.outbuf = this.port.old_outbuf; //swap in original non-protocol outbuf
             this.port.outbuf.reset();
-            var retval = old_render();
-            if (!this.port.outbuf.size()) return retval; //nothing to encode
-            this.raw_nodes = this.port.outbuf.getbuf(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-            var oldlen = this.port.encbuf.wrlen;
-            this.encode();
-            console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
-            console.log("nodes in:", this.raw_nodes);
-            console.log("enc out:", this.port.encbuf.buf.slice(oldlen));
+            var retval = old_render.call(this);
+            if (this.port.outbuf.size())
+            {
+//                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+//                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                this.raw_nodes = new Uint32Array(nodes.length / 4);
+//                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
+                for (var i = 0; i < nodes.length; i += 4)
+                    this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
+                var oldlen = this.port.encbuf.wrlen;
+                this.encode();
+                console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
+                console.log("nodes in:", this.raw_nodes);
+                console.log("enc out:", this.port.encbuf.usedbuf);
+            }
+            this.port.outbuf = my_outbuf; //swap back to protocol outbuf
             return retval;
         }.bind(model);
     }.bind(port);
+
+//    port.old_flush = port.flush;
+//    port.flush = function(seqnum) //use correct buffer
+//    {
+//        var old_outbuf = this.outbuf; //.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
+//        this.outbuf = {getContents: function() { return this.encbuf.usedbuf; }, size: function() { return this.wrlen; }};
+//        var retval = this.old_flush(seqnum);
+//        this.outbuf = old_outbuf;
+//        return retval;
+//    }.bind(port);
 /*
     port.flush = function(frtime, force) //encode/compress raw nodes before sending
     {
@@ -280,6 +309,7 @@ debugger;
     }.bind(port);
 */
     port.verify = verify.bind(port);
+/*
     port.verify = function() //verify outbuf was received and processed
     {
 debugger;
@@ -290,6 +320,7 @@ debugger;
 //        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
     }.bind(port)
+*/
 //    port.cfg_sent = false; //force config info to be sent first time
     console.log("RenXt protocol added to %s".yellow, port.name);
 }
@@ -329,40 +360,97 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 var RgbQuant = require('rgbquant');
 //NO var quant = new RgbQuant({colors: 16}); //need new one each time
 
-//encode nodes for this model:
-//place into port output buf
+//encode series nodes for this model:
+//places encoded nodes into port output buf
+//model already deduped
 //NOTE: runs in model context
-function encode() //_smart(model) //, nodes)
+function encode_series(first) //_smart(model) //, nodes)
 {
-//TODO: share palette across frames to reduce frame-to-frame color variations
-    var quant = new RgbQuant(); //{colors: 16}); //need new object each time
-    var counts = {};
-    for (var i = 0; i < this.raw_nodes.length; i += 4)
-        if (isNaN(++counts[this.raw_nodes.readUInt32BE(i)])) counts[this.raw_nodes.readUInt32BE(i)] = 1;
+    analyze(this.raw_nodes, "raw");
+    var quant = new RgbQuant({colors: 16}); //need new object each time
     quant.sample(this.raw_nodes); //analyze histogram
+//TODO: share palette across frames to reduce frame-to-frame color variations
     var pal = quant.palette(); //build palette
+    console.log("pal", pal);
+//then generate reduced palette:
     var reduced = quant.reduce(this.raw_nodes); //reduce colors in image
-    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
-    this.encbuf
-        .SelectAdrs(model.adrs)
-        .SetPal(pal)
-        .NodeFlush()
-        .emit_buf("TODO: SMART");
-}
-            var oldlen = this.port.encbuf.wrlen;
+    analyze(reduced, "reduced");
 
-function encode_dumb(model) //, nodes)
+//    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
+//start encoding:
+    if (first || !this.cfg_sent) //need to config addresses before sending anything else
+        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.opts.nodebytes || Math.ceil(this.nodelist.length / 4 / 2)); //quad bytes, 2 bpp
+    this.cfg_sent = true;
+//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
+//        model.want_cfg = true; //force config info to be sent first time; NOTE: must send config to all models on this port to set correct addresses
+//        model.cfg_sent = false; //force config info to be sent first time
+
+    this.port.encbuf
+        .SelectAdrs(this.adrs)
+//        .SetPal(pal)
+        .emit_buf("TODO: SERIES")
+        .NodeFlush();
+}
+
+
+function encode_parallel(first) //, nodes)
 {
-    this.encbuf
-        .SelectAdrs(model.adrs)
-        .emit_buf("TODO: DUMB");
+    this.port.encbuf
+        .SelectAdrs(this.adrs)
+        .emit_buf("TODO: PARALLEL")
+        .NodeFlush();
+}
+
+function encode_chplex(first) //, nodes)
+{
+    this.port.encbuf
+        .SelectAdrs(this.adrs)
+        .emit_buf("TODO: DUMB")
+        .NodeFlush();
 }
 
 
-console.log("TODO: compare RenXt outbuf + inbuf");
+function hex8(val) { return ('00000000' + (val >>> 0).toString(16)).slice(-8); }
+
+
+//first analyze nodes:
+//used only for debug
+function analyze(nodes, desc)
+{
+//    var keys = {}, counts = [];
+    require('my-plugins/utils/showthis').call(nodes, "nodes");
+    var counts = {};
+    for (var i = 0; i < nodes.length; ++i) //i += 4)
+    {
+        var color = nodes[i] >>> 8; //.readUInt32BE(i) >>> 8; //RGB, drop A
+        if (isNaN(++counts[color])) counts[color] = 1;
+/*
+        var inx = keys[color];
+        if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
+        ++counts[inx];
+        this.raw_nodes.writeUInt32BE(inx);
+*/
+    }
+    var palette = Object.keys(counts);
+    palette.sort(function(lhs, rhs) { return (counts[lhs] - counts[rhs]) || (lhs - rhs); });
+    var buf = '';
+    palette.forEach(function(color) { buf += ', ' + hex8(color) + ' * ' + counts[color]; });
+    console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
+}
+
+
 function verify(outbuf, inbuf)
 {
-    return 0;
+debugger;
+    if (!this.ioverify.length) return; //nothing to verify
+    var iorec = this.ioverify[0]; // {seqnum, data, len, sendtime}
+    console.log("iorec", iorec);
+    console.log("RenXt verify: inlen %s vs. iolen %s", this.inbuf.size(), iorec.len);
+    if (this.inbuf.size() < iorec.len) return; //not enough data to verify
+    var elapsed = new Elapsed(iorec.sendtime);
+//        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
+//        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
+    console.log("TODO: compare RenXt outbuf + inbuf");
 }
 
 
@@ -508,8 +596,10 @@ function enum_props()
 }
 
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//Renard protocol helpers (fluent)
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// Protocol helpers (mostly fluent):
+//
 
 var RenXt = require('my-plugins/hw/RenXt');
 var Struct = require('struct'); //https://github.com/xdenser/node-struct
@@ -523,7 +613,9 @@ function RenXtBuffer(opts)
     if (!(this instanceof RenXtBuffer)) return makenew(RenXtBuffer, arguments); //{port, buflen}
 //    this.port = opts.port;
     opts = (typeof opts !== 'object')? {buflen: opts}: opts || {};
-    this.buffer = new Buffer(opts.buflen || 4000); //NOTE: ignore FPS restrictions to simplify special cases such as initial enum
+    this.buffer = new Buffer(opts.buflen || 4096); //NOTE: ignore FPS restrictions to simplify special cases such as initial enum
+    Object.defineProperty(this, 'usedbuf', {get() { return this.buffer.slice(0, this.wrlen); }});
+
 //    this.dataview = new DataView(this.buffer);
     this.stats_opc = new Uint16Array(256);
 //    this.port.on('data', function(data) //collect incoming data
@@ -532,6 +624,7 @@ function RenXtBuffer(opts)
 //        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
 //        else { this.buffer.write(data, this.rdlen, data.length); this.rdlen += data.length; }
 //    }.bind(this));
+    this.rewind();
 }
 
 
@@ -609,9 +702,9 @@ RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
 //state bits are at 0x73 in PIC shared RAM; 0x01 = Echo (should be on), 0x02 = Esc pending (should be off), 0x04 = Protocol inactive (should be off), 0x08 = Sent nodes (should be on)
 //        BeginOpcode(__LINE__, adrs, 5);
         .emit_opc(RenXt.WRITE_REG)
-        .emit_uint16(RenXt.INRAM(0x73)) //2 byte adrs of firmware Status bits; TODO: use const from RenXt.h
-        .emit_byte(RenXt.WRITE_REG ^ 0 ^ 0x73) //mini-checksum
-        .emit_byte(0x01); //firmware State bits: Echo = on, Esc = off, Protocol = active, Sent = off; TODO: use const from RenXt.h
+        .emit_uint16_raw(RenXt.INRAM(0x73)) //2 byte adrs of firmware Status bits; TODO: use const from RenXt.h
+        .emit_raw(RenXt.WRITE_REG ^ 0 ^ 0x73) //mini-checksum
+        .emit_raw(0x01); //firmware State bits: Echo = on, Esc = off, Protocol = active, Sent = off; TODO: use const from RenXt.h
     this
         .emit_raw(RenXt.RENARD_SYNC)
         .emit_raw(adrs)
@@ -663,6 +756,7 @@ RenXtBuffer.prototype.SetAll = function(/*adrs,*/ palinx)
 
 RenXtBuffer.prototype.emit_buf = function(buf, len)
 {
+    if (arguments.length < 2) len = buf.length;
 //TODO: use buffer.indexOf to scan for special chars, then buffer.copy?
     for (var ofs = 0; ofs < len; ++ofs) this.emit_byte(buf[ofs]); //copy byte-by-byte to handle special chars and padding; escapes will be inserted as necessary
     return this; //fluent
@@ -725,7 +819,7 @@ RenXtBuffer.prototype.emit_uint16_raw = function(val, count) //ensure correct by
 RenXtBuffer.prototype.emit_opc = function(value, count)
 {
     this.stats_opc[value] += count || 1;
-    this.emit_byte(value, count);
+    this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case
     return this; //fluent
 }
 

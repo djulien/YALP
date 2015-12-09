@@ -131,6 +131,10 @@ function model_test()
     amodel.port = ports[0];
     console.log("amodel node list", amodel.nodelist);
     amodel.fill('#FFCCDDEE'); //argb  0xCCDDEEFF);
+    amodel.pixel(0, 0, '#FF0011').pixel(0, 1, '#EE0022').pixel(0, 2, '#DD0033').pixel(0, 3, '#CC0044')
+        .pixel(1, 0, '#111111').pixel(1, 1, '#222222').pixel(1, 2, '#333333').pixel(1, 3, '#444444')
+        .pixel(2, 0, '#555555').pixel(2, 1, '#666666').pixel(2, 2, '#777777').pixel(2, 3, '#888888')
+        .pixel(3, 0, '#FF1111').pixel(3, 1, '#EE2222').pixel(3, 2, '#DD3333').pixel(3, 3, '#CC4444');
     var data = amodel.imgdata();
     console.log("amodel node buf", data);
     amodel.render();

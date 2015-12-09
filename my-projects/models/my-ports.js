@@ -83,7 +83,7 @@ debugger;
 //    throw "TODO: write to port";
 //    this.encode();
     var data = this.outbuf.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
-    var iorec = {seqnum: seqnum, data: data, len: data.length, sendtime: clock.Now()};
+    var iorec = {seqnum: seqnum || 0, data: data, len: data.length, sendtime: clock.Now(), sendtime_str: clock.Now.asString()};
 //    this.verbuf.write(data);
     this.ioverify.push(iorec);
     var elapsed = new Elapsed();
