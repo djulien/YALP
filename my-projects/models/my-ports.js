@@ -4,6 +4,8 @@
 require('colors');
 const fs = require('fs');
 const inherits = require('inherits');
+const Elapsed = require('my-plugins/utils/elapsed');
+const clock = require('my-plugins/utils/clock');
 const makenew = require('my-plugins/utils/makenew');
 const streamBuffer = require('stream-buffers'); //https://github.com/samcday/node-stream-buffer
 const logger = require('my-plugins/utils/logger')();
@@ -73,9 +75,10 @@ PortBase.prototype.assign = function(model)
 
 //send current port contents immediately:
 //caller controls timing
-PortBase.prototype.sendout = function reset(seqnum)
+PortBase.prototype.flush = function reset(seqnum)
 {
     if (!this.dirty) return;
+debugger;
     logger("write %d to port '%s':", this.outbuf.size(), this.name, "tbd");
 //    throw "TODO: write to port";
 //    this.encode();
@@ -191,30 +194,55 @@ function config(baud, bits, fps)
 }
 
 
-//simplified wrapper (sets default params):
+//simplified wrapper for SerialPort (sets default params):
+//NOTE: use containment rather than inheritance to avoid method name conflicts
 function MySerialPort(path, options, openImmediately, callback)
 {
     if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
 //    serial.SerialPort.apply(this, arguments);
-    serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), false); //openImmediately || false, callback); //false => don't open immediately (default = true)
+//    serial.SerialPort.call(this, path, options || config(242500, '8N1', FPS), false); //openImmediately || false, callback); //false => don't open immediately (default = true)
+    var m_sport = new serial.SerialPort(path, options || config(242500, '8N1', FPS), false); //openImmediately || false, callback); //false => don't open immediately (default = true)
     PortBase.apply(this, arguments); //multiple inheritance
-    this.device = this.path;
+    this.device = m_sport.path;
 
 //status tracking (for debug):
-    this.on("open", function () { console.log('opened %s'.green, this.path); }.bind(this));
+    m_sport.on("open", function () { console.log('opened %s'.green, this.path); }.bind(this));
 //.flush(cb(err)) data received but not read
-    this.on('data', function(data) { this.inbuf.write(data); console.log('data received on %s %d: "%s"'.blue, this.path, data.length, data.toString('utf8').replace(/\n/g, "\\n")); }.bind(this));
-    this.on('error', function(err) { console.log("ERR on %s: ".red, this.path, err); }.bind(this));
-    this.on('close', function() { console.log("closed %s".cyan); }.bind(this));
-    this.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
-    if (openImmediately) this.open(); //open after evt handlers are in place
+    m_sport.on('data', function(data) { this.inbuf.write(data); console.log('data received on %s %d: "%s"'.blue, this.path, data.length, data.toString('utf8').replace(/\n/g, "\\n")); }.bind(this));
+    m_sport.on('error', function(err) { debugger; console.log("ERR on %s: ".red, this.path, err); }.bind(this));
+    m_sport.on('close', function() { console.log("closed %s".cyan); }.bind(this));
+    m_sport.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
+    if (openImmediately) m_sport.open(); //open after evt handlers are in place
 
 //    MySerialPort.all.push(this); //allows easier enum over all instances
 }
-inherits(MySerialPort, serial.SerialPort);
-Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
+//inherits(MySerialPort, serial.SerialPort);
+//Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
+inherits(MySerialPort, PortBase);
 module.exports.SerialPort = MySerialPort;
 //MySerialPort.all = [];
+
+
+function FakeSerialPort(path, options, openImmediately, callback)
+{
+    if (!(this instanceof FakeSerialPort)) return makenew(FakeSerialPort, arguments);
+    var args = Array.from(arguments);
+    if (args.length > 2) args[2] = false;
+    MySerialPort.apply(this, args); //base class
+    this.write = function(data, cb)
+    {
+//simulate I/O:
+//TODO: simulate random error?
+        setTimeout(function() { cb(null, "ok"); }, 15);
+        setTimeout(function()
+        {
+            if (this.draincb) this.draincb(null);
+            this.emit('data', data); //simulated loopback; TODO: simulate active protocol
+        }.bind(this), 5 + Math.ceil(.044 * data.length)); //252K baud ~= 44 usec/char + 5 msec USB latency
+    }
+    this.drain = function(cb) { this.draincb = cb; }
+}
+inherits(FakeSerialPort, MySerialPort);
 
 
 function OtherPort(args)
@@ -239,7 +267,7 @@ function named(obj, name)
 
 
 //first define my hardware ports:
-var yport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-Y');
+var yport = named(new FakeSerialPort('/dev/ttyUSB0'), 'FTDI-Y');
 var gport = named(new MySerialPort('/dev/ttyUSB1'), 'FTDI-G');
 var bport = named(new MySerialPort('/dev/ttyUSB2'), 'FTDI-B');
 var wport = named(new MySerialPort('/dev/ttyUSB3'), 'FTDI-W');

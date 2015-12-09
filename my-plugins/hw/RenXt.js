@@ -229,21 +229,44 @@ module.exports.AddProtocol = function(port)
 {
 //    if (!port) return;
 //    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
-    var svmethods = {assign: port.assign, render: port.render}; //, verify: port.verify};
-    /*if (!this.encbuf)*/ port.encbuf = new RenXtBuffer(4000); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
+//    var oldmethods = {assign: port.assign, flush: port.flush}; //, verify: port.verify};
+    /*if (!this.encbuf)*/ 
+    port.encbuf = new RenXtBuffer(4096); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned
+//    port.encode = encode.bind(port);
+    port.old_assign = port.assign;
     port.assign = function(model) //assign controller address
     {
         if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes";
-        svmethods.assign.call(port, model);
-        model.adrs = port.models.length; //assign unique adrs for each prop on this port
+        old_assign /*.bind(port)*/(model);
+        model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
         model.setRenderType('raw'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
 //        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
 //        model.cfg_sent = false; //force config info to be sent first time
+        model.encode = encode.bind(model);
+        model.want_cfg = true; //force config info to be sent first time
+        var old_render = model.render;
+        model.render = function()
+        {
+debugger;
+//            this.was_dirty = this.dirty;
+//            var oldlen = port.outbuf.size();
+            this.port.outbuf.reset();
+            var retval = old_render();
+            if (!this.port.outbuf.size()) return retval; //nothing to encode
+            this.raw_nodes = this.port.outbuf.getbuf(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+            var oldlen = this.port.encbuf.wrlen;
+            this.encode();
+            console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
+            console.log("nodes in:", this.raw_nodes);
+            console.log("enc out:", this.port.encbuf.buf.slice(oldlen));
+            return retval;
+        }.bind(model);
     }.bind(port);
-    port.render = function(frtime, force) //encode/compress raw nodes
+/*
+    port.flush = function(frtime, force) //encode/compress raw nodes before sending
     {
 debugger;
-        (this.models || []).forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
+//        (this.models || []).forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
         var retval = svmethods.render.apply(this, arguments); //svrender(frtime, force); //ChannelPool.prototype.render.call(port, frtime, force);
 //        var encbuf = (retval && retval.buf)? encode(port, retval.buf, !frtime): null;
 //        if (encbuf) { retval.rawbuf = retval.buf; retval.buf = encbuf; } //swap in encoded buf but preserve original (mainly for debug)
@@ -255,21 +278,19 @@ debugger;
         retval.buflen = this.encbuf.wrlen;
         return retval;
     }.bind(port);
+*/
+    port.verify = verify.bind(port);
     port.verify = function() //verify outbuf was received and processed
     {
 debugger;
-        if (this.inbuf.size() < this.ioverify.first.len) return; //not enough data to verify
-    var data = this.outbuf.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
-    var iorec = {seqnum: seqnum, data: data, len: data.length, sendtime: clock.Now()};
-//    this.verbuf.write(data);
-    this.ioverify.push(iorec);
-    var elapsed = new Elapsed();
-
+        var iorec = this.ioverify.first; // {seqnum, data, len, sendtime}
+        if (this.inbuf.size() < iorec.len) return; //not enough data to verify
+        var elapsed = new Elapsed(iorec.sendtime);
 //        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
 //        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
         return verify(outbuf, inbuf);
     }.bind(port)
-    port.cfg_sent = false; //force config info to be sent first time
+//    port.cfg_sent = false; //force config info to be sent first time
     console.log("RenXt protocol added to %s".yellow, port.name);
 }
 
@@ -278,7 +299,8 @@ debugger;
 //RenXtProtocol.prototype.encode = encode;
 //RenXtProtocol.prototype.validate = validate;
 
-function encode(/*port, nodes,*/ first) //NOTE: runs in port context
+/*
+function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 {
 //    if (!port.encbuf) port.encbuf = new RenXtBuffer(4000); //port.buf.length); //NOTE: don't do this until after all channels assigned
 //    if (ZOMBIE_RECOVER) port.sent_config = false;
@@ -301,27 +323,33 @@ function encode(/*port, nodes,*/ first) //NOTE: runs in port context
     this.cfg_sent = true;
 //    return port.encbuf.buffer;
 }
+*/
+
 
 var RgbQuant = require('rgbquant');
+//NO var quant = new RgbQuant({colors: 16}); //need new one each time
 
-//var quant = new RgbQuant({colors: 16}); //need new one each time
-
-function encode_smart(model) //, nodes)
+//encode nodes for this model:
+//place into port output buf
+//NOTE: runs in model context
+function encode() //_smart(model) //, nodes)
 {
 //TODO: share palette across frames to reduce frame-to-frame color variations
     var quant = new RgbQuant(); //{colors: 16}); //need new object each time
     var counts = {};
-    for (var i = 0; i < model.outbuf.length; i += 4) counts[model.outbuf.readUInt32BE(i)] = (counts[model.outbuf.readUInt32BE(i)] || 0) + 1;
-    quant.sample(model.outbuf); //analyze histogram
+    for (var i = 0; i < this.raw_nodes.length; i += 4)
+        if (isNaN(++counts[this.raw_nodes.readUInt32BE(i)])) counts[this.raw_nodes.readUInt32BE(i)] = 1;
+    quant.sample(this.raw_nodes); //analyze histogram
     var pal = quant.palette(); //build palette
-    var reduced = quant.reduce(model.outbuf); //reduce colors in image
-    console.log("renxt: port '%s' model '%s', inbuf len %s, pal len %s vs %s, BAD reduced len %s", this.name, model.name, model.outbuf.length, pal.length, Object.keys(counts).length, reduced.length);
+    var reduced = quant.reduce(this.raw_nodes); //reduce colors in image
+    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
     this.encbuf
         .SelectAdrs(model.adrs)
         .SetPal(pal)
         .NodeFlush()
         .emit_buf("TODO: SMART");
 }
+            var oldlen = this.port.encbuf.wrlen;
 
 function encode_dumb(model) //, nodes)
 {

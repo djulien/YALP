@@ -104,7 +104,7 @@ const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process
     data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
 //NO    data.end(); //close pipe after data all read??
 }
-playback();
+//playback();
 
 
 debugger;
@@ -134,11 +134,11 @@ function model_test()
     var data = amodel.imgdata();
     console.log("amodel node buf", data);
     amodel.render();
-    console.log("outbuf len", ports[0].outbuf.size(), ports[0].outbuf.getContents());
+    console.log("outbuf len", ports[0].outbuf.size()); //, ports[0].outbuf.getContents());
     ports[0].flush();
 //        this.MyFx.column.call(this, br, brcolor);
 }
-//model_test();
+model_test();
 
 
 function model_reader()

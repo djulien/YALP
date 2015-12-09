@@ -22,6 +22,9 @@ extensions(); //hoist them up here
 
 module.exports = Model2D;
 
+const OFF_ARGB = 0xFF000000;
+const OFF_RGBA = 0x000000FF;
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
@@ -243,7 +246,7 @@ Model2D.prototype.enlarge = function(x, y, w, h)
 
 
 //graphics:
-//image data is RGBA array
+//NOTE: image data is RGBA array
 Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord is reversed)
 {
     switch (arguments.length) //shuffle optional params
@@ -304,7 +307,7 @@ Model2D.prototype.fillStyle = function(color) //context2d wants RGBA
         return Color(color).toRgbString();
     });
     this.ctx.fillStyle = rgba; //sprintf("rgba(%d, %d, %d, %d)", rgba.r, rgba.g, rgba.b, rgba.a); //'#' + hex8(color);
-    console.log("fill style for '%s': %s => %s", this.name, color, this.ctx.fillStyle);
+    console.log("fill style for '%s': ARGB %s => RGBA %s => fillStyle %s", this.name, color, rgba, this.ctx.fillStyle);
     return this; //fluent
 }
 
@@ -314,7 +317,7 @@ Model2D.prototype.clear = function()
 {
     if (this.opts.zinit !== false) //this.promise.then(function()
 //    {
-        this.fill((isdef(this.opts.zinit) && (this.opts.zinit !== true))? this.opts.zinit: 0); //init xparent black if caller didn't pass a color
+        this.fill((isdef(this.opts.zinit) && (this.opts.zinit !== true))? this.opts.zinit: OFF_ARGB); //init xparent black if caller didn't pass a color
 //    }.bind(this));
 //    console.log("model2d has fill?", this.fill? "Y": "N");
     return this; //fluent
@@ -685,7 +688,7 @@ Model2D.prototype.renderNodes_GRB = function(pxbuf)
 
 
 //render node values canvas pixels:
-Model2D.prototype.render = function(frnext)
+Model2D.prototype.render = function() //frnext)
 {
     console.log("model '%s' render: me? %s, parent? %s, port %s, send nodes? %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name, !!this.renderNodes);
     if (!this.dirty || !this.port) return; //if not dirty or no output port, no need to render
