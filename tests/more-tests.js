@@ -127,11 +127,11 @@ function model_test()
     const Model2D = require('my-projects/models/model-2d');
     const ports = require('my-projects/models/my-ports').all;
 
-    var amodel = new Model2D({name: 'amodel', w: 4, h: 5-1, zinit: false, order: Model2D.prototype.R2L_T2B}); //output: 'RGB'});
+    var amodel = new Model2D({name: 'amodel', w: 4, h: 5, zinit: false, order: Model2D.prototype.R2L_T2B}); //output: 'RGB'});
     amodel.port = ports[0];
     console.log("amodel node list", amodel.nodelist);
     amodel.fill('#FFCCDDEE'); //argb  0xCCDDEEFF);
-    amodel
+    amodel //NOTE: context2D here wants RGBA or RGB, not ARGB
         .pixel(0, 3, '#CC0044').pixel(1, 3, '#444444').pixel(2, 3, '#888888').pixel(3, 3, '#CC4444')
         .pixel(0, 2, '#DD0033').pixel(1, 2, '#333333').pixel(2, 2, '#777777').pixel(3, 2, '#DD3333')
         .pixel(0, 1, '#EE0022').pixel(1, 1, '#222222').pixel(2, 1, '#666666').pixel(3, 1, '#EE2222')
@@ -140,7 +140,7 @@ function model_test()
     console.log("amodel node buf", data);
     amodel.render();
     console.log("outbuf len", ports[0].outbuf.size()); //, ports[0].outbuf.getContents());
-    ports[0].flush();
+    ports[0].flush(0);
 //        this.MyFx.column.call(this, br, brcolor);
 }
 model_test();

@@ -213,7 +213,7 @@ function MySerialPort(path, options, openImmediately, callback)
     m_sport.on('close', function() { console.log("closed %s".cyan); }.bind(this));
     m_sport.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
     if (openImmediately) m_sport.open(); //open after evt handlers are in place
-
+    this.self_emit = function(evt, data) { return m_sport.emit.apply(arguments); }
 //    MySerialPort.all.push(this); //allows easier enum over all instances
 }
 //inherits(MySerialPort, serial.SerialPort);
@@ -237,7 +237,7 @@ function FakeSerialPort(path, options, openImmediately, callback)
         setTimeout(function()
         {
             if (this.draincb) this.draincb(null);
-            this.emit('data', data); //simulated loopback; TODO: simulate active protocol
+            this.self_emit('data', data); //simulated loopback; TODO: simulate active protocol
         }.bind(this), 5 + Math.ceil(.044 * data.length)); //252K baud ~= 44 usec/char + 5 msec USB latency
     }
     this.drain = function(cb) { this.draincb = cb; }

@@ -251,7 +251,7 @@ module.exports.AddProtocol = function(port)
         this.old_assign /*.bind(port)*/(model);
         var nodetype = model.opts.nodetype || RenXt.WS2811(RenXt.SERIES);
         model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
-        model.setRenderType('ARGB'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
+        model.setRenderType('ABGR'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
         model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
         var old_render = model.render;
         model.render = function model_render()
@@ -265,11 +265,11 @@ debugger;
             if (this.port.outbuf.size())
             {
                 this.raw_nodes = uint8ary_to_uint32ary(this.port.outbuf.peek()); //getContents(); //buf slice isn't observed by RgbQuant so do the extra buf alloc + copy here; //peek(); //node ARGB values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                this.raw_nodes.inspect = buf_inspector.bind(this.raw_nodes);
+                this.raw_nodes.inspect = buf_inspector_uint32ary.bind(this.raw_nodes);
                 var oldlen = this.port.encbuf.wrlen;
                 this.encode();
                 console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
-                console.log("nodes in:", this.raw_nodes);
+                console.log("nodes ABGR in:", this.raw_nodes.inspect());
                 console.log("enc out:", this.port.encbuf.usedbuf);
             }
             this.port.outbuf = my_outbuf; //swap back to protocol outbuf
@@ -354,16 +354,27 @@ function uint8ary_to_uint32ary(buf)
 
 var buffer = require('buffer');
 
-function buf_inspector(depth, opts) //make debug easier
+//function buf_inspector_uint8ary(depth, opts) //make debug easier
+//{
+//    var buf = '';
+//    if (!this.readUInt32BE) this.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+//    for (var ofs = 0, limit = this.length; ofs < limit; ofs += 4)
+//    {
+//        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
+//        buf += ' #' + hex(this.readUInt32BE(ofs), 8);
+//    }
+//    return '<ARGB-buf:' + (limit / 4) + ' ' + buf + '>';
+//}
+
+function buf_inspector_uint32ary(depth, opts) //make debug easier
 {
     var buf = '';
-    if (!this.readUInt32BE) this.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
-    for (var ofs = 0, limit = this.length; ofs < limit; ofs += 4)
+    for (var ofs = 0, limit = this.length; ofs < limit; ++ofs)
     {
         if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-        buf += ' #' + hex(this.readUInt32BE(ofs), 8);
+        buf += ' #' + hex(this[ofs], 8);
     }
-    return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
+    return '<buf-uint32:' + limit + ' ' + buf + '>';
 }
 
 
@@ -399,7 +410,7 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 
 
 //var DataView = require('buffer-dataview');
-var toBuffer = require('typedarray-to-buffer')
+//var toBuffer = require('typedarray-to-buffer')
 var RgbQuant = require('rgbquant');
 //NO var quant = new RgbQuant({colors: 16}); //need new one each time
 
@@ -409,30 +420,31 @@ var RgbQuant = require('rgbquant');
 //NOTE: runs in model context
 function encode_series(first) //_smart(model) //, nodes)
 {
-    console.log("raw nodes %j", this.raw_nodes);
+    console.log("raw ABGR nodes", this.raw_nodes);
     console.log("series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
 //    if (this.raw_nodes.length > 16) //do this even if <= 16 nodes (need to invert anyway)
     {
-        analyze(this.raw_nodes, "raw");
+        histogram(this.raw_nodes, "raw BGR");
 //    var quant = new RgbQuant({colors: 16, boxSize: [4, 4], boxPxls: 1}); //need new object each time?
 //    boxSize: [4, 4], boxPxls: 1,
+//TODO: dither?
 //    dithXXXX: true, //maybe try dithKern, dithSerp, etc
 //    colorDist: ??, //select color distance eqn?
         var quant = new RgbQuant({ colors: 16, method: 1, initColors: 0}); //4 bpp, 1D (no sub-boxes)
 //NO: node.js buf len broken
-        quant.sample(this.raw_nodes); //analyze histogram
+        quant.sample(this.raw_nodes); //analyze histogram; wants ABGR
 //    quant.colorStats1D(buf32) //wants ARGB, .length
 
 //TODO: share palette across frames to reduce frame-to-frame color variations
-        var pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
-        pal.inspect = buf_inspector.bind(pal);
-        console.log("pal %s", typeof pal, pal);
+        this.pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
+        this.pal.inspect = buf_inspector_uint32ary.bind(this.pal);
+        console.log("pal RGBA %s", typeof this.pal, this.pal.inspect());
 //    console.log("palbuf %s %j", typeof palbuf, palbuf);
 //then generate reduced palette:
-        var reduced = uint8ary_to_uint32ary(quant.reduce(this.raw_nodes, 2)); //reduce colors in image; retType 2 = Indexed array
-        reduced.inspect = buf_inspector.bind(reduced);
-        console.log("reduced %s", typeof reduced, reduced);
-        analyze(reduced, "reduced");
+        var reduced = quant.reduce(this.raw_nodes, 2); //reduce colors in image; retType 2 = Indexed array
+        reduced.inspect = buf_inspector_uint32ary.bind(reduced);
+        console.log("reduced %s", typeof reduced, reduced.inspect());
+        histogram(reduced, "reduced");
     }
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
@@ -443,12 +455,87 @@ function encode_series(first) //_smart(model) //, nodes)
 //        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
 //        model.want_cfg = true; //force config info to be sent first time; NOTE: must send config to all models on this port to set correct addresses
 //        model.cfg_sent = false; //force config info to be sent first time
+//    if (!(seqnum % WANT_COMM_DEBUG))
+    if (false) //TODO: check status periodically
+        this.port.encbuf
+            .SelectAdrs(this.adrs)
+            .emit_opc(RENXt_ACK) //check listener/packet status
+//        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
+            .emit(RENXt_NOOP, 5+1+1+1+1) //placeholders for status bits, i/o errs, proto errs, node bytes; CAUTION: must allow enough esc placeholders to protect next opcode
+            .emit_raw(RENARD_SYNC); //kludge: send extra Sync in case prev byte was Escape
+
+//estimate encoded sizes of bitmaps vs. inverted lists and choose the more compact option:
+//TODO: allow shared palette?
+    var most_common = quant.histogram[quant.histogram.length - 1];
+    var bpp = (this.pal.length <= 1)? 0: (this.pal.length <= 2)? 1: (this.pal.length <= 4)? 2: (this.pal.length <= 16)? 4: 999; //#bits per pixel
+    var bitmap_size = 1 + 3 * this.pal.length + 1 + (bpp? Math.ceil(this.raw_nodes.length / (8 / bpp)): 0) + 1; //SetPal + SetAll or Bitmap + NodeFlush opcodes
+    var inverted_size = 1 + 4 * this.pal.length + this.raw_nodes.length - most_common + 1; //SetPal + SetAll + Nodelist + NodeFlush opcodes
+    console.log("est enc size: pal len %s, %s bpp bitmap %s bytes, inverted lists %s bytes", this.pal.length, bpp, bitmap_size, inverted_size);
 
     this.port.encbuf
         .SelectAdrs(this.adrs)
-//        .SetPal(pal)
-        .emit_buf("TODO: SERIES")
-        .NodeFlush();
+        .SetPal(this.pal);
+//TODO: GECE RGB2IBGRZ color conv
+//TODO: splitable
+    if (bpp && (bitmap_size < inverted_size)) //flat bitmap
+    {
+        this.port.encbuf
+            .emit_opc(RENXt.BITMAP(bpp))
+//TODO: quad bytes?
+            .emit_byte(Math.ceil(this.raw_nodes.length * bpp / 8) + 1) //no I/O delay needed because rcv rate is faster than send rate in all cases; kludge: +1 to prevent auto-flush
+            .emit_byte(0); //TODO: skip first part of bitmap if it didn't change
+        var curbyte = 0;
+        while (reduced.length % (8 / bpp)) reduced.length.push(0); //pad to fill last byte
+        console.log("pack %s nodes", reduced.length);
+        reduced.forEach(function(colorinx, nodeinx)
+        {
+            curbyte <<= bpp;
+            curbyte |= colorinx;
+//            if (nodeinx % (8 / bpp)) return; //byte not full yet
+            if ((nodeinx + 1) % (8 / bpp)) return; //don't have all the bits for this byte yet
+//1 bpp: 2468 1357 => 0008 0007, 0006 0005, 0004 0003, 0002 0001
+//2 bpp: 2244 1133 => 0044 0033, 0022 0011
+//4 bpp: 1111 2222
+            switch (bpp)
+            {
+                case 1: //8765 4321 =-> 2468 1357
+                    curbyte = ((curbyte & 0x80) >> 3) | ((curbyte & 0x40) >> 6) | (curbyte & 0x20) | ((curbyte & 0x10) >> 3) | ((curbyte & 0x08) << 3) | (curbyte & 0x04) | ((curbyte & 0x02) << 6) | ((curbyte & 0x01) << 3);
+                    break;
+                case 2: //4433 2211 => 2244 1133
+                    curbyte = ((curbyte & 0xc0) >> 2) | ((curbyte & 0x30) >> 4) | ((curbyte & 0x0c) << 4) | ((curbyte & 0x03) << 2);
+                    break;
+            }
+            this.port.encbuf.emit_byte(curbyte); //flush current group of nodes
+        }.bind(this));
+    }
+    else //inverted node lists
+    {
+        var nodelists = [];
+        this.pal.forEach(function() { nodelists.push([]); }); //create a node list for each color palette entry
+        reduced.forEach(function(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
+        this.pal.forEach(function(color, palinx)
+        {
+            if (!palinx) { this.port.encbuf.SetAll(0); return; }
+            nodelists[palinx].sort(); //node inx must be in increasing order for bank switch
+            var node_esc = RENXt.NODELIST(palinx); //esc code to start next list or switch banks
+            var prevbank = RENXt.NodeBank(0), prevofs = RENXt.NodeOffset(0); //reset bank tracking
+            this.port.encbuf.emit_opc(node_esc);
+            nodelists[palinx].forEach(function(nodeinx)
+            {
+                for (var newbank = RENXt.NodeBank(nodeinx); newbank > prevbank; ++prevbank) //check for bank switch
+                {
+                    var implicit = (newbank == prevbank + 1) && (RENXt.NodeOffset(nodeinx) <= prevofs) && RENXt.NodeOffset(nodeinx); //kludge: disable implicit bank switch on first node
+                    console.log("out byte[%d]: new node %d, prev node %d, implicit bank switch? %d", this.port.encbuf.wrlen, nodeinx, RENXt.MakeNode(prevbank, prevofs), implicit);
+                    if (!implicit) this.port.encbuf.emit_byte(node_esc); //explicit jump to next bank
+                }
+//obsolete??        if (!*nodeptr) out.emit(node_esc, 7); //kludge: incorrect bank switch on node 0
+                prevofs = RENXt.NodeOffset(nodeinx);
+                this.port.encbuf.emit_byte(prevofs);
+            }.bind(this));
+        }.bind(this));
+        this.port.encbuf.emit_byte(RENXt_NODELIST_END); //end of inverted lists
+    }
+    this.port.encbuf.NodeFlush();
 }
 
 
@@ -456,7 +543,7 @@ function encode_parallel(first) //, nodes)
 {
     this.port.encbuf
         .SelectAdrs(this.adrs)
-        .emit_buf("TODO: PARALLEL")
+        .emit_buf(new Buffer("TODO: PARALLEL"))
         .NodeFlush();
 }
 
@@ -464,7 +551,7 @@ function encode_chplex(first) //, nodes)
 {
     this.port.encbuf
         .SelectAdrs(this.adrs)
-        .emit_buf("TODO: DUMB")
+        .emit_buf(new Buffer("TODO: DUMB"))
         .NodeFlush();
 }
 
@@ -478,7 +565,7 @@ function hex(val, len)
 
 //first analyze nodes:
 //used only for debug
-function analyze(nodes, desc)
+function histogram(nodes, desc)
 {
 //    var keys = {}, counts = [];
 //    require('my-plugins/utils/showthis').call(nodes, "nodes");
@@ -789,17 +876,16 @@ RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
 RenXtBuffer.prototype.SetPal = function(/*adrs,*/ colors)
 {
 //    if (arguments.length < 2) { colors = adrs; adrs = undefined; } //shuffle optional params
-    if (!Array.isArray(colors)) colors = arguments;
+    if ((typeof colors != 'object') || !colors.length) colors = arguments; //if (!Array.isArray(colors)) colors = arguments;
+console.log("setpal isary? %s", Array.isArray(colors));
+console.log("setpal args", arguments);
     if ((colors.length < 1) || (colors.length > 16)) throw "Invalid palette length: " + colors.length;
 //    if (typeof adrs != 'undefined') this //start new block
 //        .emit_raw(RenXt.RENARD_SYNC)
 //        .emit_raw(adrs);
     this.emit_opc(RenXt.SETPAL(colors.length));
 //    Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function(color, inx)
-    colors.forEach(function(color, inx)
-    {
-        this.emit_rgb(color);
-    }.bind(this));
+    colors.forEach(function(color, inx) { this.emit_rgb(color >>> 8); }.bind(this)); //RGBA => RGB
     return this; //fluent
 }
 
@@ -827,7 +913,8 @@ RenXtBuffer.prototype.SetAll = function(/*adrs,*/ palinx)
 
 RenXtBuffer.prototype.emit_buf = function(buf, len)
 {
-    if (arguments.length < 2) len = buf.length;
+//    if (typeof buf == 'string') buf = new Buffer(buf)
+    if (arguments.length < 2) len = buf.length || 0;
 //TODO: use buffer.indexOf to scan for special chars, then buffer.copy?
     for (var ofs = 0; ofs < len; ++ofs) this.emit_byte(buf[ofs]); //copy byte-by-byte to handle special chars and padding; escapes will be inserted as necessary
     return this; //fluent
@@ -835,8 +922,9 @@ RenXtBuffer.prototype.emit_buf = function(buf, len)
 
 RenXtBuffer.prototype.emit_rawbuf = function(buf, len)
 {
+//    len = len || buf.length || 0;
+    if (arguments.length < 2) len = buf.length || 0;
 //    for (var ofs = 0; ofs < len; ++ofs) this.emit_raw(values[ofs]); //copy byte-by-byte to handle special chars and padding; caller is responsible for escapes
-    len = len || buf.length || 0;
     /*if (this.wrlen + len <= this.buffer.length)*/ buf.copy(this.buffer, this.wrlen, 0, len);
     this.wrlen += len;
     return this; //fluent

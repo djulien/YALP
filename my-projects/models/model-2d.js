@@ -675,6 +675,17 @@ Model2D.prototype.renderNodes_ARGB = function(pxbuf)
     }.bind(this));
 }
 
+Model2D.prototype.bytesPerNode_ABGR = 4;
+Model2D.prototype.renderNodes_ABGR = function(pxbuf)
+{
+    (this.nodelist || []).forEach(function(pxofs, inx)
+    {
+        if (pxofs === null) return;
+//NOTE: null is used as a placeholder node and should be set to off to reduce entropy
+        this.port.outbuf.writeUInt32BE(pxbuf.readUInt32LE(pxofs) >>> 0); //RGBA -> ABGR
+    }.bind(this));
+}
+
 Model2D.prototype.bytesPerNode_RGB = 3;
 //Model2D.prototype.renderNode_RGB = function(outofs, pxbuf, pxofs)
 //{
