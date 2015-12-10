@@ -264,18 +264,8 @@ debugger;
             var retval = old_render.call(this);
             if (this.port.outbuf.size())
             {
-/*
-//                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-//                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                this.raw_nodes = new Uint32Array(nodes.length / 4);
-//                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
-                for (var i = 0; i < nodes.length; i += 4)
-                    this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
-                this.raw_nodes = this.imgdata();
-                console.log("raw nodes", this.raw_nodes);
-*/
-                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                this.raw_nodes = uint8ary_to_uint32ary(this.port.outbuf.peek()); //getContents(); //buf slice isn't observed by RgbQuant so do the extra buf alloc + copy here; //peek(); //node ARGB values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                this.raw_nodes.inspect = buf_inspector.bind(this.raw_nodes);
                 var oldlen = this.port.encbuf.wrlen;
                 this.encode();
                 console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
@@ -331,6 +321,52 @@ debugger;
 }
 
 
+//RgbQuant doesn't seem to like node.js Buffers or ArrayBuffers, so convert:
+//TODO: avoid calling this
+//var uint32_splitter = new Buffer(4);
+function uint8ary_to_uint32ary(buf)
+{
+/*
+//                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+//                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                this.raw_nodes = new Uint32Array(nodes.length / 4);
+//                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
+                for (var i = 0; i < nodes.length; i += 4)
+                    this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
+                this.raw_nodes = this.imgdata();
+                console.log("raw nodes", this.raw_nodes);
+*/
+    if (!buf.readUInt32BE) buf.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+    var retval = new Uint32Array(buf.length / 4);
+    for (var ofs = 0; ofs < buf.length; ofs += 4)
+        retval[ofs / 4] = buf.readUInt32BE(ofs); //buf.readUInt32BE? buf.readUInt32BE(ofs): (buf[ofs] << 24) | (buf[ofs + 1] << 16) | (buf[ofs + 2] << 8) | buf[ofs + 3];
+    return retval;
+}
+//var arr = new Uint8Array([1, 2, 3])
+//    var palbuf = toBuffer(pal);
+//    var pal_view = new Uint32Array(pal);
+//    var pal_view = new DataView(pal);
+//    var buf = '';
+//    for (var i = 0; i < pal.length; i += 4)
+//        buf += ', ' + pal_view.getUint32(i);
+
+
+var buffer = require('buffer');
+
+function buf_inspector(depth, opts) //make debug easier
+{
+    var buf = '';
+    if (!this.readUInt32BE) this.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+    for (var ofs = 0, limit = this.length; ofs < limit; ofs += 4)
+    {
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
+        buf += ' #' + hex(this.readUInt32BE(ofs), 8);
+    }
+    return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
+}
+
+
 //function RenXtProtocol() {} //dummy ctor
 //RenXtProtocol.prototype.encode = encode;
 //RenXtProtocol.prototype.validate = validate;
@@ -362,6 +398,8 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 */
 
 
+//var DataView = require('buffer-dataview');
+var toBuffer = require('typedarray-to-buffer')
 var RgbQuant = require('rgbquant');
 //NO var quant = new RgbQuant({colors: 16}); //need new one each time
 
@@ -371,28 +409,30 @@ var RgbQuant = require('rgbquant');
 //NOTE: runs in model context
 function encode_series(first) //_smart(model) //, nodes)
 {
-    console.log("raw nodes", this.raw_nodes);
+    console.log("raw nodes %j", this.raw_nodes);
     console.log("series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
 //    if (this.raw_nodes.length > 16) //do this even if <= 16 nodes (need to invert anyway)
     {
         analyze(this.raw_nodes, "raw");
 //    var quant = new RgbQuant({colors: 16, boxSize: [4, 4], boxPxls: 1}); //need new object each time?
-        var quant = new RgbQuant({ colors: 16, method: 1}); //4 bpp, 1D (no sub-boxes)
 //    boxSize: [4, 4], boxPxls: 1,
 //    dithXXXX: true, //maybe try dithKern, dithSerp, etc
 //    colorDist: ??, //select color distance eqn?
-    //?? send in Uint32Array, .buffer = bytes, .length = 4,
-    //send in ? with .buf32 = values, .width = width
-//    quant.colorStats2D(buf32, width)
+        var quant = new RgbQuant({ colors: 16, method: 1, initColors: 0}); //4 bpp, 1D (no sub-boxes)
+//NO: node.js buf len broken
+        quant.sample(this.raw_nodes); //analyze histogram
 //    quant.colorStats1D(buf32) //wants ARGB, .length
 
-    quant.sample(this.raw_nodes); //analyze histogram
 //TODO: share palette across frames to reduce frame-to-frame color variations
-    var pal = quant.palette(); //build palette
-    console.log("pal", pal);
+        var pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
+        pal.inspect = buf_inspector.bind(pal);
+        console.log("pal %s", typeof pal, pal);
+//    console.log("palbuf %s %j", typeof palbuf, palbuf);
 //then generate reduced palette:
-    var reduced = quant.reduce(this.raw_nodes); //reduce colors in image
-    analyze(reduced, "reduced");
+        var reduced = uint8ary_to_uint32ary(quant.reduce(this.raw_nodes, 2)); //reduce colors in image; retType 2 = Indexed array
+        reduced.inspect = buf_inspector.bind(reduced);
+        console.log("reduced %s", typeof reduced, reduced);
+        analyze(reduced, "reduced");
     }
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
@@ -441,20 +481,27 @@ function hex(val, len)
 function analyze(nodes, desc)
 {
 //    var keys = {}, counts = [];
-    require('my-plugins/utils/showthis').call(nodes, "nodes");
+//    require('my-plugins/utils/showthis').call(nodes, "nodes");
     var counts = {};
     if (nodes.data) nodes = nodes.data;
-    for (var i = 0; i < nodes.length; ++i) //i += 4)
-    {
-        var color = nodes[i] & 0x00FFFFFF; //>>> 8; //.readUInt32BE(i) >>> 8; //RGB, drop A
-        if (isNaN(++counts[color])) counts[color] = 1;
+    if (nodes.readUInt32BE) //buffer
+        for (var i = 0; i < nodes.length; i += 4)
+        {
+            var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //RGB, drop A
+            if (isNaN(++counts[color])) counts[color] = 1;
 /*
-        var inx = keys[color];
-        if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
-        ++counts[inx];
-        this.raw_nodes.writeUInt32BE(inx);
+            var inx = keys[color];
+            if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
+            ++counts[inx];
+            this.raw_nodes.writeUInt32BE(inx);
 */
-    }
+        }
+    else //array
+        for (var i = 0; i < nodes.length; ++i)
+        {
+            var color = nodes[i] & 0xFFFFFF;
+            if (isNaN(++counts[color])) counts[color] = 1;
+        }
     var palette = Object.keys(counts);
     palette.sort(function(lhs, rhs) { return (counts[lhs] - counts[rhs]) || (lhs - rhs); });
     var buf = '';

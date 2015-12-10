@@ -246,7 +246,7 @@ Model2D.prototype.enlarge = function(x, y, w, h)
 
 
 //graphics:
-//NOTE: image data is RGBA array
+//NOTE: image data is RGBA byte array
 Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord is reversed)
 {
     switch (arguments.length) //shuffle optional params
@@ -276,7 +276,7 @@ Model2D.prototype.imgdata = function(x, y, w, h, data) //CAUTION: pixels are top
             for (var ofs = 0, limit = /*retval*/ this.data.length /*numch*/; ofs < limit; ofs += 4)
             {
                 if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-                buf += ' ' + hex8(this.data.readUInt32BE(ofs) >>> 0); //toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
+                buf += ' ' + hex(this.data.readUInt32BE(ofs), 8); //toRGBA(/*retval*/ this.data[ofs], /*retval*/ this.data[ofs + 1], /*retval*/ this.data[ofs + 2], /*retval*/ this.data[ofs + 3])); //uint32view[ofs]); //retval.data.readUInt32BE(ofs));
             }
             return '<RGBA-buf:' + (limit / 4) + ' ' + buf + '>';
         }.bind(retval);
@@ -295,19 +295,36 @@ Model2D.prototype.save = function()
 }
 
 var Color = require('tinycolor2'); //'onecolor');
+// Possible string inputs:
+//     "red"
+//     "#f00" or "f00"
+//     "#ff0000" or "ff0000"
+//     "#ff000000" or "ff000000"
+//     "rgb 255 0 0" or "rgb (255, 0, 0)"
+//     "rgb 1.0 0 0" or "rgb (1, 0, 0)"
+//     "rgba (255, 0, 0, 1)" or "rgba 255, 0, 0, 1"
+//     "rgba (1.0, 0, 0, 1)" or "rgba 1.0, 0, 0, 1"
+//     "hsl(0, 100%, 50%)" or "hsl 0 100% 50%"
+//     "hsla(0, 100%, 50%, 1)" or "hsla 0 100% 50%, 1"
+//     "hsv(0, 100%, 100%)" or "hsv 0 100% 100%"
 var color_cache = require('my-projects/models/color-cache').cache;
+const hexcolor = /^#[0-9A-F]{6,8}$/i;
 
-Model2D.prototype.fillStyle = function(color) //context2d wants RGBA
+Model2D.prototype.fillStyle = function(color) //context2d fillstyle wants RGBA but Color wants ARGB
 {
 //    color = fromRGBA(color);
 //    color = Color({r: rgba_split[0], g: rgba_split[1], b: rgba_split[2], a: rgba_split[3]}); //color >> 24, g: color >> 16));
+    if (typeof color == 'number') color = '#' + hex(color, 8);
+    else if ((typeof color == 'string') && color.match(/^#[0-9A-F]{6}$/)) color = '#FF' + color.substr(1); //force alpha to prevent color degradation
     var rgba = color_cache('=' + color, function() //allows CSS color formats
     {
-        if (typeof color == 'number') color = '#' + hex8(color);
-        return Color(color).toRgbString();
+        var c = Color(color); //ARGB
+        return [c.toRgbString(), c.toHex8String()]; //CSS only accepts alpha via "rgba(...)" format, but we might need to adjust so also return hex; //toHex8String();
     });
-    this.ctx.fillStyle = rgba; //sprintf("rgba(%d, %d, %d, %d)", rgba.r, rgba.g, rgba.b, rgba.a); //'#' + hex8(color);
-    console.log("fill style for '%s': ARGB %s => RGBA %s => fillStyle %s", this.name, color, rgba, this.ctx.fillStyle);
+    this.ctx.fillStyle = rgba[0]; //sprintf("rgba(%d, %d, %d, %d)", rgba.r, rgba.g, rgba.b, rgba.a); //'#' + hex8(color);
+//    if (color.match(hexcolor) && this.ctx.fillStyle.match(hexcolor) && (this.ctx.fillStyle.substr(-6) != color.toLowerCase().substr(-6))) //kludge: fix up color drift
+//    if (this.ctx.fillStyle.slice(-6) != rgba[1].slice(-6)) //report color drift
+//        console.log("fill style for '%s': ARGB %s => RGBA %s %s => fillStyle %s", this.name, color, rgba[0], rgba[1], this.ctx.fillStyle);
     return this; //fluent
 }
 
@@ -341,7 +358,7 @@ Model2D.prototype.fill = function(x, y, w, h, color)
 //        w = Math.max(0, Math.min(this.width - x - 1, w));
 //        h = Math.max(0, Math.min(this.height - y - 1, h));
     if (isdef(color)) this.save().fillStyle(color);
-    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w - 1, y, y + h - 1, this.ctx.fillStyle); //hex8(color));
+//    console.log("fill '%s' rect %s x %s at (%s..%s, %s..%s) with %s", this.name, this.width, this.height, x, x + w - 1, y, y + h - 1, this.ctx.fillStyle); //hex8(color));
     this.ctx.fillRect(x, y, w, h);
     if (isdef(color)) this.restore();
     this.dirty = true;
@@ -505,8 +522,8 @@ Model2D.prototype.buf_resize = function(bufname, needlen, grouping)
             if (!(items % 16)) buf += " 'x" + ofs.toString(16) + " "; //show byte offset periodically
             switch (grouping)
             {
-                case 3: buf += ' ' + hex6(this.readUInt24BE(ofs) >>> 0); break;
-                case 4: buf += ' ' + hex8(this.readUInt32BE(ofs) >>> 0); break;
+                case 3: buf += ' ' + hex(this.readUInt24BE(ofs), 6); break;
+                case 4: buf += ' ' + hex(this.readUInt32BE(ofs), 8); break;
                 default: throw "Unhandled chunk size: " + grouping;
             }
         }
@@ -559,10 +576,14 @@ Model2D.prototype.pixel = function(x, y, color)
 //    if (!Model2D.prototype.pixel.pixelbuf) Model2D.prototype.pixel.pixelbuf = this.ctx.getImageData(0, 0, 1, 1); //kludge: can't create buffer so get one from context
 //    Model2D.prototype.pixel.pixelbuf.data.writeUInt32BE(rgba, 0);
 //    this.ctx.putImageData(Model2D.prototype.pixel.pixelbuf, x, this.T2B(y)); //, x, this.T2B(y), 1, 1);
-    if (isdef(color)) this.save().fillStyle(color);
-    console.log("set '%s' pixel (%s, %s) to color %s", this.name, x, y, this.ctx.fillStyle); //hex8(color));
+    /*if (isdef(color))*/ this.save().fillStyle(color);
+//    console.log("set '%s' pixel (%s, %s) to color %s %s = %s ??", this.name, x, y, typeof color, color, /*hex(color, 8),*/ this.ctx.fillStyle); //hex8(color));
     this.ctx.fillRect(x, this.T2B(y), 1, 1);
-    if (isdef(color)) this.restore();
+    /*if (isdef(color))*/ this.restore();
+    var readback = this.ctx.getImageData(x, this.T2B(y), 1, 1);
+    var check = '#' + hex(readback.data.readUInt32BE(0) >>> 8, 6); //want RGBA
+    if (check.toLowerCase() != color.toLowerCase()) console.log("is '%s' pixel (%s, %s) set correctly? wanted %s, got %s", this.name, x, y, color, check);
+//    console.log("set '%s' pixel (%s, %s) to color %s %s = %s ??", this.name, x, y, typeof color, color, /*hex(color, 8),*/ this.ctx.fillStyle); //hex8(color));
     return this; //fluent
 }
 
@@ -579,10 +600,11 @@ Model2D.prototype.renderNodes_raw = function(pxbuf)
 //    var outofs = 0;
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
+        if (pxofs === null) return;
 //NOTE: null is used as a placeholder node and should be set to off even if node is absent (to reduce encoding entropy)
 //        require('my-plugins/utils/showthis').call(this.port.outbuf, "port.outbuf");
 //    try{
-        if (pxofs !== null) this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA; endianness doesn't matter here as long as it's preserved
+        this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA; endianness doesn't matter here as long as it's preserved
 //        }catch(exc){ throw "ERROR:" + exc + ", pxofs " + pxofs + ", pxlen " + pxbuf.length + ", inx " + inx + ", buflen " + this.port.outbuf.size() + ", val " + (pxbuf.readUInt32BE(pxofs) >>> 0); }
     }.bind(this));
 }
@@ -612,8 +634,8 @@ Model2D.prototype.renderNodes_mono = function(pxbuf)
 {
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
-//NOTE: null is used as a placeholder node and should be set to off to reduce entropy
         if (pxofs === null) return;
+//NOTE: null is used as a placeholder node and should be set to off to reduce entropy
         var brightness = Math.max(pxbuf[pxofs + 0], pxbuf[pxofs + 1], pxbuf[pxofs + 2]); //TODO: weighted?
         this.port.outbuf.writeUInt8(brightness >>> 0);
     }.bind(this));
@@ -633,8 +655,23 @@ Model2D.prototype.renderNodes_RGBA = function(pxbuf)
 {
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
+        if (pxofs === null) return;
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        if (pxofs !== null) this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA
+        this.port.outbuf.writeUInt32BE(pxbuf.readUInt32BE(pxofs) >>> 0); //RGBA
+    }.bind(this));
+}
+
+Model2D.prototype.bytesPerNode_ARGB = 4;
+Model2D.prototype.renderNodes_ARGB = function(pxbuf)
+{
+    (this.nodelist || []).forEach(function(pxofs, inx)
+    {
+        if (pxofs === null) return;
+//NOTE: null is used as a placeholder node and should be set to off to reduce entropy
+        var rgba = pxbuf.readUInt32BE(pxofs); //RGBA
+        var argb = ((rgba >>> 8) | (rgba << 24)) >>> 0;
+        if ((argb < 0) || (argb > 0xFFFFFFFF)) throw "out of range: #" + hex(argb, 8);
+        this.port.outbuf.writeUInt32BE((rgba >>> 8) | ((rgba & 0xff) << 24)); //ARGB
     }.bind(this));
 }
 
@@ -655,8 +692,9 @@ Model2D.prototype.renderNodes_RGB = function(pxbuf)
 {
     (this.nodelist || []).forEach(function(pxofs, inx)
     {
+        if (pxofs === null) return;
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
-        if (pxofs !== null) this.port.outbuf.writeUInt24BE(pxbuf.readUInt32BE(pxofs) >>> 8); //RGB, drop A
+        this.port.outbuf.writeUInt24BE(pxbuf.readUInt32BE(pxofs) >>> 8); //RGB, drop A
     }.bind(this));
 }
 
@@ -690,13 +728,13 @@ Model2D.prototype.renderNodes_GRB = function(pxbuf)
 //render node values canvas pixels:
 Model2D.prototype.render = function() //frnext)
 {
-    console.log("model '%s' render: me? %s, parent? %s, port %s, send nodes? %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name, !!this.renderNodes);
+    console.log("render model '%s': me? %s, parent? %s, port %s, send nodes? %s", this.name, this.dirty, (this.parent || {}).dirty, (this.port || {name: 'none'}).name, !!this.renderNodes);
     if (!this.dirty || !this.port) return; //if not dirty or no output port, no need to render
     if (!this.renderNodes) { this.dirty = false; return; } //okay for dummy models to have no output; //throw "Unhandled node output type: '" + (this.opts.output || '(none)') + "'";
 //        this.buf_resize('outbuf', 4 * this.nodelist.length);
     var imgdata = this.imgdata(); //get all my pixels
     var pxbuf = imgdata.data; //? new DataView(imgdata.data.buffer): null; //Uint32Array(imgdata.data.buffer/*, 0, Uint32Array.BYTES_PER_ELEMENT*/): null;
-    console.log("start '%s' render: imgdata? %s, pxbuf %s len %s, port outbuf len %s, used %s", this.name, !!imgdata, pxbuf? pxbuf.constructor.name: '(none)', pxbuf? pxbuf.length: 'none', this.port.outbuf.maxSize(), this.port.outbuf.size());
+    console.log("start render '%s': imgdata? %s, pxbuf %s len %s, port outbuf len %s, used %s", this.name, !!imgdata, pxbuf? pxbuf.constructor.name: '(none)', pxbuf? pxbuf.length: 'none', this.port.outbuf.maxSize(), this.port.outbuf.size());
 //    if (!pxbuf) { this.dirty = false; return; } //no data to send
     var svlen = this.port.outbuf.size();
 //    (this.nodelist || []).forEach(function(pxofs, inx)
@@ -710,7 +748,7 @@ Model2D.prototype.render = function() //frnext)
 //        this.renderNode(inx * this.bytesPerNode, pxbuf, pxofs); //NOTE: null is used as a placeholder node and should be set off to reduce entropy
 //    }.bind(this));
     this.renderNodes(pxbuf);
-    console.log("finish '%s' render: outbuf len %s, added %s bytes", this.name, this.port.outbuf.size(), this.port.outbuf.size() - svlen); //, this.outbuf);
+    console.log("finish render '%s': outbuf len %s, added %s bytes", this.name, this.port.outbuf.size(), this.port.outbuf.size() - svlen); //, this.outbuf);
     if (this.port.outbuf.size() != svlen) this.port.dirty = true;
     this.dirty = false;
 //    return this.fx? frnext + 50: false; //TODO: generate frnext based on running fx; no next frame scheduled
@@ -997,9 +1035,10 @@ function isRect(thing)
 //    return {r: (color >> 24) & 0xFF, g: (color >> 16) & 0xFF, b: (color >> 8) & 0xFF, a: color & 0xFF};
 //}
 
-function hex8(val)
+function hex(val, len)
 {
-    return ('00000000' + (val >>> 0).toString(16)).slice(-8);
+    if (!len) len = 8;
+    return ('00000000' + (val >>> 0).toString(16)).slice(-len);
 }
 
 
