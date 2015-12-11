@@ -90,7 +90,6 @@ function send_next(inx)
 //hardwired().pipe(stmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'"));
 
 
-debugger;
 function playback()
 {
 const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
@@ -107,8 +106,6 @@ const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process
 //playback();
 
 
-debugger;
-
 function canv_test()
 {
     const Canvas = require('canvas');
@@ -121,6 +118,7 @@ function canv_test()
     console.log("img data %j", data);
 }
 //canv_test();
+
 
 function model_test()
 {
@@ -143,7 +141,53 @@ function model_test()
     ports[0].flush(0);
 //        this.MyFx.column.call(this, br, brcolor);
 }
-model_test();
+//model_test();
+
+
+debugger;
+function pwm_test()
+{
+    const Model2D = require('my-projects/models/model-2d');
+    const ports = require('my-projects/models/my-ports').all;
+    const RENXt = require('my-plugins/hw/RenXt');
+
+    var amodel = new Model2D({name: 'chplex', w: 4, h: 2, zinit: false, nodetype: RENXt.PWM(RENXt.ACTIVE_LOW), order: Model2D.prototype.L2R_T2B, output: 'mono'}); //'RGBW'});
+    amodel.port = ports[0];
+    console.log("amodel node list", amodel.nodelist);
+    amodel //mono
+        .pixel(0, 1, '#DDEEFF')
+        .pixel(0, 0, '#112233').pixel(1, 0, '#445566').pixel(2, 0, '#778899').pixel(3, 0, '#AABBCC');
+    var data = amodel.imgdata();
+    console.log("amodel node buf", data);
+    amodel.render();
+    ports[0].flush(0);
+}
+pwm_test();
+
+
+function chplex_test()
+{
+    const Model2D = require('my-projects/models/model-2d');
+    const ports = require('my-projects/models/my-ports').all;
+    const RENXt = require('my-plugins/hw/RenXt');
+
+//    RENXt.PWM(polarity)
+    var amodel = new Model2D({name: 'chplex', w: 7, h: 8-7, zinit: false, nodetype: RENXt.CHPLEX(RENXt.ACTIVE_HIGH)}); //output: 'RGB'});
+    amodel.port = ports[0];
+    console.log("amodel node list", amodel.nodelist);
+    amodel //NOTE: context2D here wants RGBA or RGB, not ARGB
+        .pixel(0, 0, '#112233').pixel(1, 3, '#444444').pixel(2, 3, '#888888').pixel(3, 3, '#CC4444')
+//        .pixel(0, 2, '#445566').pixel(1, 2, '#333333').pixel(2, 2, '#777777').pixel(3, 2, '#DD3333')
+//        .pixel(0, 1, '#778899').pixel(1, 1, '#222222').pixel(2, 1, '#666666').pixel(3, 1, '#EE2222')
+//        .pixel(0, 0, '#AABBCC').pixel(1, 0, '#111111').pixel(2, 0, '#555555').pixel(3, 0, '#FF1111');
+        .pixel(0, 2, '#CC0044');
+    var data = amodel.imgdata();
+    console.log("amodel node buf", data);
+    amodel.render();
+    ports[0].flush(0);
+//        this.MyFx.column.call(this, br, brcolor);
+}
+//chplex_test();
 
 
 function model_reader()

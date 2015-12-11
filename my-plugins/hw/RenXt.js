@@ -158,7 +158,7 @@ Const_RENXt('CTLFUNC_OPGRP', 0x7F); //0x7# (112..127) = controller functions; th
 //polarity:
 //   Const(COMMON_ANODE  0xCA
 //   Const(COMMON_CATHODE  0xCC
-        Const_RENXt('ACTIVE_HIGH', 1);
+        Const_RENXt('ACTIVE_HIGH', 1); //"common anode" or "cathode" is ambiguous (because there is a row and column), so use "active high" or "low" instead
         Const_RENXt('ACTIVE_LOW', 0);
         RENXt.IsActiveHigh = function(polarity) { return ((polarity) & 1); } //((((polarity) & 0xF) % 11) & 1) //can use 0xA/0xC or 0/1
 //CAUTION: only bottom bit should be different for PWM or CHPLEX variants
@@ -231,6 +231,9 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 ////
 /// Protocol handler:
 //
+
+const Elapsed = require('my-plugins/utils/elapsed');
+
 
 module.exports.AddProtocol = function(port)
 {
@@ -375,6 +378,22 @@ function buf_inspector_uint32ary(depth, opts) //make debug easier
         buf += ' #' + hex(this[ofs], 8);
     }
     return '<buf-uint32:' + limit + ' ' + buf + '>';
+}
+
+
+var color_cache = require('my-projects/models/color-cache').cache;
+var argb_splitter = new Buffer(4);
+
+function Brightness(color)
+{
+    color &= 0xFFFFFF; //drop A
+    if (!color) return 0;
+    var brightness = color_cache(color + '%', function()
+    {
+        argb_splitter.writeUInt32BE(color, 0);
+        return Math.max(argb_splitter[1], argb_splitter[2], argb_splitter[3]); //TODO: use weighted value?
+    });
+    return brightness;
 }
 
 
@@ -564,17 +583,91 @@ function encode_series(first) //_smart(model) //, nodes)
 
 function encode_parallel(first) //, nodes)
 {
+//nodetype: RenXt.WS2811(RenXt.PARALLEL)
     this.port.encbuf
         .SelectAdrs(this.adrs)
         .emit_buf(new Buffer("TODO: PARALLEL"))
         .NodeFlush();
 }
 
-function encode_chplex(first) //, nodes)
+
+function encode_chplex(first)
 {
+debugger;
+//TODO: xlate RGBW format into 4 separate monochrome channels?
+    var chplex = RENXt.IsChplex(this.opts.nodetype || RenXt.WS281X(RenXt.SERIES));
+    var pwm = (this.raw_nodes.length != 56); //TODO: make this selectable?
+//     RENXt.CHPLEX(RENXt.ACTIVE_HIGH), RENXt.CHPLEX(RENXt.ACTIVE_LOW))); }
+//    var numrows = Math.ceil(this.raw_nodes.length / 7);
+    var mono_nodes = []; //typically 8 PWM or 56 ch'plexed channels per controller
+//    for (var r = 0; r < numrows /*this.height*/; ++r) mono_nodes.push([]); //allow node lists by row
+    this.raw_nodes.forEach(function(color, inx)
+    {
+        var br = Brightness(color);
+        if (!br) return; //don't need to turn this one on
+        var row = chplex? Math.floor(inx / 7) + 1: 0, col = (chplex? inx % 7: inx) + 1;
+        if (chplex && (col >= row)) ++col; //skip diagonal; row cannot == column
+        mono_nodes.push({br: br, row: row, col: col});
+    });
+    mono_nodes.sort(function(lhs, rhs) { return (rhs.br - lhs.br) || (rhs.row - lhs.row) || (rhs.col - lhs.col); }); //descending; phase angle dimming requires brightest channels first; group channels by row
+    console.log("sorted %s nodes:", chplex? "chplex": "pwm", mono_nodes);
+
+//start encoding:
+    if (first || !this.cfg_sent) //need to config addresses before sending anything else
+        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.opts.nodebytes || Math.ceil(this.nodelist.length / 4 / 2)); //quad bytes, 2 bpp
+    this.cfg_sent = true;
+//    if (!(seqnum % WANT_COMM_DEBUG))
+    if (false) //TODO: check status periodically
+        this.port.encbuf
+            .SelectAdrs(this.adrs)
+            .emit_opc(RENXt_ACK) //check listener/packet status
+//        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
+            .emit(RENXt_NOOP, 5+1+1+1+1) //placeholders for status bits, i/o errs, proto errs, node bytes; CAUTION: must allow enough esc placeholders to protect next opcode
+            .emit_raw(RENARD_SYNC); //kludge: send extra Sync in case prev byte was Escape
+
+//use phase angle dimming model for DC as well (to simplify the logic):
+//TODO: SSR doublers, variable DC dim cycle, dumb set-all
+    var tailpad = 0, brightness = 255; //start with max/total brightness (dumb nodes only); AC phase angle requires this, but DC/PWM can be in any order
+    var delay = mono_nodes.length? brightness - mono_nodes[0].br: 0; //dummy event is needed to delay first on; don't need delay if node list is empty / all off
+    var listlen = 3 * mono_nodes.length - 1 + 1 + (delay? 1: 0) + 1; // + 1; //handle eol marker as part of padding; NOTE: don't need event for full off, but need one to pad out dimming cycle
+    var colmasks = {}; //on columns by active row
+    tailpad = (listlen % 4)? 4 - (listlen % 4): 0; //padlen(listlen, 4);
+    console.log("first dumb: cur br %d, first %d, duration %d, listlen %d, padlen %d", brightness, mono_nodes[0].br, delay, listlen, tailpad);
     this.port.encbuf
         .SelectAdrs(this.adrs)
-        .emit_buf(new Buffer("TODO: DUMB"))
+        .emit_opc(RENXt.DUMBLIST) //start of dumb pixel display event list (chplex/pwm)
+        .emit_byte(Math.ceil(listlen / 4)) //quad bytes
+        .emit_byte(0); //no skip for now
+    if (delay) this.port.encbuf.emit(delay).emit_byte(0, 2); //first event (no rows, no cols) to delay first on
+    brightness -= delay;
+//remainder of dumb pixel display event list (chplex/pwm):
+    mono_nodes.forEach(function(node, inx, all)
+    {
+        if (!inx || (node.br != all[inx - 1].br) || (node.row != all[inx - 1].row)) //row start
+        {
+            var duration = /*RGB2R(it->first)*/ brightness - ((inx + 1 != all.length)? all[inx + 1].br: 0); //NOTE: dimming might be behind schedule, so use actual brightness rather than desired brightness here
+            if (duration < 1) duration = 1; //must be >= 1 timeslot for triacs to turn on; if we fall behind we can catch up later
+            this.port.encbuf.emit_byte(duration);
+            brightness -= duration;
+//        var row = chplex? node.row: 0; //node_lists[it->first].front() / 7: 0;
+//                    int colmask = 0;
+            if (!(pwm && chplex)) colmasks[node.row] = 0; //not cumulative (not pseudo-pwm)
+        }
+        colmasks[node.row] |= 0x100 >> node.col;
+        console.log("node[%s/%s] node br %s => row %s, col %s cols 0x%s", inx, all.length, node.br, node.row, node.col, colmasks[node.row].toString(16));
+        if ((inx + 1 == all.length) || (node.br != all[inx + 1].br) || (node.row != all[inx + 1].row)) //row end
+        {
+            this.port.encbuf
+                .emit_byte(0x100 >> node.row) //chplex? 0x100 >> node.row: node.row) //convert to mask if chipiplexed; leave 0 for pwm (no row)
+                .emit_byte(colmasks[node.row]); //cumulative column map for this row
+            console.log("out dumb evt: next brightness %s, row 0x%s, cols 0x%s, duration %s", brightness, (chplex? 0x100 >> node.row: node.row).toString(16), colmasks[node.row].toString(16), duration);
+//                    brightness -= delay; //RGB2R(it->first);
+        }
+    }.bind(this));
+    console.log("dumb tail pad %d + eof", tailpad);
+    this.port.encbuf
+        .emit_byte(0, tailpad + 1) //end of list marker + quad-byte padding
+//        .emit_opc(RENXt.NODEFLUSH); //flush changes; must be last opcode for this processor
         .NodeFlush();
 }
 
@@ -623,18 +716,30 @@ function histogram(nodes, desc)
 }
 
 
+//bad hoist var verbuf = new RenXtBuffer();
+
 function verify(outbuf, inbuf)
 {
+//TODO: use this for ReadMem as well
 debugger;
     if (!this.ioverify.length) return; //nothing to verify yet
+    var verbuf = new RenXtBuffer();
     var iorec = this.ioverify[0]; // {seqnum, data, len, sendtime}
     console.log("iorec", iorec);
     console.log("RenXt verify: inlen %s vs. iolen %s", this.inbuf.size(), iorec.len);
-    if (this.inbuf.size() < iorec.len) return; //not enough data to verify
-    var elapsed = new Elapsed(iorec.sendtime);
+//    if (this.inbuf.size() < iorec.len) return; //not enough data to verify
 //        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
 //        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
     console.log("TODO: compare RenXt outbuf + inbuf");
+    return;
+    var elapsed = new Elapsed(iorec.sendtime);
+    var cmplen = Math.min(this.inbuf.size(), iorec.len);
+    if (!cmplen) return; //nothing to verify yet
+    iorec.vertime = elapsed.now;
+//TODO: clean this up
+    var verofs = iorec.verofs || 0;
+    verbuf.buffer = this.inbuf.buf; verbuf.rdlen = this.inbuf.size(); verbuf.rdofs = 0;
+    var inofs = 0, inbuf = this.inbuf.peek();
 }
 
 
@@ -801,7 +906,7 @@ function RenXtBuffer(opts)
     Object.defineProperty(this, 'usedbuf', {get() { return this.buffer.slice(0, this.wrlen); }});
 
 //    this.dataview = new DataView(this.buffer);
-    this.stats_opc = new Uint16Array(256);
+    this.stats_opc = new Uint8ClampedArray(256); //Uint16Array(256);
 //    this.port.on('data', function(data) //collect incoming data
 //    {
 //        this.latest = this.elapsed.now;
@@ -922,6 +1027,9 @@ RenXtBuffer.prototype.NodeFlush = function() //adrs)
 //        .emit_raw(adrs);
     this
         .emit_opc(RenXt.NODEFLUSH)
+//latest: 5 MIPS: 48 => 8, 36 => 5, 20 => 2, 10 => 0
+//timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
+//???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
         .pad(10); //TODO: interleave + wait states
     return this; //fluent
 }

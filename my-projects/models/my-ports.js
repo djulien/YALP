@@ -211,8 +211,8 @@ function MySerialPort(path, options, openImmediately, callback)
 //status tracking (for debug):
     m_sport.on("open", function () { console.log('opened %s'.green, this.path); }.bind(this));
 //.flush(cb(err)) data received but not read
-debugger;
-    m_sport.on('data', function(data) { this.inbuf.write(data); console.log('data received on %s %d: "%s"'.blue, this.path, data.length, data.toString('utf8').replace(/\n/g, "\\n")); }.bind(this));
+//debugger;
+    m_sport.on('data', function(data) { this.inbuf.write(data); console.log('data received on \'%s\' len %d: "%s"'.blue, this.device, data.length, data.toString('utf8').replace(/\n/g, "\\n").replace(/[^\x20-\x7F]/g, "?")); }.bind(this));
     m_sport.on('error', function(err) { debugger; console.log("ERR on %s: ".red, this.path, err); }.bind(this));
     m_sport.on('close', function() { console.log("closed %s".cyan); }.bind(this));
     m_sport.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
