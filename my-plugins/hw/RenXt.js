@@ -222,7 +222,7 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
     Const_RENXt('NODELIST_END', RENXt.NODELIST(0)); //end of inverted node lists (bkg palette entry is never explicitly addressed, so use it as an end-of-list marker)
 //nodes are divided into "banks" due to 8-bit addresses (transparent to caller)
     Const_RENXt('NODELIST_BANKSIZE', RENXt.NODELIST(0));
-    RENXt.NodeBank = function(nodenum) { return ((nodenum) / RENXt.NODELIST_BANKSIZE); }
+    RENXt.NodeBank = function(nodenum) { return Math.floor((nodenum) / RENXt.NODELIST_BANKSIZE); }
     RENXt.NodeOffset = function(nodenum) { return ((nodenum) % RENXt.NODELIST_BANKSIZE); }
     RENXt.MakeNode = function(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
 
@@ -251,7 +251,7 @@ module.exports.AddProtocol = function(port)
         this.old_assign /*.bind(port)*/(model);
         var nodetype = model.opts.nodetype || RenXt.WS2811(RenXt.SERIES);
         model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
-        model.setRenderType('ABGR'); //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw pixel data; also don't want R<->G swap before quant
+        model.setRenderType('ARGB'); //NOTE: use 32-bit value to preserve byte alignment in node analyzer; //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw ABGR pixel data; also don't want R<->G swap before quant
         model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
         var old_render = model.render;
         model.render = function model_render()
@@ -261,7 +261,7 @@ debugger;
 //            var oldlen = port.outbuf.size();
             var my_outbuf = this.port.outbuf; this.port.outbuf = this.port.old_outbuf; //swap in original non-protocol outbuf
             this.port.outbuf.reset();
-            var retval = old_render.call(this);
+            var retval = old_render.call(this); //capture rendered node list in outbuf
             if (this.port.outbuf.size())
             {
                 this.raw_nodes = uint8ary_to_uint32ary(this.port.outbuf.peek()); //getContents(); //buf slice isn't observed by RgbQuant so do the extra buf alloc + copy here; //peek(); //node ARGB values to be encoded; NOTE: node list is sparse or reordered compared to canvas
@@ -269,7 +269,7 @@ debugger;
                 var oldlen = this.port.encbuf.wrlen;
                 this.encode();
                 console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
-                console.log("nodes ABGR in:", this.raw_nodes.inspect());
+                console.log("nodes ARGB in:", this.raw_nodes.inspect());
                 console.log("enc out:", this.port.encbuf.usedbuf);
             }
             this.port.outbuf = my_outbuf; //swap back to protocol outbuf
@@ -414,38 +414,59 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 var RgbQuant = require('rgbquant');
 //NO var quant = new RgbQuant({colors: 16}); //need new one each time
 
+function ARGB2ABGR(color) { return (color & 0xFF00FF00) | ((color >> 16) & 0xFF) | ((color << 16) & 0xFF0000); }
+
 //encode series nodes for this model:
 //places encoded nodes into port output buf
 //model already deduped
 //NOTE: runs in model context
 function encode_series(first) //_smart(model) //, nodes)
 {
-    console.log("raw ABGR nodes", this.raw_nodes);
+    console.log("raw ARGB nodes", this.raw_nodes);
     console.log("series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
 //    if (this.raw_nodes.length > 16) //do this even if <= 16 nodes (need to invert anyway)
-    {
-        histogram(this.raw_nodes, "raw BGR");
+//    {
+    var myhist = histogram(this.raw_nodes, "raw RGB"); //{colors[], counts{}, index{}}
 //    var quant = new RgbQuant({colors: 16, boxSize: [4, 4], boxPxls: 1}); //need new object each time?
 //    boxSize: [4, 4], boxPxls: 1,
 //TODO: dither?
 //    dithXXXX: true, //maybe try dithKern, dithSerp, etc
 //    colorDist: ??, //select color distance eqn?
+    if (myhist.colors.length > 16) //reduce palette size
+    {
         var quant = new RgbQuant({ colors: 16, method: 1, initColors: 0}); //4 bpp, 1D (no sub-boxes)
 //NO: node.js buf len broken
+        this.raw_nodes.forEach(function(color, inx, all) { all[inx] = ARGB2ABGR(color >>> 0); }); //kludge: RgbQuant wants nodes in ABGR format
         quant.sample(this.raw_nodes); //analyze histogram; wants ABGR
 //    quant.colorStats1D(buf32) //wants ARGB, .length
 
+//TODO: eliminate redundant histogram
 //TODO: share palette across frames to reduce frame-to-frame color variations
-        this.pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
-        this.pal.inspect = buf_inspector_uint32ary.bind(this.pal);
-        console.log("pal RGBA %s", typeof this.pal, this.pal.inspect());
+        var quant_pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
+        quant_pal.inspect = buf_inspector_uint32ary.bind(quant_pal);
+        console.log("quant pal RGBA %s", typeof quant_pal, quant_pal.inspect());
 //    console.log("palbuf %s %j", typeof palbuf, palbuf);
 //then generate reduced palette:
-        var reduced = quant.reduce(this.raw_nodes, 2); //reduce colors in image; retType 2 = Indexed array
-        reduced.inspect = buf_inspector_uint32ary.bind(reduced);
-        console.log("reduced %s", typeof reduced, reduced.inspect());
-        histogram(reduced, "reduced");
+        var indexed_nodes = quant.reduce(this.raw_nodes, 2); //reduce colors in image; retType 2 = Indexed array
+        indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
+        console.log("reduced %s", typeof indexed_nodes, indexed_nodes.inspect());
+        indexed_nodes.forEach(function(colorinx, nodeinx, all) { all[nodeinx] = ARGB2ABGR(quant.idxi32[colorinx] >>> 0); }); //kludge: unindex colors before my histogram
+        console.log("reduced + restored nodes %s", typeof indexed_nodes, indexed_nodes.inspect());
+        myhist = histogram(indexed_nodes, "my reduced"); //{colors[], counts{}, index{}}
+//        myhist.colors.forEach(function(quant_inx, list_inx, all) { all[list_inx] = quant_pal[quant_inx]; }); //kludge: reload palette with un-quant colors
+        indexed_nodes.forEach(function(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
     }
+    else
+    {
+        var indexed_nodes = [];
+        this.raw_nodes.forEach(function(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
+    }
+    indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
+    console.log("indexed, reduced nodes", indexed_nodes);
+//    myhist.colors_rgb = []; //quant shim
+//    myhist.colors.forEach(function(color, inx, all) { myhist.colors_rgb[inx] = ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF); }); //put in RGB order
+//    myhist.colors_rgb.inspect = buf_inspector_uint32ary.bind(myhist.colors_rgb);
+//    console.log("final RGB palette", myhist.colors_rgb);
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
 //start encoding:
@@ -465,16 +486,17 @@ function encode_series(first) //_smart(model) //, nodes)
             .emit_raw(RENARD_SYNC); //kludge: send extra Sync in case prev byte was Escape
 
 //estimate encoded sizes of bitmaps vs. inverted lists and choose the more compact option:
-//TODO: allow shared palette?
-    var most_common = quant.histogram[quant.histogram.length - 1];
-    var bpp = (this.pal.length <= 1)? 0: (this.pal.length <= 2)? 1: (this.pal.length <= 4)? 2: (this.pal.length <= 16)? 4: 999; //#bits per pixel
-    var bitmap_size = 1 + 3 * this.pal.length + 1 + (bpp? Math.ceil(this.raw_nodes.length / (8 / bpp)): 0) + 1; //SetPal + SetAll or Bitmap + NodeFlush opcodes
-    var inverted_size = 1 + 4 * this.pal.length + this.raw_nodes.length - most_common + 1; //SetPal + SetAll + Nodelist + NodeFlush opcodes
-    console.log("est enc size: pal len %s, %s bpp bitmap %s bytes, inverted lists %s bytes", this.pal.length, bpp, bitmap_size, inverted_size);
+//TODO: allow shared palette across frames or models
+    var most_common = myhist.counts[myhist.colors[0]]; //quant.histogram[quant.idxi32[quant.idxi32.length - 1]];
+    var bpp = (myhist.colors.length <= 1)? 0: (myhist.colors.length <= 2)? 1: (myhist.colors.length <= 4)? 2: (myhist.colors.length <= 16)? 4: 999; //#bits per pixel
+    var bitmap_size = 1 + 3 * myhist.colors.length + 3 + (bpp? Math.ceil(indexed_nodes.length / (8 / bpp)): 0) + 1; //SetPal + SetAll or Bitmap + NodeFlush opcodes
+    var inverted_size = 1 + 4 * myhist.colors.length + indexed_nodes.length - most_common + 1; //SetPal + SetAll + Nodelist + NodeFlush opcodes
+    var pallen = 1 + 3 * myhist.colors.length;
+    console.log("est enc size: pal len %s ents, %d bytes, %s bpp bitmap %s+%s=%s bytes, inverted lists %s+%s=%s bytes, most common #%s = %s", myhist.colors.length, pallen, bpp, pallen, bitmap_size - pallen, bitmap_size, pallen, inverted_size - pallen, inverted_size, hex(myhist.colors[0], 8), myhist.counts[myhist.colors[0]]); //quant.idxi32[quant.idxi32.length - 1], 8), myhist.colors[0], myhist.counts[myhist.colors[0]]); //quant.histogram[quant.idxi32[quant.idxi32.length - 1]]);
 
     this.port.encbuf
         .SelectAdrs(this.adrs)
-        .SetPal(this.pal);
+        .SetPal(myhist.colors, this.opts.output); //this.pal);
 //TODO: GECE RGB2IBGRZ color conv
 //TODO: splitable
     if (bpp && (bitmap_size < inverted_size)) //flat bitmap
@@ -482,12 +504,12 @@ function encode_series(first) //_smart(model) //, nodes)
         this.port.encbuf
             .emit_opc(RENXt.BITMAP(bpp))
 //TODO: quad bytes?
-            .emit_byte(Math.ceil(this.raw_nodes.length * bpp / 8) + 1) //no I/O delay needed because rcv rate is faster than send rate in all cases; kludge: +1 to prevent auto-flush
+            .emit_byte(Math.ceil(indexed_nodes.length * bpp / 8) + 1) //no I/O delay needed because rcv rate is faster than send rate in all cases; kludge: +1 to prevent auto-flush
             .emit_byte(0); //TODO: skip first part of bitmap if it didn't change
         var curbyte = 0;
-        while (reduced.length % (8 / bpp)) reduced.length.push(0); //pad to fill last byte
-        console.log("pack %s nodes", reduced.length);
-        reduced.forEach(function(colorinx, nodeinx)
+        while (indexed_nodes.length % (8 / bpp)) indexed_nodes.push(0); //pad to fill last node group
+        console.log("pack %s nodes", indexed_nodes.length);
+        indexed_nodes.forEach(function(colorinx, nodeinx)
         {
             curbyte <<= bpp;
             curbyte |= colorinx;
@@ -496,7 +518,7 @@ function encode_series(first) //_smart(model) //, nodes)
 //1 bpp: 2468 1357 => 0008 0007, 0006 0005, 0004 0003, 0002 0001
 //2 bpp: 2244 1133 => 0044 0033, 0022 0011
 //4 bpp: 1111 2222
-            switch (bpp)
+            switch (bpp) //shuffle packed bits to format wanted by firmware
             {
                 case 1: //8765 4321 =-> 2468 1357
                     curbyte = ((curbyte & 0x80) >> 3) | ((curbyte & 0x40) >> 6) | (curbyte & 0x20) | ((curbyte & 0x10) >> 3) | ((curbyte & 0x08) << 3) | (curbyte & 0x04) | ((curbyte & 0x02) << 6) | ((curbyte & 0x01) << 3);
@@ -507,16 +529,17 @@ function encode_series(first) //_smart(model) //, nodes)
             }
             this.port.encbuf.emit_byte(curbyte); //flush current group of nodes
         }.bind(this));
+        this.port.encbuf.SelectAdrs(this.adrs); //start next packet instead of sending last bitmap byte to inhibit auto-flush
     }
     else //inverted node lists
     {
         var nodelists = [];
-        this.pal.forEach(function() { nodelists.push([]); }); //create a node list for each color palette entry
-        reduced.forEach(function(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
-        this.pal.forEach(function(color, palinx)
+        myhist.colors.forEach(function() { nodelists.push([]); }); //create a node list for each color palette entry
+        indexed_nodes.forEach(function(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
+        myhist.colors.forEach(function(color, palinx)
         {
-            if (!palinx) { this.port.encbuf.SetAll(0); return; }
-            nodelists[palinx].sort(); //node inx must be in increasing order for bank switch
+            if (!palinx) { this.port.encbuf.SetAll(0); return; } //background color doesn't use a list
+            nodelists[palinx].sort(); //node inx must be in increasing order for correct bank switching
             var node_esc = RENXt.NODELIST(palinx); //esc code to start next list or switch banks
             var prevbank = RENXt.NodeBank(0), prevofs = RENXt.NodeOffset(0); //reset bank tracking
             this.port.encbuf.emit_opc(node_esc);
@@ -533,7 +556,7 @@ function encode_series(first) //_smart(model) //, nodes)
                 this.port.encbuf.emit_byte(prevofs);
             }.bind(this));
         }.bind(this));
-        this.port.encbuf.emit_byte(RENXt_NODELIST_END); //end of inverted lists
+        this.port.encbuf.emit_byte(RENXt.NODELIST_END); //end of inverted lists
     }
     this.port.encbuf.NodeFlush();
 }
@@ -569,13 +592,13 @@ function histogram(nodes, desc)
 {
 //    var keys = {}, counts = [];
 //    require('my-plugins/utils/showthis').call(nodes, "nodes");
-    var counts = {};
+    var counts = {}, index = {length: 0};
     if (nodes.data) nodes = nodes.data;
     if (nodes.readUInt32BE) //buffer
         for (var i = 0; i < nodes.length; i += 4)
         {
-            var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //RGB, drop A
-            if (isNaN(++counts[color])) counts[color] = 1;
+            var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //ABGR, drop A
+            if (isNaN(++counts[color])) { counts[color] = 1; index[color] = index.length++; }
 /*
             var inx = keys[color];
             if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
@@ -586,21 +609,24 @@ function histogram(nodes, desc)
     else //array
         for (var i = 0; i < nodes.length; ++i)
         {
-            var color = nodes[i] & 0xFFFFFF;
-            if (isNaN(++counts[color])) counts[color] = 1;
+            var color = nodes[i] & 0xFFFFFF; //ABGR, drop A
+            if (isNaN(++counts[color])) { counts[color] = 1; index[color] = index.length++; }
         }
     var palette = Object.keys(counts);
-    palette.sort(function(lhs, rhs) { return (counts[lhs] - counts[rhs]) || (lhs - rhs); });
-    var buf = '';
-    palette.forEach(function(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
-    console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
+    palette.sort(function(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
+    palette.inspect = buf_inspector_uint32ary.bind(palette);
+//    var buf = '';
+//    palette.forEach(function(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
+//    console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
+    console.log((desc || '') + " myhist palette", palette);
+    return {colors: palette, counts: counts, index: index};
 }
 
 
 function verify(outbuf, inbuf)
 {
 debugger;
-    if (!this.ioverify.length) return; //nothing to verify
+    if (!this.ioverify.length) return; //nothing to verify yet
     var iorec = this.ioverify[0]; // {seqnum, data, len, sendtime}
     console.log("iorec", iorec);
     console.log("RenXt verify: inlen %s vs. iolen %s", this.inbuf.size(), iorec.len);
@@ -873,19 +899,19 @@ RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
     return this; //fluent
 }
 
-RenXtBuffer.prototype.SetPal = function(/*adrs,*/ colors)
+RenXtBuffer.prototype.SetPal = function(/*adrs,*/ colors, order)
 {
 //    if (arguments.length < 2) { colors = adrs; adrs = undefined; } //shuffle optional params
     if ((typeof colors != 'object') || !colors.length) colors = arguments; //if (!Array.isArray(colors)) colors = arguments;
-console.log("setpal isary? %s", Array.isArray(colors));
-console.log("setpal args", arguments);
+//console.log("setpal isary? %s", Array.isArray(colors));
+//console.log("setpal args", arguments);
     if ((colors.length < 1) || (colors.length > 16)) throw "Invalid palette length: " + colors.length;
 //    if (typeof adrs != 'undefined') this //start new block
 //        .emit_raw(RenXt.RENARD_SYNC)
 //        .emit_raw(adrs);
     this.emit_opc(RenXt.SETPAL(colors.length));
 //    Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function(color, inx)
-    colors.forEach(function(color, inx) { this.emit_rgb(color >>> 8); }.bind(this)); //RGBA => RGB
+    colors.forEach(function(color, inx) { this['emit_' + (order || 'RGB').toLowerCase()](color >>> 0); }.bind(this));
     return this; //fluent
 }
 
@@ -936,6 +962,16 @@ RenXtBuffer.prototype.emit_rgb = function(rgb) //ensure correct byte order
     this.emit_byte(rgb >> 16); //RGB2R(rgb));
     this.emit_byte(rgb >> 8); //RGB2G(rgb));
     this.emit_byte(rgb); //RGB2B(rgb));
+//    this.buffer.writeUInt32BE(rgb << 8, ofs); ofs += 3;
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.emit_bgr = function(rgb) //ensure correct byte order
+{
+//NOTE: send each byte separately in case of special char conflict
+    this.emit_byte(bgr); //RGB2B(rgb));
+    this.emit_byte(bgr >> 8); //RGB2G(rgb));
+    this.emit_byte(bgr >> 16); //RGB2R(rgb));
 //    this.buffer.writeUInt32BE(rgb << 8, ofs); ofs += 3;
     return this; //fluent
 }

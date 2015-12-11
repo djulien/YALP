@@ -77,6 +77,7 @@ PortBase.prototype.assign = function(model)
 //caller controls timing
 PortBase.prototype.flush = function reset(seqnum)
 {
+    console.log("port '%s' flush: dirty? %s, size %s", this.name || this.device, !!this.dirty, this.outbuf.size());
     if (!this.dirty) return;
 debugger;
     logger("write %d to port '%s':", this.outbuf.size(), this.name, "tbd");
@@ -97,12 +98,13 @@ debugger;
         this.drain(function(err)
         {
             if (err) { iorec.errtime = elapsed.now; console.log('drain %s err '.red + err, seqnum); return; } // cb(err); }
-            console.log("drain %s completed after %s".green, seqnum, elapsed.scaled());
+            console.log("drain seq# %s completed after %s".green, seqnum, elapsed.scaled());
             iorec.draintime = elapsed.now;
+            setTimeout(function() { this.verify(); }.bind(this), this.loopback_delay || 5);
 //            return cb();
         }.bind(this));
     }.bind(this));
-    this.verify();
+//too soon    this.verify();
 //    return {port: this.name || this.device, frtime: frtime, frnext: (frnext_min !== false)? frnext_min: undefined, buflen: buflen, buf: buf}; //this.outbuf.getContents()};
     this.dirty = false;
 }
@@ -113,6 +115,7 @@ debugger;
 PortBase.prototype.verify = function verify()
 {
     this.ioverify.shift();
+    if (this.inbuf.size()) console.log("discarding loopback data");
     this.inbuf.getContents();
 }
 
@@ -169,7 +172,7 @@ serial.list(function(err, ports)
     else logger("found %d serial ports:".cyan, ports.length);
     (ports || []).forEach(function(port, inx)
     {
-        logger("  serial[%s/%s]: '%s' '%s' '%s'".cyan, inx, ports.length, port.comName, port.manufacturer, port.pnpId);
+        if (inx < 10) logger("  serial[%s/%s]: '%s' '%s' '%s'".cyan, inx, ports.length, port.comName, port.manufacturer, port.pnpId);
     });
 });
 
@@ -208,12 +211,13 @@ function MySerialPort(path, options, openImmediately, callback)
 //status tracking (for debug):
     m_sport.on("open", function () { console.log('opened %s'.green, this.path); }.bind(this));
 //.flush(cb(err)) data received but not read
+debugger;
     m_sport.on('data', function(data) { this.inbuf.write(data); console.log('data received on %s %d: "%s"'.blue, this.path, data.length, data.toString('utf8').replace(/\n/g, "\\n")); }.bind(this));
     m_sport.on('error', function(err) { debugger; console.log("ERR on %s: ".red, this.path, err); }.bind(this));
     m_sport.on('close', function() { console.log("closed %s".cyan); }.bind(this));
     m_sport.on('disconnect', function() { console.log("disconnected %s".red, this.path); }.bind(this));
     if (openImmediately) m_sport.open(); //open after evt handlers are in place
-    this.self_emit = function(evt, data) { return m_sport.emit.apply(arguments); }
+    this.self_emit = function(evt, data) { debugger; return m_sport.emit.apply(m_sport, arguments); }
 //    MySerialPort.all.push(this); //allows easier enum over all instances
 }
 //inherits(MySerialPort, serial.SerialPort);
@@ -238,7 +242,7 @@ function FakeSerialPort(path, options, openImmediately, callback)
         {
             if (this.draincb) this.draincb(null);
             this.self_emit('data', data); //simulated loopback; TODO: simulate active protocol
-        }.bind(this), 5 + Math.ceil(.044 * data.length)); //252K baud ~= 44 usec/char + 5 msec USB latency
+        }.bind(this), Math.max(5 + Math.ceil(.044 * data.length), 16)); //252K baud ~= 44 usec/char + 5 msec USB latency
     }
     this.drain = function(cb) { this.draincb = cb; }
 }
