@@ -10,7 +10,7 @@ const logger = require('my-plugins/utils/logger')({detail: 99, filename: "zout.l
 const hfmt = require('human-format');
 function not_hfmt(val, scale) { return val; }
 const bufferJSON = require('buffer-json'); //https://github.com/jprichardson/buffer-json
-const stmon = require('my-plugins/streamers/stmon').stmon;
+const stmon = require('my-plugins/streamers/stmon').not_stmon;
 const isStream = require('is-stream');
 const stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
@@ -25,7 +25,12 @@ const zlib = require('zlib');
 //rd('zout2.json').pipe(process.stdout); //cat
 
 
-const outfile = "zout.json";
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// 1. Vix to json:
+//
+
+const outfile = "Amaz.json"; //"zout.json";
 function vix2(seq, cb)
 {
 //const outfile = "zout.json";
@@ -39,6 +44,32 @@ return require('my-plugins/streamers/vix2json').Vixen2Stream(profile, seq || seq
 //vix2().pipe(process.stdout);
 //vix2().pipe(stmon(fs.createWriteStream(outfile), "vix2 outfile '" + outfile + "'"));
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// 2. playback:
+//
+
+function playback(infile)
+{
+//const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
+
+//NO; clogs up   var data = hardwired();
+//NO    var data = vix2();
+    var data = stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
+    const FxPlayback = require('my-plugins/streamers/fxstream');
+    var myfx = new FxPlayback(); myfx.opts.speed = 0;
+//    myfx.FxPlayback(data);
+    data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
+//NO    data.end(); //close pipe after data all read??
+}
+playback('./Amaz.json');
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// others:
+//
 
 function hardwired()
 {
@@ -88,22 +119,6 @@ function send_next(inx)
 }
 //hardwired().pipe(process.stdout);
 //hardwired().pipe(stmon(fs.createWriteStream(outfile), "hardwired outfile '" + outfile + "'"));
-
-
-function playback()
-{
-const infile = "./zout.json"; //(process.argv.length >= 3)? process.argv[process.argv.length - 1]: "./zout.json";
-
-//NO; clogs up   var data = hardwired();
-//NO    var data = vix2();
-    var data = stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
-    const FxPlayback = require('my-plugins/streamers/fxstream');
-    var myfx = new FxPlayback();
-//    myfx.FxPlayback(data);
-    data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
-//NO    data.end(); //close pipe after data all read??
-}
-//playback();
 
 
 function canv_test()
@@ -162,7 +177,7 @@ function pwm_test()
     amodel.render();
     ports[0].flush(0);
 }
-pwm_test();
+//pwm_test();
 
 
 function chplex_test()
@@ -172,22 +187,31 @@ function chplex_test()
     const RENXt = require('my-plugins/hw/RenXt');
 
 //    RENXt.PWM(polarity)
-    var amodel = new Model2D({name: 'chplex', w: 7, h: 8-7, zinit: false, nodetype: RENXt.CHPLEX(RENXt.ACTIVE_HIGH)}); //output: 'RGB'});
-    amodel.port = ports[0];
-    console.log("amodel node list", amodel.nodelist);
+    logger("starting");
+    var amodel = new Model2D({name: 'chplex', w: 7, h: 8, zinit: false, nodetype: RENXt.CHPLEX(RENXt.ACTIVE_HIGH), order: Model2D.prototype.T2B_L2R, output: 'mono', port: ports[0]});
+//    console.log("amodel node list %j", amodel.nodelist);
+    logger("model created, node list: %s", amodel.nodelist.toString());
     amodel //NOTE: context2D here wants RGBA or RGB, not ARGB
-        .pixel(0, 0, '#112233').pixel(1, 3, '#444444').pixel(2, 3, '#888888').pixel(3, 3, '#CC4444')
-//        .pixel(0, 2, '#445566').pixel(1, 2, '#333333').pixel(2, 2, '#777777').pixel(3, 2, '#DD3333')
-//        .pixel(0, 1, '#778899').pixel(1, 1, '#222222').pixel(2, 1, '#666666').pixel(3, 1, '#EE2222')
-//        .pixel(0, 0, '#AABBCC').pixel(1, 0, '#111111').pixel(2, 0, '#555555').pixel(3, 0, '#FF1111');
-        .pixel(0, 2, '#CC0044');
-    var data = amodel.imgdata();
-    console.log("amodel node buf", data);
-    amodel.render();
-    ports[0].flush(0);
+        .pixel(0, 0, '#000011').pixel(1, 0, '#000012').pixel(2, 0, '#000013').pixel(3, 0, '#000014').pixel(4, 0, '#000015').pixel(5, 0, '#000016').pixel(6, 0, '#000017')
+        .pixel(0, 2, '#000081').pixel(1, 2, '#000082').pixel(2, 3, '#000083').pixel(3, 3, '#000084').pixel(4, 3, '#000085').pixel(5, 3, '#000086').pixel(6, 3, '#000087')
+        .pixel(0, 3, '#000081')
+        .pixel(0, 4, '#000081')
+        .pixel(0, 5, '#000081')
+        .pixel(0, 6, '#000081')
+        .pixel(0, 7, '#000088');
+    var imgdata = amodel.imgdata();
+    logger("amodel node buf: %s", imgdata.data); //JSON.stringify(imgdata)); //.data.toString());
+setTimeout(function()
+{
+    amodel.render().flush();
+    amodel.fill(0).render().flush();
+    amodel.fill('#AABBCC').render().flush();
+}, 1000); //allow serial port some time to open
+//    setTimeout(function() { ports[0].verify(true); }, 1000); //final loopback data check
 //        this.MyFx.column.call(this, br, brcolor);
 }
 //chplex_test();
+//setTimeout(function trailer() { console.log(process._getActiveHandles()); }, 5000);
 
 
 function model_reader()

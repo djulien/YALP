@@ -101,6 +101,7 @@
 		<Unit filename="my-plugins/routes/use/00-cors.js" />
 		<Unit filename="my-plugins/routes/use/98-404.js" />
 		<Unit filename="my-plugins/routes/use/99-error.js" />
+		<Unit filename="my-plugins/streamers/DelayedCreateWriteStream.js" />
 		<Unit filename="my-plugins/streamers/YalpStream.js" />
 		<Unit filename="my-plugins/streamers/fxstream.js" />
 		<Unit filename="my-plugins/streamers/iomon.js" />
@@ -137,6 +138,7 @@
 		<Unit filename="my-plugins/utils/showthis.js" />
 		<Unit filename="my-plugins/utils/stack-trace.js" />
 		<Unit filename="my-plugins/utils/time-scale.js" />
+		<Unit filename="my-plugins/utils/unprintable.js" />
 		<Unit filename="my-projects/effects/myfx.js" />
 		<Unit filename="my-projects/effects/vix2fx.js" />
 		<Unit filename="my-projects/effects/xlnc3fx.js" />

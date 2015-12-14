@@ -16,6 +16,7 @@ module.exports.wr = wr;
 module.exports.echo = echo;
 module.exports.rdwr = rdwr;
 module.exports.stmon = stmon;
+module.exports.not_stmon = not_stmon;
 
 
 //create a file reader stream with debug monitoring:
@@ -58,6 +59,9 @@ function rdwr(desc, cb)
     if (cb) passthru.on('data', cb);
     return passthru;
 }
+
+
+function not_stmon(stream, desc) { return stream; }
 
 
 //log stream events (for debug):

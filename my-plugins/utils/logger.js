@@ -48,7 +48,7 @@ module.exports = function(opts)
     msg = msg /*.replace(/@logger:.*$/, ' @')*/ + ' ' + caller(-/*module.exports.*/ logger.depth_adjust); /*module.exports.*/ logger.depth_adjust = 0;
 //    msg += "caller(" + svdepth + "): " + caller(0);
 //    debugger;
-    var stamp = '+' + logger.elapsed.now / 1000; // /*logfile*/ seqnum? '+' + logger.elapsed.now / 1000: '=' + clock.Now.asDateTimeString();
+    var stamp = '+' + ((logger.elapsed.now + .5) / 1000).toString().slice(0, -1); // /*logfile*/ seqnum? '+' + logger.elapsed.now / 1000: '=' + clock.Now.asDateTimeString();
     if (!logfile)
     {
 //        logger.elapsed = new elapsed();

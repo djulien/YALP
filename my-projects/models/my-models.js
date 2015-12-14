@@ -213,6 +213,7 @@ snglobe_fx.vix2render = function(frtime, vix2buf)
 var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +2], macro: +0, bitmap: +1});
 gdoor_fx.vix2render = function(frtime, vix2buf)
 {
+//from CustomFx.cs 2013:
     switch (vix2buf[416]) //macro
     {
         case 0: break; //Noop
@@ -257,7 +258,13 @@ gdoor_fx.vix2render = function(frtime, vix2buf)
         case 241: this.MyFx.vix2.Talk.call(this); break;
         case 242: this.MyFx.vix2.One2Many.call(this); break;
         case 243: this.MyFx.vix2.SpiralXition.call(this); break;
-        default: throw "Gdoor: unhandled macro " + vix2buf[416];
+//        case 244:
+//        case 247:
+//        case 251:
+//        case 255:
+        default:
+            logger(10, "Gdoor: unknown macro: %d".red, vix2buf[416]); break; //TODO
+//        default: throw "Gdoor: unhandled macro " + vix2buf[416];
     }
     switch (vix2buf[417]) //bitmap
     {
@@ -274,7 +281,14 @@ gdoor_fx.vix2render = function(frtime, vix2buf)
         case 129: this.bitmap = "CapitalC-ani.bmp"; break; //loop="-1" yofs="-1" hscroll="-32/2"
         case 130: this.bitmap = "other1.bmp"; break; //loop="-1" hscroll="-1/4"
         case 131: this.bitmap = "other2.bmp"; break; //loop="-1" hscroll="-1/4"
-        default: throw "Gdoor: unhandled bitmap " + vix2buf[417];
+//        case 169:
+//        case 172:
+//        case 174:
+//        case 177:
+//        case 180:
+        default:
+            logger(10, "Gdoor: unknown bitmap: %d".red, vix2buf[417]); break; //TODO
+//        default: throw "Gdoor: unhandled bitmap " + vix2buf[417];
     }
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
@@ -529,11 +543,11 @@ ic_all.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    logger(80, "%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
     for (var x = 0, col = 0; x < 207; x += 207.1/14, ++col) //14 segments => 207 columns ~= 15 columns per segment; add a little to force loop exit even with rounding errors
     {
         var color = dim(WHITE, vix2buf[2 + col]);
-        console.log("ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
+        logger(100, "ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
 //        this.MyFx.column.call(this, col, color);
         this.fill(Math.round(x), 0, Math.round(x + 207.1/14) - Math.round(x), this.height, color);
     }

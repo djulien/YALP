@@ -114,4 +114,52 @@ Vix2Fx.prototype.rawbuf = function rawbuf(data)
     this.dirty = false;
 }
 
+
+//placeholder:
+Vix2Fx.prototype.fx_todo =
+function fx_todo(opts) {}
+
+
+Vix2Fx.prototype.EqBar0 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.EqBar1 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.EqBar2 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.EqBar3 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.EqBar4 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.FillBkg = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.FillFg = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.FillRGBTest = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.BTWipe = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.TBWipe = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.LRWipe = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.MidWipe = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.EdgeWipe = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Spiral = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.GECETest_zzud = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.GECETest_zzlr = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawBorder = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.BTLine = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.LRLine = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.SpiralLine = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawColumn0 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawColumn1 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawColumn2 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawColumn3 = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawRow = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Snow = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.DrawCorners = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Fade = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Ramp = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.TreeEcho = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.SwirlCw = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.SwirlCcw = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Burst = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.ShowBitmap = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.ShowText = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Countdown = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Timer = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Chase = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.Talk = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.One2Many = Vix2Fx.prototype.fx_todo;
+Vix2Fx.prototype.SpiralXition = Vix2Fx.prototype.fx_todo;
+
 //eof

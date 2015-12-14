@@ -8,7 +8,7 @@ const Elapsed = require('my-plugins/utils/elapsed');
 //var buf = models.entire.imgdata();
 //require('my-plugins/my-extensions/json-revival');
 const bufferJSON = require('buffer-json'); //https://github.com/jprichardson/buffer-json
-const stmon = require('my-plugins/streamers/stmon').stmon;
+const stmon = require('my-plugins/streamers/stmon').not_stmon;
 //var split = require('split'); //https://github.com/dominictarr/split
 const stream = require('stream');
 //const Duplex = stream.Duplex || require('readable-stream').Duplex; //for example see http://codewinds.com/blog/2013-08-31-nodejs-duplex-streams.html
@@ -45,6 +45,7 @@ function FxPlayback(opts)
     if (!(this instanceof FxPlayback)) return makenew(FxPlayback, arguments);
     this.objectMode = true; //requires source text stream to be split
     Writable.apply(this, arguments); //base class
+    this.opts = {}; //TODO
 
 //NOTE: can instantiate custom stream directly; see http://stackoverflow.com/questions/21491567/how-to-implement-a-writable-stream
 //however, we use derivation in order to allow multiple instances
@@ -61,7 +62,7 @@ function FxPlayback(opts)
 //            FxDispatch(data);
 //            console.log("in data", data);
         if (typeof data.fx == 'undefined') { ++this.stats.without; return; } //no effect to process
-        console.log("fx json[%d]: time %s vs. elapsed %s, has buf? %s, data", this.stats.withfx++, has_time? data.time: '(no time)', (this.elapsed || {}).now, Buffer.isBuffer(data.buf), data);
+        logger(100, "fx json[%d]: time %s vs. elapsed %s, has buf? %s, data", this.stats.withfx++, has_time? data.time: '(no time)', (this.elapsed || {}).now, Buffer.isBuffer(data.buf), data);
         if (isNaN(++this.stats.opcodes[data.fx])) this.stats.opcodes[data.fx] = 1;
 //        if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
 //        if (data.fx && /*(data.fx in this) &&*/ (typeof this[fxname] == 'function'); //.prototype;
@@ -89,7 +90,8 @@ debugger;
     }.bind(this))
     .on('finish', function()
     {
-        logger("FxPlayback: %d with fx, %d without, %d unknown fx, %d errors".cyan, m_withfx, m_without, m_unkn, m_errors);
+        logger("FxPlayback: %d with fx, %d without, %d unknown fx, %d errors".cyan, this.stats.withfx, this.stats.without, this.stats.unkn, this.stats.errors);
+        logger("FxPlayback: %d render count %d, delay %d, premature %d, buckets: %s".cyan, this.stats.render_count, this.stats.render_delay, this.stats.render_premature, this.stats.delay_buckets.toString());
         logger("opcodes: %j", this.opcodes);
     }.bind(this));
 }
@@ -117,7 +119,7 @@ FxPlayback.prototype.nofx = function nofx(data)
 FxPlayback.prototype._write = function writer(chunk, encoding, done)
 {
 //debugger;
-    console.log("got chunk len %s", chunk.length, chunk.toString('utf8').substr(0, 100));
+    logger(100, "got chunk len %s", chunk.length, chunk.toString('utf8').substr(0, 100));
     if (chunk.length) //not eof
     {
         var buf = JSON.parse(chunk, bufferJSON.reviver);
@@ -133,11 +135,13 @@ FxPlayback.prototype._write = function writer(chunk, encoding, done)
 FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
 {
     var delay = frtime - this.elapsed.now; //always compare to start in order to minimize cumulative timing error
+    if (this.opts.speed === 0) delay = 0; //no throttling
     this.stats.render_delay += Math.abs(delay); //use abs() so premature events won't decrease apparent problems
     var delay_bucket = buckets(delay, 3);
     if (isNaN(++this.stats.delay_buckets[delay_bucket])) this.stats.delay_buckets[delay_bucket] = 1;
     ++this.stats.render_count;
-    if (delay < -2.5) logger("frame %s is overdue by %s".red, frtime, delay);
+    if (this.opts.speed === 0); //no throttling
+    else if (delay < -2.5) logger("frame %s is overdue by %s".red, frtime, delay);
     else if (delay < +2.5) logger("frame %s is more-or-less on time: delay %s".yellow, frtime, delay);
     else
     {

@@ -2,13 +2,14 @@
 //based on ver 1.14 RenXT.h
 
 'use strict';
+require('colors');
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
 /// Protocol definitions:
 //
 
-var RENXt = module.exports = {}; //namespace
+var RENXt = module.exports; //= {}; //namespace
 function Const_RENXt(name, value)
 {
     Object.defineProperty(RENXt, name, {value: value, writable: false, enumerable: true}); //, enumerable: true, configurable: true
@@ -26,15 +27,15 @@ Const_RENXt('RENARD_ESCAPE', 0x7F); //take next byte as-is, no special handling
 //put Renard special chars in ascending order (for more efficient compares):
 if (typeof RENXt.RENARD_PAD !== 'undefined') //sender should periodically send a Pad char to compensate for different rx clock
 {
-    console.log("[INFO] Using explicit Renard Pad byte (allows sender-controlled pad rate)"); //more processing overhead but more tunable
+    console.warn("[INFO] Using explicit Renard Pad byte (allows sender-controlled pad rate)".yellow); //more processing overhead but more tunable
     Const_RENXt('RENARD_SPECIAL_MIN', Math.min(Math.min(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE), RENXt.RENARD_PAD));
     Const_RENXt('RENARD_SPECIAL_MID', (RENXt.RENARD_SYNC ^ RENXt.RENARD_ESCAPE ^ RENXt.RENARD_PAD ^ RENXt.MIN_RENARD_SPECIAL ^ RENXt.MAX_RENARD_SPECIAL));
     Const_RENXt('RENARD_SPECIAL_MAX', Math.max(Math.max(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE), RENXt.RENARD_PAD));
 
     if (RENXt.RENARD_SPECIAL_MAX - RENXt.RENARD_SPECIAL_MIN == 2) //values are sequential; use simple range check
-        RENXt.IsRenardSpecial = function(ch) { return (((ch) >= RENXt.RENARD_SPECIAL_MIN) && ((ch) <= RENXt.RENARD_SPECIAL_MAX)); }
+        RENXt.IsRenardSpecial = function isspecial2(ch) { return (((ch) >= RENXt.RENARD_SPECIAL_MIN) && ((ch) <= RENXt.RENARD_SPECIAL_MAX)); }
     else //disjoint; check each value
-        RENXt.IsRenardSpecial = function(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_PAD) || ((ch) == RENXt.RENARD_ESCAPE)); }
+        RENXt.IsRenardSpecial = function isspecial3(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_PAD) || ((ch) == RENXt.RENARD_ESCAPE)); }
 }
 else //sender must use 8N1.5 or 8N2 to compensate for differences between tx and rx clocks
 {
@@ -42,7 +43,7 @@ else //sender must use 8N1.5 or 8N2 to compensate for differences between tx and
     Const_RENXt('RENARD_SPECIAL_MIN', Math.min(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE));
     Const_RENXt('RENARD_SPECIAL_MAX', Math.max(RENXt.RENARD_SYNC, RENXt.RENARD_ESCAPE));
 
-    RENXt.IsRenardSpecial = function(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_ESCAPE)); }
+    RENXt.IsRenardSpecial = function isspecial_nopad(ch) { return (((ch) == RENXt.RENARD_SYNC) || ((ch) == RENXt.RENARD_ESCAPE)); }
 }
 
 
@@ -75,7 +76,7 @@ Const_RENXt('MANIF_ADDR', RENXt.MANIF_STAMP); //start address of internal contro
 Const_RENXt('NOOP', 0x00); //0x00 (0) = noop
 
 Const_RENXt('SETNODE_OPGRP', 0x1F); //0x0# (0..15) = set node values (in memory)
-    RENXt.BITMAP = function(bpp) { return (0x10 + Math.min(4, bpp)); } //0x02 (2) = use remaining bytes as full bitmap 1bpp/2bpp/4bpp for smart pixels
+    RENXt.BITMAP = function bitmap(bpp) { return (0x10 + Math.min(4, bpp)); } //0x02 (2) = use remaining bytes as full bitmap 1bpp/2bpp/4bpp for smart pixels
 //Const(BPP  //dummy keyword for readability
     Const_RENXt('CLEAR_ALL', RENXt.BITMAP(0 /*BPP*/)); //0xF0 (240) = clear all nodes to black (overwrites first palette entry)
 //NOTE: CLEAR_ALL requires padding (~1 NOOP per 50 nodes on a 5 MIPS PIC)
@@ -110,12 +111,12 @@ Const_RENXt('SETNODE_OPGRP', 0x1F); //0x0# (0..15) = set node values (in memory)
 // Const_RENXt(UNUSED_FE  0xFE //0xFE (254) = unused
 // Const_RENXt(UNUSED_FF  0xFF //0xFF (255) = unused
 
-RENXt.SETPAL = function(numents) { return (0x20 + ((numents) & 0xF)); } //0x2# (32..47) = set palette; lower nibble = #palette entries to set (values follow, 3 bytes each, 16 entries max)
+RENXt.SETPAL = function setpal(numents) { return (0x20 + ((numents) & 0xF)); } //0x2# (32..47) = set palette; lower nibble = #palette entries to set (values follow, 3 bytes each, 16 entries max)
 
-RENXt.SETALL = function(palent) { return (0x30 + ((palent) & 0xF)); } //_ALL_IMMED_RGB  0xF2 //0xF1 (241) = set all (remaining) nodes to the following value
+RENXt.SETALL = function setall(palent) { return (0x30 + ((palent) & 0xF)); } //_ALL_IMMED_RGB  0xF2 //0xF1 (241) = set all (remaining) nodes to the following value
 //NOTE: SETALL requires padding (~1 NOOP per 50 nodes on a 5 MIPS PIC)
 
-RENXt.SETTYPE = function(nodetype) { return (0x40 + ((nodetype) & 0xF)); } //0x4# (64..79) = set node type if not already set
+RENXt.SETTYPE = function settype(nodetype) { return (0x40 + ((nodetype) & 0xF)); } //0x4# (64..79) = set node type if not already set
 
 //Const_RENXt(FXFUNC_OPGRP  0x3F //0x4# (64..79) = various "smart prop" fx functions
 // Const_RENXt(SNOW  0x30 //0x40 (64) = snow
@@ -145,9 +146,9 @@ Const_RENXt('CTLFUNC_OPGRP', 0x7F); //0x7# (112..127) = controller functions; th
     Const_RENXt('CLEARSTATS', 0x70); //clear run-time stats; useful for perf analysis/debug
     Const_RENXt('READ_REG', 0x71); //0x72 (114) = read registers, address and length follow
     Const_RENXt('WRITE_REG', 0x72); //0x73 (115) = write registers, address, length and data follow
-    RENXt.INROM = function(ofs) { return (0x8000 | (ofs)); } //max 32K, so use top bit to denote ROM address space
-    RENXt.INRAM = function(ofs) { return (0x4000 | (ofs)); } //max 1K on larger devices, < 256B on smaller devices
-    RENXt.INEEPROM = function(ofs) { return (0x2000 | (ofs)); } //max 256B typically
+    RENXt.INROM = function inrom(ofs) { return (0x8000 | (ofs)); } //max 32K, so use top bit to denote ROM address space
+    RENXt.INRAM = function inram(ofs) { return (0x4000 | (ofs)); } //max 1K on larger devices, < 256B on smaller devices
+    RENXt.INEEPROM = function ineeprom(ofs) { return (0x2000 | (ofs)); } //max 256B typically
     Const_RENXt('WORKING_REGS', 0x70);
 //   Const_RENXt(EEADR  0x4000
 
@@ -160,23 +161,23 @@ Const_RENXt('CTLFUNC_OPGRP', 0x7F); //0x7# (112..127) = controller functions; th
 //   Const(COMMON_CATHODE  0xCC
         Const_RENXt('ACTIVE_HIGH', 1); //"common anode" or "cathode" is ambiguous (because there is a row and column), so use "active high" or "low" instead
         Const_RENXt('ACTIVE_LOW', 0);
-        RENXt.IsActiveHigh = function(polarity) { return ((polarity) & 1); } //((((polarity) & 0xF) % 11) & 1) //can use 0xA/0xC or 0/1
+        RENXt.IsActiveHigh = function activehi(polarity) { return ((polarity) & 1); } //((((polarity) & 0xF) % 11) & 1) //can use 0xA/0xC or 0/1
 //CAUTION: only bottom bit should be different for PWM or CHPLEX variants
-    RENXt.PWM = function(polarity) { return (0x02 + RENXt.IsActiveHigh(polarity)); } //IIF(IsCommonCathode(polarity), 0x03, 0x02) //IIF(((polarity) & 0xF) != 0xC, 0x02, 0x01) //0x11 (17) = pwm (dedicated I/O pins), Common Anode or Common Cathode
-    RENXt.CHPLEX = function(polarity) { return (0x04 + RENXt.IsActiveHigh(polarity)); } //IIF(IsCommonCathode(polarity), 0x05, 0x04) //IIF(((polarity) & 0xF) != 0xC, 0x04, 0x03) //0x13 (19) = chplex (chipiplexed I/O pins), Common Anode or Common Cathode
+    RENXt.PWM = function pwm(polarity) { return (0x02 + RENXt.IsActiveHigh(polarity)); } //IIF(IsCommonCathode(polarity), 0x03, 0x02) //IIF(((polarity) & 0xF) != 0xC, 0x02, 0x01) //0x11 (17) = pwm (dedicated I/O pins), Common Anode or Common Cathode
+    RENXt.CHPLEX = function chplex(polarity) { return (0x04 + RENXt.IsActiveHigh(polarity)); } //IIF(IsCommonCathode(polarity), 0x05, 0x04) //IIF(((polarity) & 0xF) != 0xC, 0x04, 0x03) //0x13 (19) = chplex (chipiplexed I/O pins), Common Anode or Common Cathode
     Const_RENXt('LAST_DUMBIO', Math.max(Math.max(RENXt.PWM(RENXt.ACTIVE_HIGH), RENXt.PWM(RENXt.ACTIVE_LOW)), Math.max(RENXt.CHPLEX(RENXt.ACTIVE_HIGH), RENXt.CHPLEX(RENXt.ACTIVE_LOW)))); //highest dumb I/O type
-    RENXt.IsDumb = function(nodetype) { return ((nodetype) <= RENXt.LAST_DUMBIO); }
-    RENXt.IsChplex = function(nodetype) { return ((nodetype) >= Math.min(RENXt.CHPLEX(RENXt.ACTIVE_HIGH), RENXt.CHPLEX(RENXt.ACTIVE_LOW))); }
+    RENXt.IsDumb = function isdumb(nodetype) { return ((nodetype) <= RENXt.LAST_DUMBIO); }
+    RENXt.IsChplex = function ischplex(nodetype) { return ((nodetype) >= Math.min(RENXt.CHPLEX(RENXt.ACTIVE_HIGH), RENXt.CHPLEX(RENXt.ACTIVE_LOW))); }
 //CAUTION: only bottom bit should be different for series vs. parallel variants:
-    RENXt.GECE = function(orientation) { return (0x06 + RENXt.IsParallel(orientation)); } //IIF(IsParallel(orientation), 0x07, 0x06) //(0x06 + (orientation)) //0x15 (21) = GECE strings (max 63 ct); always parallel since max str len is limited
+    RENXt.GECE = function gece(orientation) { return (0x06 + RENXt.IsParallel(orientation)); } //IIF(IsParallel(orientation), 0x07, 0x06) //(0x06 + (orientation)) //0x15 (21) = GECE strings (max 63 ct); always parallel since max str len is limited
 //   Const_RENXt(LPD6803(orientation)  (0x06 + (orientation)) //0x16 (22) = LPD6803 strings
 //   Const_RENXt(TM1809(orientation)  (0x08 + (orientation)) //0x18 (24) = TMS1809 LED strip
-    RENXt.WS2811 = function(orientation) { return (0x0A + RENXt.IsParallel(orientation)); } //IIF(IsParallel(orientation), 0x0B, 0x0A) //(0x0A + (orientation)) //0x18 (24) = WS2811 LED strip
+    RENXt.WS281X = function ws281x(orientation) { return (0x0A + RENXt.IsParallel(orientation)); } //IIF(IsParallel(orientation), 0x0B, 0x0A) //(0x0A + (orientation)) //0x18 (24) = WS281X LED strip
 //   Const_RENXt(WS2801(orientation)  (0x0C + (orientation)) //0x17 (23) = WS2801 strings
 //orientation:
         Const_RENXt('SERIES', 0);
         Const_RENXt('PARALLEL', 1);
-        RENXt.IsParallel = function(orientation) { return ((orientation) & 1); }
+        RENXt.IsParallel = function ispara(orientation) { return ((orientation) & 1); }
 
     Const_RENXt('INTERLEAVE_REG', '??'); //0xC# (192..207) = set #parallel strings; lower nibble = #parallel strings; used even if it exceeds #I/O pins (otherwise incoming caller addressing will be messed up)
 
@@ -216,15 +217,22 @@ Const_RENXt('CTLFUNC_OPGRP', 0x7F); //0x7# (112..127) = controller functions; th
 //Const_RENXt(NODEOFS  0xBF //0xB# (176..191) = set start node; lower nibble = ofs * 4 * 16 (50?); node# < prev automatically increments this by 4
 
 //TODO: NodeRange,start-node#,count to replace NodeList,node,node+1,node+2,...,node+count-1
-RENXt.NODERANGE = function(palent) { return (0xE0 + ((palent) & 0xF)); }
+RENXt.NODERANGE = function noderange(palent) { return (0xE0 + ((palent) & 0xF)); }
 
-RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..0xFF (240..255) = inverted node lists; start of node list or jump to next node bank (add 240 to node#s)
+RENXt.NODELIST = function nodelist(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..0xFF (240..255) = inverted node lists; start of node list or jump to next node bank (add 240 to node#s)
     Const_RENXt('NODELIST_END', RENXt.NODELIST(0)); //end of inverted node lists (bkg palette entry is never explicitly addressed, so use it as an end-of-list marker)
 //nodes are divided into "banks" due to 8-bit addresses (transparent to caller)
     Const_RENXt('NODELIST_BANKSIZE', RENXt.NODELIST(0));
-    RENXt.NodeBank = function(nodenum) { return Math.floor((nodenum) / RENXt.NODELIST_BANKSIZE); }
-    RENXt.NodeOffset = function(nodenum) { return ((nodenum) % RENXt.NODELIST_BANKSIZE); }
-    RENXt.MakeNode = function(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
+    RENXt.NodeBank = function nodebank(nodenum) { return Math.floor((nodenum) / RENXt.NODELIST_BANKSIZE); }
+    RENXt.NodeOffset = function nodeofs(nodenum) { return ((nodenum) % RENXt.NODELIST_BANKSIZE); }
+    RENXt.MakeNode = function mknode(bank, offset) { return ((bank) * RENXt.NODELIST_BANKSIZE + ((offset) % RENXt.NODELIST_BANKSIZE)); }
+
+//opcodes that return variable data:
+var opcodes = {};
+opcodes[RENXt.READ_REG] = 2;
+opcodes[RENXt.ACK] = 0;
+Const_RENXt('DataOpcodes', opcodes);
+//Const_RENXt('DataOpcodes', {RENXt.READ_REG: 2, RENXt.ACK: 0});
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -232,68 +240,158 @@ RENXt.NODELIST = function(palent) { return (0xF0 + ((palent) & 0xF)); } //0xF0..
 /// Protocol handler:
 //
 
+require('colors');
+const logger = require('my-plugins/utils/logger')();
 const Elapsed = require('my-plugins/utils/elapsed');
+const bufdiff = require('my-plugins/utils/buf-diff');
+const unprintable = require('my-plugins/utils/unprintable');
+
+const DefaultNodeType = RENXt.WS281X(RENXt.SERIES); //most of my pixels are this type, so use it as default
 
 
-module.exports.AddProtocol = function(port)
+//add data and wedge in custom handlers:
+module.exports.AddProtocol =
+function AddProtocol(port)
 {
 //    if (!port) return;
-//    RenXtProtocol.prototype.forEach(function(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
+//    RenXtProtocol.prototype.forEach(function proto_each(func, name) { if (func) port[name] = func; }); //.bind(this)); //console.log("copy %s.%s", subclass.constructor.name, name);
 //    var oldmethods = {assign: port.assign, flush: port.flush}; //, verify: port.verify};
     /*if (!this.encbuf)*/
     port.encbuf = new RenXtBuffer(4096); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned; TODO: replace with stream-buffer?
     port.encbuf.emit_raw(RenXt.RENARD_SYNC, 5); //allow controllers to auto-detect baud rate or stop what they were doing first time
+    port.encbuf.src = "out";
+
     port.old_outbuf = port.outbuf;
-    port.outbuf = {getContents: function() { return port.encbuf.usedbuf; }, size: function() { return port.encbuf.wrlen; }}; //kludge: make it look like stream-buffer
+    port.outbuf = //kludge: wrap protocol buffer to look like port's stream-buffer
+    {
+        getContents: function getcont()
+        {
+            var retbuf = new Buffer(this.encbuf.usedbuf); //NOTE: need to copy buffer contents because it will be reused
+            if (this.encbuf.wrlen) this.inbuf.non_xform(this.encbuf); //copy output to loopback log so it can be compared for comm and firmware diagnostics
+            this.encbuf.rewind();
+            return retbuf;
+        }.bind(port),
+        size: function size() { return port.encbuf.wrlen; }
+    };
+
+//    port.old_write = port.write;
+//    port.write = my_write.bind(port);
+    var old_inbuf = port.inbuf;
+    port.inbuf = new LoopbackStream({dest: old_inbuf});
+//    fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
+/*
+    inbuf.unpipe(old_writer);
+    inbuf.pipe(new_writer);
+    port.inbuf = //redirect incoming data and analyze for comm or firmware errors
+    {
+//        write:
+        getContents: function getcont() { return null; },
+        size: function size() { return 0; },
+    };
+*/
 //        .rewind()
 //    port.encode = encode.bind(port);
-    port.old_assign = port.assign;
-    port.assign = function(model) //assign controller address
+
+    port.old_assign = port.assign; //allow previous method to be called as well; grab from instance rather than prototype in case it was overridden
+    port.assign = my_assign.bind(port);
+
+    port.old_flush = port.flush; //allow previous method to be called as well; grab from instance rather than prototype in case it was overridden
+    port.flush = my_flush.bind(port);
+
+    port.verify = my_verify.bind(port); //NOTE: completely overrides previous method
+//    port.cfg_sent = false; //force config info to be sent first time
+    console.log("RenXt protocol added to %s".yellow, port.name);
+}
+
+
+//assign controller address:
+//runs with port context
+function my_assign(model)
+{
+    if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes (need to specify model node order)";
+    this.old_assign.apply(this, arguments); // /*.bind(port)*/(model);
+    var nodetype = model.opts.nodetype || DefaultNodeType;
+    model.adrs = this.models.length; //assign unique adrs for each prop on this port, in correct hardware order
+    model.setRenderType('ARGB'); //NOTE: use 32-bit value to preserve byte alignment in node analyzer; //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw ABGR pixel data; also don't want R<->G swap before quant
+    model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
+    model.nodebytes = model.opts.nodebytes || Math.ceil(model.nodelist.length / 4 / 2); //memory size of nodes in controller; 2 nodes/byte, quad bytes
+//    model.mips = model.opts.mips || 4.6; //processor speed (mips); older PIC16Fs are 4.5 MIPS, newer are 8 MIPS
+    model.wait_states = function wtstates(opc) //use actual node memory size for more precise delays
     {
-        if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes";
-        this.old_assign /*.bind(port)*/(model);
-        var nodetype = model.opts.nodetype || RenXt.WS2811(RenXt.SERIES);
-        model.adrs = port.models.length; //assign unique adrs for each prop on this port, in correct hardware order
-        model.setRenderType('ARGB'); //NOTE: use 32-bit value to preserve byte alignment in node analyzer; //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw ABGR pixel data; also don't want R<->G swap before quant
-        model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
-        var old_render = model.render;
-        model.render = function model_render()
+        switch (opc)
         {
-debugger;
+//PIC16F takes ~ 50 instr (~11 usec @5 MIPS or ~7 usec @8 MIPS) to set 4 node-pairs (8 nodes), and chars arrive every ~ 44 usec (8N2 is 11 bits/char)
+// (prop->desc.noderam > 10)? divup(prop->desc.noderam - 10, 5 /*5 MIPS, or 48 for 8 MIPS*/): 0); //PIC takes ~ 50 instr (~11 usec @5 MIPS or ~7 usec @8 MIPS) to set 4 node-pairs (8 nodes), and chars arrive every ~ 44 usec (8N2 is 11 bits/char), so delay next opcode to give set-all time to finish; use actual memory size allocated, for more precise delays
+//latest: 5 MIPS: 48 nodes => 8 usec, 36 nodes => 5 usec, 20 nodes => 2 usec, 10 nodes => 0 usec
+//timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
+//???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
+            case RENXt.SETALL: return Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 8) == 8)? 48: 5));
+            case RENXt.NODEFLUSH: return 999; //kludge: execution time depends on pixel type so just pick a large number to force opcode to end of pipeline
+            default: throw "Unhandled opcode: " + opc;
+        }
+    }.bind(model);
+    model.old_render = model.render; //grab from instance rather than prototype in case it was overridden
+    model.render = function render_custom()
+    {
+//debugger;
 //            this.was_dirty = this.dirty;
 //            var oldlen = port.outbuf.size();
-            var my_outbuf = this.port.outbuf; this.port.outbuf = this.port.old_outbuf; //swap in original non-protocol outbuf
-            this.port.outbuf.reset();
-            var retval = old_render.call(this); //capture rendered node list in outbuf
-            if (this.port.outbuf.size())
-            {
-                this.raw_nodes = uint8ary_to_uint32ary(this.port.outbuf.peek()); //getContents(); //buf slice isn't observed by RgbQuant so do the extra buf alloc + copy here; //peek(); //node ARGB values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                this.raw_nodes.inspect = buf_inspector_uint32ary.bind(this.raw_nodes);
-                var oldlen = this.port.encbuf.wrlen;
-                this.encode();
-                console.log("RenXt encode '%s': %d node bytes -> %d enc bytes", this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
-                console.log("nodes ARGB in:", this.raw_nodes.inspect());
-                console.log("enc out:", this.port.encbuf.usedbuf);
-            }
-            this.port.outbuf = my_outbuf; //swap back to protocol outbuf
-            return retval;
-        }.bind(model);
-    }.bind(port);
+        var my_outbuf = this.port.outbuf; this.port.outbuf = this.port.old_outbuf; //swap in original non-protocol outbuf
+        this.port.outbuf.reset();
+        var retval = this.old_render.apply(this, arguments); //capture rendered node list in outbuf
+        if (this.port.outbuf.size())
+        {
+            this.raw_nodes = uint8ary_to_uint32ary(this.port.outbuf.peek()); //getContents(); //buf slice isn't observed by RgbQuant so do the extra buf alloc + copy here; //peek(); //node ARGB values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+            this.raw_nodes.inspect = buf_inspector_uint32ary.bind(this.raw_nodes);
+            var oldlen = this.port.encbuf.wrlen;
+            this.encode();
+            logger(30, "RenXt encode '%s': %d node bytes -> %d enc bytes".blue, this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
+            logger(130, "nodes ARGB in: %s".blue, this.raw_nodes.inspect());
+            logger(130, "enc out: %d:%j".cyan, this.port.encbuf.usedbuf.length, this.port.encbuf.usedbuf);
+        }
+        this.port.outbuf = my_outbuf; my_outbuf = null; //put back protocol outbuf for caller
+        return retval;
+    }.bind(model);
+}
+
+
+//capture outbound data for analysis:
+//runs with port context
+//function my_write(data, wrote_cb)
+//{
+//function xform(chunk, encoding, done)
+//    port.inbuf.copy_outbound(data);
+//    return port.old_write.apply(port, arguments);
+//}
+
+
+//flush port contents:
+//runs with port context
+function my_flush(args)
+{
+//    if (this.pending_trailer)
+//    {
+//        this.outbuf.write(this.pending_trailer);
+//        this.pending_trailer = null;
+//    }
+    if (this.encbuf.wrlen) this.encbuf.emit_raw(RenXt.RENARD_SYNC); //terminate last opcode for more reliable packet parsing below; also helps reset controllers to know state at end of each frame
+    return this.old_flush.apply(this, arguments);
+}
 
 //    port.old_flush = port.flush;
-//    port.flush = function(seqnum) //use correct buffer
+//    port.flush = function flush_custom(seqnum) //use correct buffer
 //    {
 //        var old_outbuf = this.outbuf; //.getContents(); //slice(0, outlen); //kludge: no len param to write(), so trim buffer instead
-//        this.outbuf = {getContents: function() { return this.encbuf.usedbuf; }, size: function() { return this.wrlen; }};
+//        this.outbuf = {getContents: function getcont_used() { return this.encbuf.usedbuf; }, size: function getcont_dummy() { return this.wrlen; }};
 //        var retval = this.old_flush(seqnum);
 //        this.outbuf = old_outbuf;
 //        return retval;
 //    }.bind(port);
 /*
-    port.flush = function(frtime, force) //encode/compress raw nodes before sending
+    port.flush = function flush_custom(frtime, force) //encode/compress raw nodes before sending
     {
-debugger;
-//        (this.models || []).forEach(function(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
+//debugger;
+//        (this.models || []).forEach(function dirty_each(model, inx, all) { model.was_dirty = model.dirty; }); //kludge: preserve dirty flag for encode()
         var retval = svmethods.render.apply(this, arguments); //svrender(frtime, force); //ChannelPool.prototype.render.call(port, frtime, force);
 //        var encbuf = (retval && retval.buf)? encode(port, retval.buf, !frtime): null;
 //        if (encbuf) { retval.rawbuf = retval.buf; retval.buf = encbuf; } //swap in encoded buf but preserve original (mainly for debug)
@@ -306,95 +404,6 @@ debugger;
         return retval;
     }.bind(port);
 */
-    port.verify = verify.bind(port);
-/*
-    port.verify = function() //verify outbuf was received and processed
-    {
-debugger;
-        var iorec = this.ioverify.first; // {seqnum, data, len, sendtime}
-        if (this.inbuf.size() < iorec.len) return; //not enough data to verify
-        var elapsed = new Elapsed(iorec.sendtime);
-//        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
-//        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
-        return verify(outbuf, inbuf);
-    }.bind(port)
-*/
-//    port.cfg_sent = false; //force config info to be sent first time
-    console.log("RenXt protocol added to %s".yellow, port.name);
-}
-
-
-//RgbQuant doesn't seem to like node.js Buffers or ArrayBuffers, so convert:
-//TODO: avoid calling this
-//var uint32_splitter = new Buffer(4);
-function uint8ary_to_uint32ary(buf)
-{
-/*
-//                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-//                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
-                this.raw_nodes = new Uint32Array(nodes.length / 4);
-//                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
-                for (var i = 0; i < nodes.length; i += 4)
-                    this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
-                this.raw_nodes = this.imgdata();
-                console.log("raw nodes", this.raw_nodes);
-*/
-    if (!buf.readUInt32BE) buf.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
-    var retval = new Uint32Array(buf.length / 4);
-    for (var ofs = 0; ofs < buf.length; ofs += 4)
-        retval[ofs / 4] = buf.readUInt32BE(ofs); //buf.readUInt32BE? buf.readUInt32BE(ofs): (buf[ofs] << 24) | (buf[ofs + 1] << 16) | (buf[ofs + 2] << 8) | buf[ofs + 3];
-    return retval;
-}
-//var arr = new Uint8Array([1, 2, 3])
-//    var palbuf = toBuffer(pal);
-//    var pal_view = new Uint32Array(pal);
-//    var pal_view = new DataView(pal);
-//    var buf = '';
-//    for (var i = 0; i < pal.length; i += 4)
-//        buf += ', ' + pal_view.getUint32(i);
-
-
-var buffer = require('buffer');
-
-//function buf_inspector_uint8ary(depth, opts) //make debug easier
-//{
-//    var buf = '';
-//    if (!this.readUInt32BE) this.readUInt32BE = function(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
-//    for (var ofs = 0, limit = this.length; ofs < limit; ofs += 4)
-//    {
-//        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-//        buf += ' #' + hex(this.readUInt32BE(ofs), 8);
-//    }
-//    return '<ARGB-buf:' + (limit / 4) + ' ' + buf + '>';
-//}
-
-function buf_inspector_uint32ary(depth, opts) //make debug easier
-{
-    var buf = '';
-    for (var ofs = 0, limit = this.length; ofs < limit; ++ofs)
-    {
-        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
-        buf += ' #' + hex(this[ofs], 8);
-    }
-    return '<buf-uint32:' + limit + ' ' + buf + '>';
-}
-
-
-var color_cache = require('my-projects/models/color-cache').cache;
-var argb_splitter = new Buffer(4);
-
-function Brightness(color)
-{
-    color &= 0xFFFFFF; //drop A
-    if (!color) return 0;
-    var brightness = color_cache(color + '%', function()
-    {
-        argb_splitter.writeUInt32BE(color, 0);
-        return Math.max(argb_splitter[1], argb_splitter[2], argb_splitter[3]); //TODO: use weighted value?
-    });
-    return brightness;
-}
 
 
 //function RenXtProtocol() {} //dummy ctor
@@ -407,17 +416,17 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 //    if (!port.encbuf) port.encbuf = new RenXtBuffer(4000); //port.buf.length); //NOTE: don't do this until after all channels assigned
 //    if (ZOMBIE_RECOVER) port.sent_config = false;
     this.encbuf.rewind();
-    this.models.forEach(function(model, inx, all)
+    this.models.forEach(function encode_each(model, inx, all)
     {
-        if (first || !this.cfg_sent) this.encbuf.SetConfig(model.adrs, model.opts.nodetype, model.opts.nodebytes || Math.ceil(model.nodelist.length / 4 / 2)) //quad bytes, 2 bpp
+        if (first || !this.cfg_sent) this.encbuf.SetConfig(model.adrs, model.opts.nodetype, model.nodebytes))
         if (!model.was_dirty) return; //no need to re-encode
 //        var img = Uint32Array(model.numpx);
 //        for (var i = 0; i < model.numpx; ++i) img[i] = model.buf; //abgr format
-        if ((model.opts.nodetype || 999) <= RenXt.LAST_DUMBIO) encode_dumb.call(this, model); //, nodes);
+        if ((model.opts.nodetype || DefaultNodeType) <= RenXt.LAST_DUMBIO) encode_dumb.call(this, model); //, nodes);
         else encode_smart.call(this, model); //, nodes);
     }.bind(this));
     if (this.encbuf.wrlen) this.encbuf.emit_raw(RenXt.RENARD_SYNC); //send out a final sync to mark end of last packet
-//        .flush(function(err)
+//        .flush(function flush_err(err)
 //        {
 //            if (err) { console.log("error: " + err); return; }
 //            console.log("write+drain+delay done: %d bytes available", port.RenXt.rdlen);
@@ -426,6 +435,30 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 //    return port.encbuf.buffer;
 }
 */
+
+
+//start encoding for this model:
+//runs with model context
+function encode_adrs(first)
+{
+    if (first || !this.cfg_sent) //need to config addresses before sending anything else
+        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.nodebytes);
+    else this.port.encbuf.SelectAdrs(this.adrs);
+    this.cfg_sent = true;
+//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
+//        model.want_cfg = true; //force config info to be sent first time; NOTE: must send config to all models on this port to set correct addresses
+//        model.cfg_sent = false; //force config info to be sent first time
+//    if (!(seqnum % WANT_COMM_DEBUG))
+    if (this.sent_ack--) return; //check firmware status periodically
+    this.sent_ack = 20; //do it again in 20 frames
+    logger(30, "checking firmware status every %d frames".cyan, this.sent_ack);
+    this.port.encbuf
+        .emit_opc(RENXt.ACK) //check listener/packet status
+//        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
+        .emit_byte(RENXt.NOOP, 5+1+1+1+1) //placeholders for status bits, i/o errs, proto errs, node bytes; CAUTION: must allow enough esc placeholders to protect next opcode
+        .emit_raw(RENXt.RENARD_SYNC) //kludge: send extra Sync in case prev byte was Escape
+        .SelectAdrs(this.adrs); //caller is expecting adrs as last item so resend
+}
 
 
 //var DataView = require('buffer-dataview');
@@ -438,11 +471,11 @@ function ARGB2ABGR(color) { return (color & 0xFF00FF00) | ((color >> 16) & 0xFF)
 //encode series nodes for this model:
 //places encoded nodes into port output buf
 //model already deduped
-//NOTE: runs in model context
+//NOTE: runs with model context
 function encode_series(first) //_smart(model) //, nodes)
 {
-    console.log("raw ARGB nodes", this.raw_nodes);
-    console.log("series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
+    logger(100, "raw ARGB nodes", this.raw_nodes);
+    logger(100, "series encode %d nodes, need quantize? %s", this.raw_nodes.length, this.raw_nodes.length > 16);
 //    if (this.raw_nodes.length > 16) //do this even if <= 16 nodes (need to invert anyway)
 //    {
     var myhist = histogram(this.raw_nodes, "raw RGB"); //{colors[], counts{}, index{}}
@@ -455,7 +488,7 @@ function encode_series(first) //_smart(model) //, nodes)
     {
         var quant = new RgbQuant({ colors: 16, method: 1, initColors: 0}); //4 bpp, 1D (no sub-boxes)
 //NO: node.js buf len broken
-        this.raw_nodes.forEach(function(color, inx, all) { all[inx] = ARGB2ABGR(color >>> 0); }); //kludge: RgbQuant wants nodes in ABGR format
+        this.raw_nodes.forEach(function swapBG_each(color, inx, all) { all[inx] = ARGB2ABGR(color >>> 0); }); //kludge: RgbQuant wants nodes in ABGR format
         quant.sample(this.raw_nodes); //analyze histogram; wants ABGR
 //    quant.colorStats1D(buf32) //wants ARGB, .length
 
@@ -463,47 +496,32 @@ function encode_series(first) //_smart(model) //, nodes)
 //TODO: share palette across frames to reduce frame-to-frame color variations
         var quant_pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
         quant_pal.inspect = buf_inspector_uint32ary.bind(quant_pal);
-        console.log("quant pal RGBA %s", typeof quant_pal, quant_pal.inspect());
+        logger(100, "quant pal RGBA %s", typeof quant_pal, quant_pal.inspect());
 //    console.log("palbuf %s %j", typeof palbuf, palbuf);
 //then generate reduced palette:
         var indexed_nodes = quant.reduce(this.raw_nodes, 2); //reduce colors in image; retType 2 = Indexed array
         indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
-        console.log("reduced %s", typeof indexed_nodes, indexed_nodes.inspect());
-        indexed_nodes.forEach(function(colorinx, nodeinx, all) { all[nodeinx] = ARGB2ABGR(quant.idxi32[colorinx] >>> 0); }); //kludge: unindex colors before my histogram
-        console.log("reduced + restored nodes %s", typeof indexed_nodes, indexed_nodes.inspect());
+        logger(100, "reduced %s", typeof indexed_nodes, indexed_nodes.inspect());
+        indexed_nodes.forEach(function swapBG_each(colorinx, nodeinx, all) { all[nodeinx] = ARGB2ABGR(quant.idxi32[colorinx] >>> 0); }); //kludge: unindex colors before my histogram
+        logger(100, "reduced + restored nodes %s", typeof indexed_nodes, indexed_nodes.inspect());
         myhist = histogram(indexed_nodes, "my reduced"); //{colors[], counts{}, index{}}
-//        myhist.colors.forEach(function(quant_inx, list_inx, all) { all[list_inx] = quant_pal[quant_inx]; }); //kludge: reload palette with un-quant colors
-        indexed_nodes.forEach(function(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
+//        myhist.colors.forEach(function unindex_each(quant_inx, list_inx, all) { all[list_inx] = quant_pal[quant_inx]; }); //kludge: reload palette with un-quant colors
+        indexed_nodes.forEach(function index_each(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
     }
     else
     {
         var indexed_nodes = [];
-        this.raw_nodes.forEach(function(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
+        this.raw_nodes.forEach(function index_each(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
     }
     indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
-    console.log("indexed, reduced nodes", indexed_nodes);
+    logger(100, "indexed, reduced nodes", indexed_nodes);
 //    myhist.colors_rgb = []; //quant shim
-//    myhist.colors.forEach(function(color, inx, all) { myhist.colors_rgb[inx] = ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF); }); //put in RGB order
+//    myhist.colors.forEach(function swap_each(color, inx, all) { myhist.colors_rgb[inx] = ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF); }); //put in RGB order
 //    myhist.colors_rgb.inspect = buf_inspector_uint32ary.bind(myhist.colors_rgb);
 //    console.log("final RGB palette", myhist.colors_rgb);
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
-//start encoding:
-    if (first || !this.cfg_sent) //need to config addresses before sending anything else
-        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.opts.nodebytes || Math.ceil(this.nodelist.length / 4 / 2)); //quad bytes, 2 bpp
-    this.cfg_sent = true;
-//        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
-//        model.want_cfg = true; //force config info to be sent first time; NOTE: must send config to all models on this port to set correct addresses
-//        model.cfg_sent = false; //force config info to be sent first time
-//    if (!(seqnum % WANT_COMM_DEBUG))
-    if (false) //TODO: check status periodically
-        this.port.encbuf
-            .SelectAdrs(this.adrs)
-            .emit_opc(RENXt_ACK) //check listener/packet status
-//        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
-            .emit(RENXt_NOOP, 5+1+1+1+1) //placeholders for status bits, i/o errs, proto errs, node bytes; CAUTION: must allow enough esc placeholders to protect next opcode
-            .emit_raw(RENARD_SYNC); //kludge: send extra Sync in case prev byte was Escape
-
+    encode_adrs.apply(this, arguments); //send config, select adrs, etc.
 //estimate encoded sizes of bitmaps vs. inverted lists and choose the more compact option:
 //TODO: allow shared palette across frames or models
     var most_common = myhist.counts[myhist.colors[0]]; //quant.histogram[quant.idxi32[quant.idxi32.length - 1]];
@@ -511,10 +529,10 @@ function encode_series(first) //_smart(model) //, nodes)
     var bitmap_size = 1 + 3 * myhist.colors.length + 3 + (bpp? Math.ceil(indexed_nodes.length / (8 / bpp)): 0) + 1; //SetPal + SetAll or Bitmap + NodeFlush opcodes
     var inverted_size = 1 + 4 * myhist.colors.length + indexed_nodes.length - most_common + 1; //SetPal + SetAll + Nodelist + NodeFlush opcodes
     var pallen = 1 + 3 * myhist.colors.length;
-    console.log("est enc size: pal len %s ents, %d bytes, %s bpp bitmap %s+%s=%s bytes, inverted lists %s+%s=%s bytes, most common #%s = %s", myhist.colors.length, pallen, bpp, pallen, bitmap_size - pallen, bitmap_size, pallen, inverted_size - pallen, inverted_size, hex(myhist.colors[0], 8), myhist.counts[myhist.colors[0]]); //quant.idxi32[quant.idxi32.length - 1], 8), myhist.colors[0], myhist.counts[myhist.colors[0]]); //quant.histogram[quant.idxi32[quant.idxi32.length - 1]]);
+    logger(100, "est enc size: pal len %s ents, %d bytes, %s bpp bitmap %s+%s=%s bytes, inverted lists %s+%s=%s bytes, most common #%s = %s", myhist.colors.length, pallen, bpp, pallen, bitmap_size - pallen, bitmap_size, pallen, inverted_size - pallen, inverted_size, hex(myhist.colors[0], 8), myhist.counts[myhist.colors[0]]); //quant.idxi32[quant.idxi32.length - 1], 8), myhist.colors[0], myhist.counts[myhist.colors[0]]); //quant.histogram[quant.idxi32[quant.idxi32.length - 1]]);
 
     this.port.encbuf
-        .SelectAdrs(this.adrs)
+//        .SelectAdrs(this.adrs)
         .SetPal(myhist.colors, this.opts.output); //this.pal);
 //TODO: GECE RGB2IBGRZ color conv
 //TODO: splitable
@@ -523,12 +541,13 @@ function encode_series(first) //_smart(model) //, nodes)
         this.port.encbuf
             .emit_opc(RENXt.BITMAP(bpp))
 //TODO: quad bytes?
-            .emit_byte(Math.ceil(indexed_nodes.length * bpp / 8) + 1) //no I/O delay needed because rcv rate is faster than send rate in all cases; kludge: +1 to prevent auto-flush
+//NOTE: firmware does a NodeFlush after receiving the bitmap, so wait states are needed following the bitmap if it fully completes
+            .emit_byte(Math.ceil(indexed_nodes.length * bpp / 8) + 1) //no I/O delay needed because rcv rate is faster than send rate in all cases; kludge: +1 to prevent firmware auto-flush
             .emit_byte(0); //TODO: skip first part of bitmap if it didn't change
         var curbyte = 0;
         while (indexed_nodes.length % (8 / bpp)) indexed_nodes.push(0); //pad to fill last node group
-        console.log("pack %s nodes", indexed_nodes.length);
-        indexed_nodes.forEach(function(colorinx, nodeinx)
+        logger(100, "pack %s nodes", indexed_nodes.length);
+        indexed_nodes.forEach(function pack_each(colorinx, nodeinx)
         {
             curbyte <<= bpp;
             curbyte |= colorinx;
@@ -548,26 +567,26 @@ function encode_series(first) //_smart(model) //, nodes)
             }
             this.port.encbuf.emit_byte(curbyte); //flush current group of nodes
         }.bind(this));
-        this.port.encbuf.SelectAdrs(this.adrs); //start next packet instead of sending last bitmap byte to inhibit auto-flush
+//not needed; next model follows anyway        this.port.encbuf.SelectAdrs(this.adrs); //start next packet instead of sending last bitmap byte to inhibit auto-flush
     }
     else //inverted node lists
     {
         var nodelists = [];
-        myhist.colors.forEach(function() { nodelists.push([]); }); //create a node list for each color palette entry
-        indexed_nodes.forEach(function(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
-        myhist.colors.forEach(function(color, palinx)
+        myhist.colors.forEach(function mk_nodelist() { nodelists.push([]); }); //create a node list for each color palette entry
+        indexed_nodes.forEach(function split_each(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
+        myhist.colors.forEach(function inverted_each(color, palinx)
         {
-            if (!palinx) { this.port.encbuf.SetAll(0); return; } //background color doesn't use a list
+            if (!palinx) { this.port.encbuf.SetAll(0, this.wait_states); return; } //background color doesn't use a list
             nodelists[palinx].sort(); //node inx must be in increasing order for correct bank switching
             var node_esc = RENXt.NODELIST(palinx); //esc code to start next list or switch banks
             var prevbank = RENXt.NodeBank(0), prevofs = RENXt.NodeOffset(0); //reset bank tracking
             this.port.encbuf.emit_opc(node_esc);
-            nodelists[palinx].forEach(function(nodeinx)
+            nodelists[palinx].forEach(function invnode_each(nodeinx)
             {
                 for (var newbank = RENXt.NodeBank(nodeinx); newbank > prevbank; ++prevbank) //check for bank switch
                 {
                     var implicit = (newbank == prevbank + 1) && (RENXt.NodeOffset(nodeinx) <= prevofs) && RENXt.NodeOffset(nodeinx); //kludge: disable implicit bank switch on first node
-                    console.log("out byte[%d]: new node %d, prev node %d, implicit bank switch? %d", this.port.encbuf.wrlen, nodeinx, RENXt.MakeNode(prevbank, prevofs), implicit);
+                    logger(100, "out byte[%d]: new node %d, prev node %d, implicit bank switch? %d", this.port.encbuf.wrlen, nodeinx, RENXt.MakeNode(prevbank, prevofs), implicit);
                     if (!implicit) this.port.encbuf.emit_byte(node_esc); //explicit jump to next bank
                 }
 //obsolete??        if (!*nodeptr) out.emit(node_esc, 7); //kludge: incorrect bank switch on node 0
@@ -577,105 +596,88 @@ function encode_series(first) //_smart(model) //, nodes)
         }.bind(this));
         this.port.encbuf.emit_byte(RENXt.NODELIST_END); //end of inverted lists
     }
-    this.port.encbuf.NodeFlush();
+    this.port.encbuf.NodeFlush(this.wait_states);
 }
 
 
 function encode_parallel(first) //, nodes)
 {
-//nodetype: RenXt.WS2811(RenXt.PARALLEL)
+//nodetype: RenXt.WS281X(RenXt.PARALLEL)
     this.port.encbuf
         .SelectAdrs(this.adrs)
         .emit_buf(new Buffer("TODO: PARALLEL"))
-        .NodeFlush();
+        .NodeFlush(this.wait_states);
 }
 
 
 function encode_chplex(first)
 {
-debugger;
+//debugger;
 //TODO: xlate RGBW format into 4 separate monochrome channels?
-    var chplex = RENXt.IsChplex(this.opts.nodetype || RenXt.WS281X(RenXt.SERIES));
+    var chplex = RENXt.IsChplex(this.opts.nodetype || DefaultNodeType);
     var pwm = (this.raw_nodes.length != 56); //TODO: make this selectable?
 //     RENXt.CHPLEX(RENXt.ACTIVE_HIGH), RENXt.CHPLEX(RENXt.ACTIVE_LOW))); }
 //    var numrows = Math.ceil(this.raw_nodes.length / 7);
     var mono_nodes = []; //typically 8 PWM or 56 ch'plexed channels per controller
 //    for (var r = 0; r < numrows /*this.height*/; ++r) mono_nodes.push([]); //allow node lists by row
-    this.raw_nodes.forEach(function(color, inx)
+    this.raw_nodes.forEach(function chplex_each(color, inx) //generate display event list for chplex firmware
     {
         var br = Brightness(color);
-        if (!br) return; //don't need to turn this one on
+        if (!br) return; //discard Off channels; they are off by default
         var row = chplex? Math.floor(inx / 7) + 1: 0, col = (chplex? inx % 7: inx) + 1;
         if (chplex && (col >= row)) ++col; //skip diagonal; row cannot == column
         mono_nodes.push({br: br, row: row, col: col});
     });
-    mono_nodes.sort(function(lhs, rhs) { return (rhs.br - lhs.br) || (rhs.row - lhs.row) || (rhs.col - lhs.col); }); //descending; phase angle dimming requires brightest channels first; group channels by row
-    console.log("sorted %s nodes:", chplex? "chplex": "pwm", mono_nodes);
+    mono_nodes.sort(function chplex_sort(lhs, rhs) { return (rhs.br - lhs.br) || (rhs.row - lhs.row) || (rhs.col - lhs.col); }); //descending; phase angle dimming requires brightest channels first; group channels by row
+    if ((mono_nodes[0] || {}).br != 255) mono_nodes.unshift({br: 255, row: 0, col: 0}); //inject dummy event to delay first on (phase angel dimming requires precise start time); need at least one event to turn channels off
+    logger(120, "sorted %s nodes, chplex? %s, pwm? %s".blue, mono_nodes.length, chplex, pwm, mono_nodes);
 
-//start encoding:
-    if (first || !this.cfg_sent) //need to config addresses before sending anything else
-        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.opts.nodebytes || Math.ceil(this.nodelist.length / 4 / 2)); //quad bytes, 2 bpp
-    this.cfg_sent = true;
-//    if (!(seqnum % WANT_COMM_DEBUG))
-    if (false) //TODO: check status periodically
-        this.port.encbuf
-            .SelectAdrs(this.adrs)
-            .emit_opc(RENXt_ACK) //check listener/packet status
-//        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
-            .emit(RENXt_NOOP, 5+1+1+1+1) //placeholders for status bits, i/o errs, proto errs, node bytes; CAUTION: must allow enough esc placeholders to protect next opcode
-            .emit_raw(RENARD_SYNC); //kludge: send extra Sync in case prev byte was Escape
-
+    encode_adrs.apply(this, arguments); //send config, select adrs, etc.
 //use phase angle dimming model for DC as well (to simplify the logic):
 //TODO: SSR doublers, variable DC dim cycle, dumb set-all
-    var tailpad = 0, brightness = 255; //start with max/total brightness (dumb nodes only); AC phase angle requires this, but DC/PWM can be in any order
-    var delay = mono_nodes.length? brightness - mono_nodes[0].br: 0; //dummy event is needed to delay first on; don't need delay if node list is empty / all off
-    var listlen = 3 * mono_nodes.length - 1 + 1 + (delay? 1: 0) + 1; // + 1; //handle eol marker as part of padding; NOTE: don't need event for full off, but need one to pad out dimming cycle
-    var colmasks = {}; //on columns by active row
-    tailpad = (listlen % 4)? 4 - (listlen % 4): 0; //padlen(listlen, 4);
-    console.log("first dumb: cur br %d, first %d, duration %d, listlen %d, padlen %d", brightness, mono_nodes[0].br, delay, listlen, tailpad);
+    var brightness = 255; //start with max/total brightness (dumb nodes only); AC phase angle requires this, but DC/PWM can be in any order
+//    var delay_first = mono_nodes.length? brightness - mono_nodes[0].br: 0; //dummy event is needed to delay first on; don't need delay if node list is empty / all off
+//    var listlen = 3 * mono_nodes.length - 1 + 1 + (delay? 1: 0) + 1; // + 1; //handle eol marker as part of padding; NOTE: don't need event for full off, but need one to pad out dimming cycle
+    var listlen = 1; //(delay_first? 3: 0) + 1; // + 1; //handle eol marker as part of padding; NOTE: don't need event for full off, but need one to pad out dimming cycle
+    mono_nodes.forEach(function chplex_count(node, inx, all) { if (!inx || (node.br != all[inx - 1].br) || (node.row != all[inx - 1].row)) listlen += 3; }); //row start
+    var colmasks = {}; //columns on by active row
+//    var tailpad = (listlen % 4)? 4 - (listlen % 4): 0; //padlen(listlen, 4);
+//    console.log("first dumb: cur br %d, first %d, duration %d, listlen %d, padlen %d", brightness, mono_nodes[0].br, delay, listlen, tailpad);
     this.port.encbuf
-        .SelectAdrs(this.adrs)
+//        .SelectAdrs(this.adrs)
         .emit_opc(RENXt.DUMBLIST) //start of dumb pixel display event list (chplex/pwm)
         .emit_byte(Math.ceil(listlen / 4)) //quad bytes
         .emit_byte(0); //no skip for now
-    if (delay) this.port.encbuf.emit(delay).emit_byte(0, 2); //first event (no rows, no cols) to delay first on
-    brightness -= delay;
+//    if (delay_first) this.port.encbuf.emit_byte(delay_first).emit_byte(0, 2); //first event (no rows, no cols) to delay first on
+//    brightness -= delay;
 //remainder of dumb pixel display event list (chplex/pwm):
-    mono_nodes.forEach(function(node, inx, all)
+    mono_nodes.forEach(function chplex_each(node, inx, all)
     {
         if (!inx || (node.br != all[inx - 1].br) || (node.row != all[inx - 1].row)) //row start
         {
-            var duration = /*RGB2R(it->first)*/ brightness - ((inx + 1 != all.length)? all[inx + 1].br: 0); //NOTE: dimming might be behind schedule, so use actual brightness rather than desired brightness here
-            if (duration < 1) duration = 1; //must be >= 1 timeslot for triacs to turn on; if we fall behind we can catch up later
-            this.port.encbuf.emit_byte(duration);
-            brightness -= duration;
+            var delay_next = /*RGB2R(it->first)*/ brightness - ((inx + 1 != all.length)? all[inx + 1].br: 0); //NOTE: dimming might be behind schedule, so use actual brightness rather than desired brightness here
+            if (delay_next < 1) delay_next = 1; //must be >= 1 timeslot for triacs to turn on; if we fall behind we can catch up later
+            this.port.encbuf.emit_byte(delay_next);
+            brightness -= delay_next;
 //        var row = chplex? node.row: 0; //node_lists[it->first].front() / 7: 0;
 //                    int colmask = 0;
             if (!(pwm && chplex)) colmasks[node.row] = 0; //not cumulative (not pseudo-pwm)
         }
         colmasks[node.row] |= 0x100 >> node.col;
-        console.log("node[%s/%s] node br %s => row %s, col %s cols 0x%s", inx, all.length, node.br, node.row, node.col, colmasks[node.row].toString(16));
+        logger(130, "node[%s/%s] node br %s => row %s 0x%s, col %s cols 0x%s".blue, inx, all.length, node.br, node.row, (0x100 >> node.row).toString(16), node.col, colmasks[node.row].toString(16));
         if ((inx + 1 == all.length) || (node.br != all[inx + 1].br) || (node.row != all[inx + 1].row)) //row end
         {
             this.port.encbuf
                 .emit_byte(0x100 >> node.row) //chplex? 0x100 >> node.row: node.row) //convert to mask if chipiplexed; leave 0 for pwm (no row)
                 .emit_byte(colmasks[node.row]); //cumulative column map for this row
-            console.log("out dumb evt: next brightness %s, row 0x%s, cols 0x%s, duration %s", brightness, (chplex? 0x100 >> node.row: node.row).toString(16), colmasks[node.row].toString(16), duration);
+            logger(40, "out dumb evt: next brightness %s, row 0x%s, cols 0x%s, delay_next %s".blue, brightness, (chplex? 0x100 >> node.row: node.row).toString(16), colmasks[node.row].toString(16), delay_next);
 //                    brightness -= delay; //RGB2R(it->first);
         }
     }.bind(this));
-    console.log("dumb tail pad %d + eof", tailpad);
+//    console.log("dumb tail pad %d + eof", tailpad);
     this.port.encbuf
-        .emit_byte(0, tailpad + 1) //end of list marker + quad-byte padding
-//        .emit_opc(RENXt.NODEFLUSH); //flush changes; must be last opcode for this processor
-        .NodeFlush();
-}
-
-
-function hex(val, len)
-{
-    if (!len) len = 8;
-    return ('00000000' + (val >>> 0).toString(16)).slice(-len);
+        .emit_byte(0, 4 * Math.ceil(listlen / 4) - listlen + 1) //end of list marker + quad-byte padding
+        .NodeFlush(this.wait_states); //flush changes; must be last opcode for this processor
 }
 
 
@@ -706,42 +708,296 @@ function histogram(nodes, desc)
             if (isNaN(++counts[color])) { counts[color] = 1; index[color] = index.length++; }
         }
     var palette = Object.keys(counts);
-    palette.sort(function(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
+    palette.sort(function pal_sort(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
     palette.inspect = buf_inspector_uint32ary.bind(palette);
 //    var buf = '';
-//    palette.forEach(function(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
+//    palette.forEach(function pal_enum(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
 //    console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
-    console.log((desc || '') + " myhist palette", palette);
+    logger(100, (desc || '') + " myhist palette", palette);
     return {colors: palette, counts: counts, index: index};
 }
 
 
-//bad hoist var verbuf = new RenXtBuffer();
+//bad hoist: var verbuf = new RenXtBuffer();
 
-function verify(outbuf, inbuf)
+//const VER_STATES = {'sync'
+const REN_EOF = 0x200;
+
+
+//compare port inbuf with saved outbuf:
+//this helps catch firmware bugs and comm problems by verifying outbuf was received and processed
+//NOTE: this code runs async after I/O has occurred, so it can only report errors and not prevent them
+//i tried preventing errors with synchronous check and resend, but then the sequence timing suffers due to USB latency (and the logic must be very efficient)
+//if comm errors are infrequent, then an async detection after is okay; this makes code efficiency less important
+function my_verify(final_incomplete) //outbuf, inbuf)
 {
-//TODO: use this for ReadMem as well
+    for (;;)
+    {
+        if (!this.inbuf.size()) return; //no loopback data to verify against
+        if (!this.ioverify.length) return; //no packets to verify yet
+        var iorec = this.ioverify[0]; // {seqnum, data, len, sendtime}
+        if ((iorec.veri_ofs || 0) < iorec.data.length) break; //found a frame to verify
+        this.inbuf.getContents(iorec.veri_skip);
+        this.ioverify.shift();
+    }
+//        if (this.inbuf.size() < iorec.len) return; //not enough data to verify
+//        var elapsed = new Elapsed(iorec.sendtime);
+    if (isNaN(++iorec.veri_retry)) iorec.veri_retry = 1;
+    console.log("trying to verify iorec", iorec);
+    if (!this.sentbuf)
+    {
+        this.sentbuf = new RenXtBuffer(); //reduce ctor overhead by only instantiating once
+        this.sentbuf.consume = function sent_consume(iorec) { iorec.veri_ofs = this.rdofs; } //consume packets from saved state
+    }
+    this.sentbuf.buffer = iorec.data;
+    this.sentbuf.rdofs = iorec.veri_ofs || 0;
+    this.sentbuf.rdlen = iorec.len;
+//restore inbuf parser state:
+//TODO: merge with data handler or flush()?
+    if (!this.veribuf)
+    {
+        this.veribuf = new RenXtBuffer(); //reduce ctor overhead by only instantiating once
+        this.veribuf.consume = function veri_consume(inbuf) { iorec.veri_skip = this.rdofs; } //inbuf.getContents(this.rdofs); this.rdlen -= this.rdofs; this.rdofs = 0; }
+    }
+    this.veribuf.buffer = this.inbuf.peek();
+    this.veribuf.rdofs = iorec.veri_skip || 0;
+    this.veribuf.rdlen = this.inbuf.size();
+//    if (!this.veribuf.rdlen) return; //nothing to verify
+
+    var sent = null, rcvd = null;
+    for (;;)
+    {
+//TODO: use parse() for ReadMem + controller enum as well
 debugger;
-    if (!this.ioverify.length) return; //nothing to verify yet
-    var verbuf = new RenXtBuffer();
-    var iorec = this.ioverify[0]; // {seqnum, data, len, sendtime}
-    console.log("iorec", iorec);
-    console.log("RenXt verify: inlen %s vs. iolen %s", this.inbuf.size(), iorec.len);
-//    if (this.inbuf.size() < iorec.len) return; //not enough data to verify
-//        var cmp = svmethods.verify? svmethods.verify.call(port, outbuf, inbuf): null; //svverify(outbuf, inbuf);
-//        if ((cmp !== null) && (cmp !== 0)) return cmp; //return base result if failed
-    console.log("TODO: compare RenXt outbuf + inbuf");
-    return;
-    var elapsed = new Elapsed(iorec.sendtime);
-    var cmplen = Math.min(this.inbuf.size(), iorec.len);
-    if (!cmplen) return; //nothing to verify yet
-    iorec.vertime = elapsed.now;
-//TODO: clean this up
-    var verofs = iorec.verofs || 0;
-    verbuf.buffer = this.inbuf.buf; verbuf.rdlen = this.inbuf.size(); verbuf.rdofs = 0;
-    var inofs = 0, inbuf = this.inbuf.peek();
+        if (!sent) sent = this.sentbuf.parse(true, final_incomplete); //{adrs, seqnum, lit, data}
+        if (!rcvd) rcvd = this.veribuf.parse(true, final_incomplete);
+        if (!sent || !rcvd) //wait for more data; no need for further checking unless we have 2 valid packets to compare
+        {
+            if (!sent && !rcvd) { console.log("all data %sverified!", !final_incomplete? '(so far) ': ''); return; }
+            if (!sent && rcvd) console.log("extra data rcvd:", rcvd);
+            if (sent && !rcvd) console.log("data not rcvd:", sent);
+            if (final_incomplete) setTimeout(function veri_delayed() { this.verify.apply(this, arguments); }.bind(this), 1000);
+            return;
+        }
+        if (rcvd.adrs != sent.adrs + 0x80) //use "+" instead of "|" so if sent is wrong the check will fail
+        {
+            console.log("adrs/status mismatch: got 0x%s, expected 0x%s", (rcvd.adrs + 0).toString(16), (sent.adrs + 0x80).toString(16));
+            if ((sent.adrs & 0x7F) < (rcvd.adrs & 0x7F)) { sent = null; this.sentbuf.consume(iorec); continue; }
+            if ((sent.adrs & 0x7F) > (rcvd.adrs & 0x7F)) { rcvd = null; this.veribuf.consume(this.inbuf); continue; }
+        }
+        if (rcvd.seqnum != sent.seqnum)
+        {
+            console.log("seq# mismatch: got 0x%s, expected 0x%s", rcvd.seqnum.toString(16), sent.seqnum.toString(16));
+            if (sent.seqnum < rcvd.seqnum) { sent = null; this.sentbuf.consume(iorec); continue; }
+            if (sent.seqnum > rcvd.seqnum) { rcvd = null; this.veribuf.consume(this.inbuf); continue; }
+        }
+        var cmp = bufdiff(sent.lit, rcvd.lit);
+        if (cmp) console.log("lit mismatch %j: got %d:'%j', expected %d:'%j'", cmp, (rcvd.lit || []).length, rcvd.lit, (sent.lit || []).length, sent.lit);
+//        else console.log("got lit data %j %d:'%s'", cmp, (rcvd.lit || []).length, rcvd.lit);
+        cmp = bufdiff(sent.data, rcvd.data);
+        if (cmp) console.log("got var data %j %d:'%j' vs %j", cmp, (rcvd.data || []).length, rcvd.data, sent.data);
+//        else console.log("no var data %j %d:'%s'", cmp, (rcvd.data || []).length, rcvd.data);
+        this.sentbuf.consume(iorec);
+        this.veribuf.consume(this.inbuf);
+        sent = rcvd = null;
+    }
 }
 
+/*
+    var ch, junk;
+    for (;;)
+        switch (iorec.veri_state || 'sync-both')
+        {
+            case 'sync-both':
+                if (this.sentbuf.deque_byte()) != RenXt.RENARD_SYNC) throw "Sent junk before Sync?";
+                while (this.sentbuf.deque_byte()) == RenXt.RENARD_SYNC); //skip over multiple Syncs
+                --this.sentbuf.rdofs; //restore prev byte
+                iorec.veri_state = 'sync-in';
+                iorec.veri_ofs = this.sentbuf.rdofs;
+                //fall thru
+            case 'sync':
+                junk = 0;
+                while ((ch = this.veribuf.deque_byte()) & ~ REN_EOF != RenXt.RENARD_SYNC) ++junk;
+                if (junk) console.log("ignoring junk loopback: %d", junk, this.inbuf.getContent(junk)); //consume junk so we don't need to look at it again
+                if (ch & REN_EOF) return;
+                while (this.veribuf.deque_byte()) == RenXt.RENARD_SYNC); //skip over multiple Syncs
+                iorec.veri_state = 'adrs';
+                //fall thru
+            case 'adrs':
+                var adrs = this.sentbuf.deque_byte();
+                ch = this.veribuf.deque_byte();
+                if ((adrs & 0x80) == (ch & 0x80))
+                {
+                    console.log("adrs mismatch: got 0x%s, expected 0x%s", ch.toString(16), adrs.toString(16));
+                    if (adrs & 0x7F < ch & 0x7F) { iorec.veri_state = 'skip-sent
+                }
+                console.log("no sync for ctlr 0x%s @'0x%s", ctlr_adrs.toString(16), this.rdofs.toString(16)); return false; } //skip multiple syncs (useful for loopback test)
+                if (this.sentbuf.isempty()) return;
+            uint8 = this.deque_byte();
+            if ((uint8 & 0x7F) != ctlr_adrs) { console.log("wrong controller: got 0x%s vs expected 0x%s @'0x%s", uint8.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
+            else if (uint8 != (ctlr_adrs | 0x80)) { console.log("no response from controller 0x%s @'0x%s", ctlr_adrs.toString(16), this.rdofs.toString(16)); return false; } //continue; }
+            uint8 = this.deque_byte();
+            if (uint8 != RenXt.READ_REG) { console.log("wrong command: got 0x%s vs. expected 0x%s for ctlr 0x%s @'0x%s", uint8.toString(16), RenXt.READ_REG.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
+            uint16 = this.deque_uint16();
+            if (uint16 != mem_adrs) { console.log("wrong address: got 0x%s vs. expected 0x%s for ctlr 0x%s @'0x%s", uint16.toString(16), mem_adrs.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
+            break;
+        }
+*/
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// Transform stream:
+//
+
+const inherits = require('inherits');
+const makenew = require('my-plugins/utils/makenew');
+//const Elapsed = require('my-plugins/utils/elapsed');
+//const bufferJSON = require('buffer-json'); //https://github.com/jprichardson/buffer-json
+const stmon = require('my-plugins/streamers/stmon').stmon;
+//var split = require('split'); //https://github.com/dominictarr/split
+const streamBuffer = require('stream-buffers'); //https://github.com/samcday/node-stream-buffer
+const stream = require('stream');
+//const Writable = stream.Writable || require('readable-stream').Writable; //http://codewinds.com/blog/2013-08-19-nodejs-writable-streams.html
+var Transform = stream.Transform || require('readable-stream').Transform;
+
+
+//RenXt stream to transform serial loopback data to parsed pkts:
+//this analyzes serial loopback data for comm or firmware errors
+//runs async behind actual port I/O
+//const RenXtLoopback = module.exports.RenXtLoopback =
+function LoopbackStream(opts)
+{
+//debugger;
+    if (!(this instanceof LoopbackStream)) return makenew(LoopbackStream, arguments);
+//    this.objectMode = true; //requires source text stream to be split
+//    this.objectMode = true; //one read/write per record on binary data (ignores length)
+    if (typeof opts != 'object') opts = {};
+    opts.writableObjectMode = false; //coming from serial port, receives chunks of chars
+    opts.readableObjectMode = true; //writing parsed packets; NOTE: must be passed in thru ctor to work correctly
+    Transform.call(this, opts); //arguments); //base class ctor
+
+//NOTE: can instantiate custom stream directly; see http://stackoverflow.com/questions/21491567/how-to-implement-a-writable-stream
+//however, we use derivation in order to allow multiple instances
+//    this.on('end', function onend() { console.log("%d json objects read", count); });
+    stmon(this, "RenXtLoopbackStream");
+    if (opts.dest) this.pipe(opts.dest);
+//debugger;
+
+    this.elapsed = new Elapsed();
+    this.fifo = new RenXtBuffer(4096); //TODO: replace with stream-buffer?
+//    this.fifo.pkt_count = 0;
+    this.fifo.src = "loopbk";
+//    this.fifo = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
+//    this.fifo.buffer.fill = function filler(val) { if (this.size()) this.peek().fill(val); } //"this" == streamBuffer
+//    Object.defineProperty(this.fifo.buffer, 'length', { get() { return this.size(); }});
+//    this.fifo.buffer.slice = function slicer(start, end) { return this.size()? this.peek(start || 0, (end || this.size()) - (start || 0)): null; }
+//    this.bufxt.rewind(); //already done
+}
+inherits(LoopbackStream, Transform);
+
+
+//opcode names:
+//mainly for debug
+function OpcodeNames(opc)
+{
+//debugger;
+    switch (opc)
+    {
+        case RENXt.NOOP: return "NOOP";
+        case RENXt.BITMAP(1):
+        case RENXt.BITMAP(2):
+        case RENXt.BITMAP(4): return "BMP(# BPP)".replace(/#/, opc & 0xF);
+        case RENXt.DUMBLIST: return "DUMBLIST";
+        case RENXt.NODEBYTES: return "NODEBYTES";
+        case RENXt.CLEARSTATS: return "CLEARSTATS";
+        case RENXt.READ_REG: return "READ_REG";
+        case RENXt.WRITE_REG: return "WRITE_REG";
+        case RENXt.SAVE_EEPROM: return "SAVE_EEPROM";
+        case RENXt.ACK: return "ACK";
+        case RENXt.RESET: return "RESET";
+        case RENXt.REFLASH: return "REFLASH";
+        case RENXt.NODEFLUSH: return "NODEFLUSH";
+        case RENXt.ZCRESAMPLE: return "ZCRESAMPLE";
+        case RENXt.TTYACK: return "TTYACK";
+        case RENXt.NODELIST_END: return "NODELIST_END";
+    }
+    var name = '';
+    if (typeof opc == 'number') switch (opc & 0xF0)
+    {
+        case RENXt.SETPAL(0): name = "SETPAL(#)"; break;
+        case RENXt.SETALL(0): name = "SETALL(#)"; break;
+        case RENXt.SETTYPE(0): name = "SETTYPE(#)"; break;
+        case RENXt.NODELIST(0): name = "NODELIST(#)"; break;
+    }
+    return name.replace(/#/, opc & 0x0F);
+}
+
+
+//kludge: replace input fifo with outbuf and run it thru analyser before trashing it:
+LoopbackStream.prototype.non_xform =
+function non_xform(morebuf)
+{
+    var svfifo = this.fifo;
+    this.fifo = morebuf;
+    this.fifo.rdlen = this.fifo.wrlen; //make it look like incoming
+debugger;
+    this._transform(null, null, function nop() {}, false);
+    this.fifo = svfifo;
+}
+
+
+LoopbackStream.prototype._transform =
+function xform(chunk, encoding, done, eof)
+{
+//    var frdata = deserialize(chunk, encoding);
+//    this.emit('frame', frdata); //TODO: keep this?
+    if (chunk && !Buffer.isBuffer(chunk) /*typeof chunk == 'string'*/) chunk = new Buffer(chunk, encoding);
+    if (chunk) { this.fifo.wrlen = this.fifo.rdlen; this.fifo.emit_rawbuf(chunk); this.fifo.rdlen = this.fifo.wrlen; } //kludge: reusing inbuf as outbuf
+    logger(110, "loopback: incoming %s len %s, total fifo now %s, data: %s".blue, encoding, chunk? chunk.length: "(eof)", this.fifo.rdlen, unprintable(this.fifo.buffer.slice(0, this.fifo.rdlen).toString()));
+    if (chunk) //no need to parse unless something important came in
+    {
+        if (chunk.indexOf(RENXt.RENARD_SYNC) == -1) { done(); return; } //packet should begin/end with Sync
+        if (this.fifo.rdlen /*- this.fifo.rdofs*/ < 10) { done(); return; } //a packet can be shorter than 10 bytes, but it's not very likely
+    }
+//    this.fifo.rdlen = this.fifo.buffer.size();
+    this.fifo.rdofs = 0; //start parsing at beginning of buf
+
+//done(); return;
+    var eatlen = 0;
+    for (;;) //try to parse incoming packets back into data requests
+    {
+        var parsed = this.fifo.parse(true, !chunk && (eof !== false)); //{adrs, seqnum, lit, data}
+        if (!parsed) break;
+        parsed.src = this.fifo.src; //show where it came from
+        if (isNaN(++this.fifo.pkt_count)) this.fifo.pkt_count = 1;
+        parsed.pktnum = this.fifo.pkt_count;
+        parsed.elaped = this.elapsed.now; //mainly for debug
+        var opc = parsed.lit? parsed.lit[0]: null;
+        if (opc) parsed.opc = OpcodeNames(opc) || ('#' + hex(opc, 2)); //mainly for debug
+        parsed.litlen = (parsed.lit || []).length; //mainly for debug
+        parsed.datalen = (parsed.data || []).length; //mainly for debug
+        this.push(JSON.stringify(parsed) + '\n');
+        logger(10, "loopback: parsed pkt# %s, %s remaining".cyan, parsed.pktnum, this.fifo.rdlen - this.fifo.rdofs);
+        eatlen = this.fifo.rdofs; //remove valid packet from fifo
+    }
+    if (eatlen) this.fifo.remove(0, eatlen); //consume successfully parsed data
+    done();
+}
+
+
+LoopbackStream.prototype._flush =
+function flusher(done)
+{
+    logger(10, "renxt loopback flush".cyan);
+    this.xform(null, null, done);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// Protocol helpers:
+//
 
 //enumerate props/controllers on a port:
 function enum_props()
@@ -814,7 +1070,7 @@ function enum_props()
     var ctlrs = [];
     port.RenXt
         .emit_raw(RenXt.RENARD_SYNC) //send out a final sync to mark end of last packet
-        .flush(function(err)
+        .flush(function io_err(err)
         {
             if (err) { console.log("error: " + err); return; }
 //            for (var i = 0; i < 160; i += 16) console.log("buf[%d]: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s", i, port.RenXt.buffer[i].toString(16), port.RenXt.buffer[i+1].toString(16), port.RenXt.buffer[i+2].toString(16), port.RenXt.buffer[i+3].toString(16), port.RenXt.buffer[i+4].toString(16), port.RenXt.buffer[i+5].toString(16), port.RenXt.buffer[i+6].toString(16), port.RenXt.buffer[i+7].toString(16), port.RenXt.buffer[i+8].toString(16), port.RenXt.buffer[i+9].toString(16), port.RenXt.buffer[i+10].toString(16), port.RenXt.buffer[i+11].toString(16), port.RenXt.buffer[i+12].toString(16), port.RenXt.buffer[i+13].toString(16), port.RenXt.buffer[i+14].toString(16), port.RenXt.buffer[i+15].toString(16));
@@ -854,7 +1110,7 @@ function enum_props()
             console.log("adrs  proc  firm pins ram baud clk ntype nodes     #i/o ser per name\n");
             const device_codes = {0x28: "12F1840", 0x68: "16F688", 0x85: "16F1825", 0x87: "16F1827"};
             const NodeTypes = ["Null ", "FrPan", "PWM- ", "PWM+ ", "Chpl-", "Chpl+", "GECE!", "GECE=", "??8??", "??9??", "281X!", "281X=", "??12?", "??13?", "??14?", "??15?"];
-            ctlrs.forEach(function(ctlr, inx)
+            ctlrs.forEach(function found_each(ctlr, inx)
             {
 //                console.log(ctlr);
                 var ramscale = (ctlr.ram <= 256)? 1: (ctlr.ram <= 512)? 2: 4, ramdesc = ('   ' + ((ctlr.ram < 1000)? ctlr.ram: Math.round(ctlr.ram, 1024) + 'K')).substr(-3);
@@ -885,15 +1141,95 @@ function enum_props()
 }
 
 
+//RgbQuant doesn't seem to like node.js Buffers or ArrayBuffers, so convert:
+//TODO: avoid calling this
+//var uint32_splitter = new Buffer(4);
+function uint8ary_to_uint32ary(buf)
+{
+/*
+//                this.raw_nodes = new Uint32Array(this.port.outbuf.peek()); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+//                this.raw_nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                var nodes = this.port.outbuf.peek(); //node values to be encoded; NOTE: node list is sparse or reordered compared to canvas
+                this.raw_nodes = new Uint32Array(nodes.length / 4);
+//                var nodes = new Uint32Array(this.raw_nodes); //NOTE RgbQuant somehow sees the 8K stream buffer, so force a new array/buffer
+                for (var i = 0; i < nodes.length; i += 4)
+                    this.raw_nodes[i / 4] = nodes.readUInt32BE(i);
+                this.raw_nodes = this.imgdata();
+                console.log("raw nodes", this.raw_nodes);
+*/
+    if (!buf.readUInt32BE) buf.readUInt32BE = function byte_shuffle(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+    var retval = new Uint32Array(buf.length / 4);
+    for (var ofs = 0; ofs < buf.length; ofs += 4)
+        retval[ofs / 4] = buf.readUInt32BE(ofs); //buf.readUInt32BE? buf.readUInt32BE(ofs): (buf[ofs] << 24) | (buf[ofs + 1] << 16) | (buf[ofs + 2] << 8) | buf[ofs + 3];
+    return retval;
+}
+//var arr = new Uint8Array([1, 2, 3])
+//    var palbuf = toBuffer(pal);
+//    var pal_view = new Uint32Array(pal);
+//    var pal_view = new DataView(pal);
+//    var buf = '';
+//    for (var i = 0; i < pal.length; i += 4)
+//        buf += ', ' + pal_view.getUint32(i);
+
+
+var buffer = require('buffer');
+
+//function buf_inspector_uint8ary(depth, opts) //make debug easier
+//{
+//    var buf = '';
+//    if (!this.readUInt32BE) this.readUInt32BE = function byte_shuffle(ofs) { return (this[ofs] << 24) | (this[ofs + 1] << 16) | (this[ofs + 2] << 8) | this[ofs + 3]; }
+//    for (var ofs = 0, limit = this.length; ofs < limit; ofs += 4)
+//    {
+//        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
+//        buf += ' #' + hex(this.readUInt32BE(ofs), 8);
+//    }
+//    return '<ARGB-buf:' + (limit / 4) + ' ' + buf + '>';
+//}
+
+function buf_inspector_uint32ary(depth, opts) //make debug easier
+{
+    var buf = '';
+    for (var ofs = 0, limit = this.length; ofs < limit; ++ofs)
+    {
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (limit - ofs) / 4 + ' '; break; }
+        buf += ' #' + hex(this[ofs], 8);
+    }
+    return '<buf-uint32:' + limit + ' ' + buf + '>';
+}
+
+
+var color_cache = require('my-projects/models/color-cache').cache;
+var argb_splitter = new Buffer(4);
+
+function Brightness(color)
+{
+    color &= 0xFFFFFF; //drop A
+    if (!color) return 0;
+    var brightness = color_cache(color + '%', function brightness_compute()
+    {
+        argb_splitter.writeUInt32BE(color, 0);
+        return Math.max(argb_splitter[1], argb_splitter[2], argb_splitter[3]); //TODO: use weighted value?
+    });
+    return brightness;
+}
+
+
+function hex(val, len)
+{
+    if (!len) len = 8;
+    return ('00000000' + (val >>> 0).toString(16)).slice(-len);
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// Protocol helpers (mostly fluent):
+/// Protocol-aware port buffer:
 //
 
-var RenXt = require('my-plugins/hw/RenXt');
+var RenXt = RENXt; //require('my-plugins/hw/RenXt');
 var Struct = require('struct'); //https://github.com/xdenser/node-struct
 //var DataView = require('buffer-dataview'); //https://github.com/TooTallNate/node-buffer-dataview
-var makenew = require('my-plugins/utils/makenew');
+//var makenew = require('my-plugins/utils/makenew');
 
 
 //TODO: derive from stream buffer?
@@ -907,7 +1243,8 @@ function RenXtBuffer(opts)
 
 //    this.dataview = new DataView(this.buffer);
     this.stats_opc = new Uint8ClampedArray(256); //Uint16Array(256);
-//    this.port.on('data', function(data) //collect incoming data
+    this.waits = [];
+//    this.port.on('data', function port_rcv(data) //collect incoming data
 //    {
 //        this.latest = this.elapsed.now;
 //        if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
@@ -919,7 +1256,8 @@ function RenXtBuffer(opts)
 
 //if (sport.rewind) console.log("rewind was already there".red);
 //NOTE: rewind() must be called before doing I/O
-RenXtBuffer.prototype.rewind = function()
+RenXtBuffer.prototype.rewind =
+function rewind()
 {
     this.rdofs = this.rdlen = this.wrlen = 0;
 //    if (!this.buffer) this.buffer = new Buffer(4000); //NOTE: ignore FPS restrictions to simplify special cases such as initial enum
@@ -930,39 +1268,51 @@ RenXtBuffer.prototype.rewind = function()
     return this; //fluent
 }
 
-RenXtBuffer.prototype.hasroom = function(len)
+RenXtBuffer.prototype.hasroom =
+function hasroom(len)
 {
     return (this.wrlen + len <= this.buffer.length);
+//    return Math.max(this.buffer.length - this.wrlen - (len || 0), 0); //0 => false
 }
 
-RenXtBuffer.prototype.isempty = function(len)
+RenXtBuffer.prototype.isempty =
+function isempty(len)
 {
     return (this.rdofs + (len || 0) >= this.rdlen);
 }
 
+//RenXtBuffer.prototype.isempty =
+//function usedlen()
+//{
+//    return this.rdlen - this.rdofs;
+//}
+
 //if (sport.flush) console.log("flush was already there".red);
-RenXtBuffer.prototype.flush = function(cb)
+RenXtBuffer.prototype.flush =
+function flush(cb)
 {
 //write + drain:
     this.elapsed = new Elapsed();
-    if (!cb) cb = function(err) { return err; }
-    if (!this.wrlen) return process.nextTick(function() { cb(); }); //this.port.write_drain(this.buffer, this.wrlen);
+    if (!cb) cb = function dummy_cb(err) { return err; }
+    if (!this.wrlen) return process.nextTick(function cb_delayed() { cb(); }); //this.port.write_drain(this.buffer, this.wrlen);
     var outbuf = (this.wrlen < this.buffer.length)? this.buffer.slice(0, this.wrlen): this.buffer; //kludge: no len param to write(), so trim buffer instead
     if (this.wrlen > this.buffer.length) console.log("out buf overflow: %d (max %d)".red, this.wrlen, this.buffer.byteLength);
 //    for (var ofs = 0; ofs < this.wrlen; ofs += 64)
 //        console.log("write[%d/%d] ", ofs, this.wrlen, this.buffer.slice(ofs, 64));
     console.log("write %d ", this.wrlen, outbuf);
-    return this.port.write(outbuf, function(err, results)
+    console.log("wait states:", this.waits);
+    if (this.waits.length) this.waits = [];
+    return this.port.write(outbuf, function port_written(err, results)
     {
 //        console.log(typeof outbuf);
         var outdesc = outbuf.length + ':"' + ((typeof outbuf === 'string')? outbuf: (outbuf.toString('utf8').substr(0, 20) + '...')).replace(/\n/g, "\\n") + '"';
         if (err) return cb(err); //{ console.log('write "%s" err after %s: '.red, outdesc, this.elapsed.scaled(), err); return cb(err); }
         console.log('write "%s" ok after %s; results %d:'.green, outdesc, this.elapsed.scaled(), results.length, results);
-        this.port.drain(function(err)
+        this.port.drain(function port_drained(err)
         {
             if (err) return cb(err); //{ console.log('drain %s err '.red + err, outdesc); return cb(err); }
             console.log("drain %s completed after %s".green, outdesc, this.elapsed.scaled());
-            setTimeout(function() //return data should be no more than 1 char time (44 usec) per controller, but allow extra due to USB timing
+            setTimeout(function drain_delayed() //return data should be no more than 1 char time (44 usec) per controller, but allow extra due to USB timing
             {
                 console.log("%d bytes avail, latest came at %d msec", this.rdlen, this.latest);
                 console.log(this.buffer.slice(0, this.rdlen));
@@ -972,7 +1322,8 @@ RenXtBuffer.prototype.flush = function(cb)
     }.bind(this));
 }
 
-RenXtBuffer.prototype.SelectAdrs = function(adrs)
+RenXtBuffer.prototype.SelectAdrs =
+function SelectAdrs(adrs)
 {
     this
         .emit_raw(RenXt.RENARD_SYNC)
@@ -980,9 +1331,10 @@ RenXtBuffer.prototype.SelectAdrs = function(adrs)
     return this; //fluent
 }
 
-RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
+RenXtBuffer.prototype.SetConfig =
+function SetConfig(adrs, node_type, node_bytes)
 {
-    if (typeof node_type == 'undefined') node_type = RenXt.WS2811(RenXt.SERIES);
+//    if (typeof node_type == 'undefined') node_type = RenXt.WS281X(RenXt.SERIES);
     this
         .emit_raw(RenXt.RENARD_SYNC)
         .emit_raw(adrs)
@@ -997,14 +1349,15 @@ RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
     this
         .emit_raw(RenXt.RENARD_SYNC)
         .emit_raw(adrs)
-        .emit_opc(RenXt.SETTYPE(node_type)) //changes value if nodes not already sent
+        .emit_opc(RenXt.SETTYPE(node_type || DefaultNodeType)) //changes value if nodes not already sent
 //NOTE: 1.14 firmware does NOT do a SetAll after setting node type
         .emit_opc(RenXt.NODEBYTES) //sets node count to next byte (prep for clear-all or set-all); no wait states so group it with SetType
-        .emit_byte(node_bytes); //ABS(prop->desc.numnodes) / 2);
+        .emit_byte(node_bytes || 16); //ABS(prop->desc.numnodes) / 2);
     return this; //fluent
 }
 
-RenXtBuffer.prototype.SetPal = function(/*adrs,*/ colors, order)
+RenXtBuffer.prototype.SetPal =
+function SetPal(/*adrs,*/ colors, order)
 {
 //    if (arguments.length < 2) { colors = adrs; adrs = undefined; } //shuffle optional params
     if ((typeof colors != 'object') || !colors.length) colors = arguments; //if (!Array.isArray(colors)) colors = arguments;
@@ -1015,12 +1368,18 @@ RenXtBuffer.prototype.SetPal = function(/*adrs,*/ colors, order)
 //        .emit_raw(RenXt.RENARD_SYNC)
 //        .emit_raw(adrs);
     this.emit_opc(RenXt.SETPAL(colors.length));
-//    Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function(color, inx)
-    colors.forEach(function(color, inx) { this['emit_' + (order || 'RGB').toLowerCase()](color >>> 0); }.bind(this));
+//    Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function pal_each(color, inx)
+    colors.forEach(function pal_each(color, inx)
+    {
+        var method = 'emit_' + (order || 'RGB').toLowerCase();
+        if (!this[method]) throw "No " + method + " method";
+        this[method](color >>> 0);
+    }.bind(this));
     return this; //fluent
 }
 
-RenXtBuffer.prototype.NodeFlush = function() //adrs)
+RenXtBuffer.prototype.NodeFlush =
+function NodeFlush(wait_states) //adrs)
 {
 //    if (typeof adrs != 'undefined') this //start new block
 //        .emit_raw(RenXt.RENARD_SYNC)
@@ -1030,22 +1389,26 @@ RenXtBuffer.prototype.NodeFlush = function() //adrs)
 //latest: 5 MIPS: 48 => 8, 36 => 5, 20 => 2, 10 => 0
 //timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
 //???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
-        .pad(10); //TODO: interleave + wait states
+//        .pad(10); //TODO: interleave + wait states
+        .delay_next(wait_states(RenXt.NODEFLUSH)); //force to end of packet to avoid idle comm time
     return this; //fluent
 }
 
-RenXtBuffer.prototype.SetAll = function(/*adrs,*/ palinx)
+RenXtBuffer.prototype.SetAll =
+function SetAll(/*adrs,*/ palinx, wait_states)
 {
 //    if (typeof adrs != 'undefined') this //start new block
 //        .emit_raw(RenXt.RENARD_SYNC)
 //        .emit_raw(adrs);
     this
         .emit_opc(RenXt.SETALL(palinx))
-        .pad(10); //TODO: interleave + wait states
+//        .pad(10); //TODO: interleave + wait states
+        .delay_next(wait_states(RenXt.SETALL)); //force interleave to avoid idle comm time
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_buf = function(buf, len)
+RenXtBuffer.prototype.emit_buf =
+function emit_buf(buf, len)
 {
 //    if (typeof buf == 'string') buf = new Buffer(buf)
     if (arguments.length < 2) len = buf.length || 0;
@@ -1054,17 +1417,21 @@ RenXtBuffer.prototype.emit_buf = function(buf, len)
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_rawbuf = function(buf, len)
+
+RenXtBuffer.prototype.emit_rawbuf =
+function emit_rawbuf(buf, len)
 {
 //    len = len || buf.length || 0;
     if (arguments.length < 2) len = buf.length || 0;
+//    if (typeof buf == 'string') buf. //make caller do it
 //    for (var ofs = 0; ofs < len; ++ofs) this.emit_raw(values[ofs]); //copy byte-by-byte to handle special chars and padding; caller is responsible for escapes
     /*if (this.wrlen + len <= this.buffer.length)*/ buf.copy(this.buffer, this.wrlen, 0, len);
     this.wrlen += len;
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_rgb = function(rgb) //ensure correct byte order
+RenXtBuffer.prototype.emit_rgb =
+function emit_rgb(rgb) //ensure correct byte order
 {
 //NOTE: send each byte separately in case of special char conflict
     this.emit_byte(rgb >> 16); //RGB2R(rgb));
@@ -1074,7 +1441,19 @@ RenXtBuffer.prototype.emit_rgb = function(rgb) //ensure correct byte order
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_bgr = function(rgb) //ensure correct byte order
+RenXtBuffer.prototype.emit_grb =
+function emit_grb(grb) //ensure correct byte order
+{
+//NOTE: send each byte separately in case of special char conflict
+    this.emit_byte(grb >> 8); //RGB2G(rgb));
+    this.emit_byte(grb >> 16); //RGB2R(rgb));
+    this.emit_byte(grb); //RGB2B(rgb));
+//    this.buffer.writeUInt32BE(rgb << 8, ofs); ofs += 3;
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.emit_bgr =
+function emit_bgr(rgb) //ensure correct byte order
 {
 //NOTE: send each byte separately in case of special char conflict
     this.emit_byte(bgr); //RGB2B(rgb));
@@ -1084,7 +1463,8 @@ RenXtBuffer.prototype.emit_bgr = function(rgb) //ensure correct byte order
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_uint32 = function(val) //ensure correct byte order
+RenXtBuffer.prototype.emit_uint32 =
+function emit_uint32(val) //ensure correct byte order
 {
 //NOTE: send each byte separately in case of special char conflict; can't use raw 32 because val might contain special bytes that need to be escaped
     this.emit_byte(val >> 24); //val / 0x1000000);
@@ -1095,7 +1475,8 @@ RenXtBuffer.prototype.emit_uint32 = function(val) //ensure correct byte order
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_uint16 = function(val, count) //ensure correct byte order
+RenXtBuffer.prototype.emit_uint16 =
+function emit_uint16(val, count) //ensure correct byte order
 {
     if (typeof count === 'undefined') count = 1;
     while (count-- > 0)
@@ -1106,7 +1487,8 @@ RenXtBuffer.prototype.emit_uint16 = function(val, count) //ensure correct byte o
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_uint16_raw = function(val, count) //ensure correct byte order
+RenXtBuffer.prototype.emit_uint16_raw =
+function emit_uint16_raw(val, count) //ensure correct byte order
 {
 //    emit_raw(val / 0x100);
 //    emit_raw(val % 0x100);
@@ -1119,14 +1501,24 @@ RenXtBuffer.prototype.emit_uint16_raw = function(val, count) //ensure correct by
     return this; //fluent
 }
 
-RenXtBuffer.prototype.emit_opc = function(value, count)
+RenXtBuffer.prototype.emit_opc =
+function emit_opc(value, count)
 {
     this.stats_opc[value] += count || 1;
     this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case
     return this; //fluent
 }
 
-RenXtBuffer.prototype.pad = function(count)
+RenXtBuffer.prototype.delay_next =
+function delay_next(count)
+{
+    if (count < 1) return; //no need for wait
+    this.waits.push({ofs: this.wrlen, delay: count || 1}); //set wait state for current opcode
+    return this; //fluent
+}
+
+RenXtBuffer.prototype.pad =
+function pad(count)
 {
     this.since_pad = 0; //avoid recursion
     this.emit_raw(RenXt.RENARD_PAD, count);
@@ -1136,7 +1528,8 @@ RenXtBuffer.prototype.pad = function(count)
 }
 
 //if (sport.emit) console.log("emit was already there".red);
-RenXtBuffer.prototype.emit_byte = function(value, count)
+RenXtBuffer.prototype.emit_byte =
+function emit_byte(value, count)
 {
     if (RenXt.IsRenardSpecial(value)) this.emit_uint16_raw((RenXt.RENARD_ESCAPE << 8) | (value & 0xFF), count);
 //            ++stats_opc[RENARD_ESCAPE];
@@ -1146,10 +1539,11 @@ RenXtBuffer.prototype.emit_byte = function(value, count)
 }
 
 //if (sport.emit_raw) console.log("emit_raw was already there".red);
-RenXtBuffer.prototype.emit_raw = function(value, count)
+RenXtBuffer.prototype.emit_raw =
+function emit_raw(value, count)
 {
     if (typeof count === 'undefined') count = 1;
-    while (count -- > 0)
+    while (count-- > 0)
     {
 //            debug(90, "%semit_raw 0x.6%x to ofs %d", (used < frbuf.size())? "": "not-", value, used);
 //        if (used < frbuf.size()) frbuf[used++] = value;  //track length regardless of overflow
@@ -1166,7 +1560,8 @@ RenXtBuffer.prototype.emit_raw = function(value, count)
     return this; //fluent
 }
 
-RenXtBuffer.prototype.readreq = function(ctlr_adrs, mem_adrs, len)
+RenXtBuffer.prototype.readreq =
+function readreq(ctlr_adrs, mem_adrs, len)
 {
 //    if (!this.hasroom(len)) return;
     this
@@ -1184,63 +1579,147 @@ RenXtBuffer.prototype.readreq = function(ctlr_adrs, mem_adrs, len)
 }
 
 
-RenXtBuffer.prototype.deque_sync = function(skip)
+//remove part of buffer (intended for parsing):
+RenXtBuffer.prototype.remove =
+function remove(ofs, len)
 {
-//    debug(99, "deque(skip %d): used %d, rdofs 0x%x, buf 0x%x", skip, used, rdofs, (rdofs < frbuf.size())? frbuf[rdofs]: -1);
-    if (!skip) return (this.deque_raw() == RenXt.RENARD_SYNC);
+    if (typeof ofs == 'undefined') ofs = 0;
+    if (typeof len == 'undefined') len = (this.rdlen || this.wrlen) - ofs;
+    if ((this.rdlen || this.wrlen) > ofs + len) this.buffer.copy(this.buffer, ofs, ofs + len, this.rdlen || this.wrlen);
+    if (this.rdofs >= ofs + len) this.rdofs -= len;
+    else if (this.rdofs >= ofs) this.rdofs = ofs;
+    if (this.rdlen >= ofs + len) this.rdlen -= len;
+    else if (this.rdlen >= ofs) this.rdlen = ofs;
+}
+
+
+//parse a packet:
+//consists of: one or more syncs (optional, caller selectable), literal bytes/opcodes, variable (data) bytes for a read/status opcode
+//since variable data opcodes must end with sync, there can only be one variable data field in each packet and it occurs at the end
+RenXtBuffer.prototype.parse =
+function parse(want_sync, ignore_trailer)
+{
+//debugger;
+    var retval = {};
+    retval.numsync = 0;
+    if (this.isempty()) return null;
+    var svofs = this.rdofs, byte, num_bytes;
+    while ((byte = this.deque_byte()) == RenXt.RENARD_SYNC) ++retval.numsync; //skip over multiple Syncs
+    if (!(byte & REN_EOF)) --this.rdofs; //preserve last non-sync byte
+//    retval.numsync = this.rdofs - svofs;
+    if (want_sync)
+    {
+        if (!retval.numsync) logger(120, "missing sync @'%d/%d: %s".blue, svofs, this.rdlen /*buffer.length*/, this.buffer.slice(svofs, this.rdlen).toString()); //this.buffer.length)); //TODO: discard?
+        if ((want_sync === 1) && (retval.numsync > 1)) logger(120, "too many syncs %d @'%d/%d: %s", retval.numsync, svofs, this.rdlen /*this.buffer.length*/, this.buffer.slice(svofs, this.rdlen).toString()); //TODO: discard?
+        retval.adrs = this.deque_byte();
+        if (retval.adrs & REN_EOF) retval.adrs = null; //TODO: discard? can't be Sync (loop above ate all Syncs)
+    }
+    svofs = this.rdofs;
+    num_bytes = 0;
+    var opc_trailer = 0;
     for (;;)
     {
-        if ((this.rdofs + 1 < this.rdlen) && (this.buffer[this.rdofs] == RenXt.RENARD_ESCAPE)) { this.rdofs += 2; continue; } //not a real Sync
+        if ((byte = this.deque_byte()) == RENXt.RENARD_SYNC) { --this.rdofs; break; } //preserve Sync for next packet
+        if (byte & REN_EOF) break;
+        ++num_bytes;
+        if (opc_trailer && !--opc_trailer) break;
+//Const_RENXt('DataOpcodes', {RENXt.READ_REG: 2, RENXt.ACK: 0});
+        if (!opc_trailer && (byte in RENXt.DataOpcodes)) opc_trailer = RENXt.DataOpcodes[byte]; //{ num_bytes += RENXt.DataOpcodes[byte]; break; } //include fixed length of opcode
+    }
+    this.rdofs = svofs;
+    if (!num_bytes) logger(120, "no lit bytes @'%d/%d: %s".blue, svofs, this.rdlen /*this.buffer.length*/, this.buffer.slice(svofs, this.rdlen).toString()); //buffer.length));
+    retval.lit = this.deque_buf(num_bytes); //(this.rdofs != svofs)? this.buffer.slice(svofs, this.rdofs): null;
+    svofs = this.rdofs;
+    num_bytes = 0;
+    for (;;)
+    {
+        if ((byte = this.deque_byte()) == RENXt.RENARD_SYNC) { --this.rdofs; break; } //preserve Sync for next packet
+        if (byte & REN_EOF) break;
+        ++num_bytes;
+    }
+    this.rdofs = svofs;
+    retval.data = this.deque_buf(num_bytes); //(this.rdofs != svofs)? this.buffer.slice(svofs, this.rdofs): null;
+    if (this.deque_byte() == RENXt.RENARD_SYNC) { --this.rdofs; retval.ok = true; } //preserve Sync for next packet
+    else
+    {
+        if (want_sync) logger(120, "incomplete packet (missing trailing Sync) @'%d/%d: %s".blue, svofs, this.rdlen /*this.buffer.length*/, this.buffer.slice(svofs, this.rdlen).toString()); //buffer.length));
+        if (!ignore_trailer) retval = null; //don't give back partial packets //.ok = true;
+    }
+    return retval; //retval.ok? retval: null;
+}
+
+
+//RenXtBuffer.prototype.expect =
+//function expect(char, eof_match)
+//{
+//}
+
+
+RenXtBuffer.prototype.deque_sync =
+function deque_sync(skip_junk)
+{
+//    debug(99, "deque_sync(skip? %s): used %s, rdofs 0x%s, buf 0x%s", skip_junk, used, rdofs.toString(16), ((rdofs < frbuf.size())? frbuf[rdofs]: -1).toString(16));
+    if (!skip_junk) return (this.deque_raw() == RenXt.RENARD_SYNC);
+    for (;;)
+    {
+        if (!this.isempty(1) /*(this.rdofs + 1 < this.rdlen)*/ && (this.buffer[this.rdofs] == RenXt.RENARD_ESCAPE)) { this.rdofs += 2; continue; } //not a real Sync
         if (this.deque_raw() != RenXt.RENARD_SYNC) continue;
-        while ((this.rdofs < this.rdlen) && (this.buffer[this.rdofs] == RenXt.RENARD_SYNC)) ++this.rdofs; //consume multiple Sync if there
+        while (!this.isempty() /*(this.rdofs < this.rdlen)*/ && (this.buffer[this.rdofs] == RenXt.RENARD_SYNC)) ++this.rdofs; //consume multiple Sync if there
         return true;
     }
 }
 
-RenXtBuffer.prototype.deque_uint16 = function() //ensure correct byte order
+RenXtBuffer.prototype.deque_uint16 =
+function deque_uint16() //ensure correct byte order
 {
-    var retval = this.deque() << 8; //big endian
-    retval |= this.deque();
+    var retval = this.deque_byte() << 8; //big endian
+    retval |= this.deque_byte();
     return retval;
 }
 
-RenXtBuffer.prototype.deque_buf = function(len)
+RenXtBuffer.prototype.deque_buf =
+function deque_buf(len)
 {
+    if (len < 1) return null;
     var retbuf = new Buffer(len);
     for (var ofs = 0; ofs < len; ++ofs)
-        retbuf[ofs] = this.deque(); //copy byte-by-byte to handle special chars and padding
+        retbuf[ofs] = this.deque_byte(); //copy byte-by-byte to handle special chars and padding
     return retbuf;
 }
 
-RenXtBuffer.prototype.deque = function()
+RenXtBuffer.prototype.deque_byte =
+function deque_byte(eof_value)
 {
-    if ((this.rdofs < this.rdlen) && (this.buffer[this.rdofs] == RenXt.RENARD_ESCAPE)) ++this.rdofs;
-    return this.deque_raw();
+    var esc_bit = 0;
+    if (!this.isempty() /*(this.rdofs < this.rdlen)*/ && (this.buffer[this.rdofs] == RenXt.RENARD_ESCAPE)) { ++this.rdofs; esc_bit = 0x100; }
+    return this.deque_raw(eof_value) | esc_bit; //adorn escaped chars so caller can distinguish Sync from data containing a Sync char
 }
 
-RenXtBuffer.prototype.deque_raw = function()
+RenXtBuffer.prototype.deque_raw =
+function deque_raw(eof_value)
 {
-    if (this.rdofs < this.rdlen) return this.PrevByte = this.buffer[this.rdofs++];
-    return RenXt.RENARD_SYNC; //simulate Sync if past end of buffer
+    if (!this.isempty() /*this.rdofs < this.rdlen*/) return /*this.PrevByte =*/ this.buffer[this.rdofs++];
+    return /*this.PrevByte =*/ ((typeof eof_value != 'undefined')? eof_value: RenXt.RENARD_SYNC) | 0x200; //simulate Sync if past end of buffer (trying for benign effect on parsing loops)
 }
 
-RenXtBuffer.prototype.deque_readreq = function(ctlr_adrs, mem_adrs, len)
+RenXtBuffer.prototype.deque_readreq =
+function deque_readreq(ctlr_adrs, mem_adrs, len)
 {
     var uint8, uint16;
     for (;;)
     {
         if (this.isempty()) return false;
         if (!this.deque_sync(true)) { console.log("no sync for ctlr 0x%s @'0x%s", ctlr_adrs.toString(16), this.rdofs.toString(16)); return false; } //skip multiple syncs (useful for loopback test)
-        uint8 = this.deque();
+        uint8 = this.deque_byte();
         if ((uint8 & 0x7F) != ctlr_adrs) { console.log("wrong controller: got 0x%s vs expected 0x%s @'0x%s", uint8.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
         else if (uint8 != (ctlr_adrs | 0x80)) { console.log("no response from controller 0x%s @'0x%s", ctlr_adrs.toString(16), this.rdofs.toString(16)); return false; } //continue; }
-        uint8 = this.deque();
+        uint8 = this.deque_byte();
         if (uint8 != RenXt.READ_REG) { console.log("wrong command: got 0x%s vs. expected 0x%s for ctlr 0x%s @'0x%s", uint8.toString(16), RenXt.READ_REG.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
         uint16 = this.deque_uint16();
         if (uint16 != mem_adrs) { console.log("wrong address: got 0x%s vs. expected 0x%s for ctlr 0x%s @'0x%s", uint16.toString(16), mem_adrs.toString(16), ctlr_adrs.toString(16), this.rdofs.toString(16)); continue; }
         break;
     }
-//    while (len -- > 0) *(((byte*)buf)++) = out.deque();
+//    while (len -- > 0) *(((byte*)buf)++) = out.deque_byte();
     return this.deque_buf(Math.floor(len * 1.2));
 }
 

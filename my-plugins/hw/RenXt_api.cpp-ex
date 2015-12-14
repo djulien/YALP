@@ -3095,7 +3095,7 @@ bool EncodeNodes(MyOutStream& out, PropInfo* prop, RenXt_Stats* stats, int inx, 
                 int prevbank = NodeBank(0), prevofs = NodeOffset(0);
 //no!                int node2grp = prop->isparapal? 4: 1;
                 debug(10, "send node list esc 0x%x, now send %d nodes, split every %u bytes", node_esc, it->node_list.size(), split_len);
-                checkpoint(__LINE__);
+                checkpoint(__LINE__);NodeBank
                 for (auto /*std::vector<int>::iterator*/ nodeptr = it->node_list.begin(); nodeptr != it->node_list.end(); ++nodeptr)
                 {
 #ifdef SPLITABLE
