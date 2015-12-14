@@ -15,7 +15,7 @@ function dim(rgba, brightness)
 {
     if (!brightness) return 0x000000FF; //solid black
     if (!rgba) throw "Dim: no color found"; //this will cause dropped data so check it first (need at least alpha set)
-    if ((brightness == 255) && (typeof rgba == 'number')) return rgba; //no dimming needed
+    if ((brightness == 255) && (typeof rgba == 'number')) return rgba; //no dimming or parsing needed
     rgba = color_cache(rgba + '^' + brightness, function()
     {
         var c;

@@ -94,7 +94,7 @@ Vix2Fx.prototype.rawbuf = function rawbuf(data)
         if ((this.opts.dedup !== false) && /*model.priorbuf*/ data.time && !bufdiff(this.vix2.chbuf, this.vix2.prior)) return; //no change
 //        model.priorbuf = partbuf; //CAUTION: ref to parent buffer
         this.vix2render(data.time, this.parent.vix2.chbuf); //partbuf); //project vix2 channels onto model canvas; use full chbuf to preserve offsets
-        this.dirty = true;
+//no        this.dirty = true; //let vix2render decide whether to do this
         return;
     }
     if (data.dup) return; //already deduped; no change to channel data

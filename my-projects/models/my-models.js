@@ -85,7 +85,7 @@ function profile(pro)
             if (matches = chname.match(re)) { map(grpname, chname); return false; } //break;
             return true; //continue
         });
-        if (notfound) console.log("unmapped channel[%s/%s]: %j", chname, vix2prof.channels.length, ch);
+        if (notfound) logger("unmapped channel[%s/%s]: %j", chname, vix2prof.channels.length, ch);
     });
 
     function map(group, inx)
@@ -103,7 +103,7 @@ function show_group(name, range_check)
 {
     chmap[name].forEach(function(ch, chname, grp)
     {
-        console.log("%s[%s/%s]: %j", name, chname, grp.length, ch);
+        logger("%s[%s/%s]: %j", name, chname, grp.length, ch);
     });
     var okch = {};
     var ranges = Array.from(arguments).slice(1);
@@ -119,10 +119,10 @@ function show_group(name, range_check)
 //        if (ch.index < minch) minch = ch.index;
 //        if (ch.index > maxch) maxch = ch.index;
         if (typeof okch[ch.index] !== 'undefined') return true;
-        console.log("BAD RANGE [%s/%s]: %j".red, chname, grp.length, ch);
+        logger("BAD RANGE [%s/%s]: %j".red, chname, grp.length, ch);
         return false;
     });
-    if (ok) console.log("%s RANGE OK".green, name);
+    if (ok) logger("%s RANGE OK".green, name);
     else throw name + " RANGE BAD";
 }
 
@@ -145,11 +145,11 @@ chmap.forEach(function(chgrp, grpname)
 chmap = {}; mapped = 0;
 vix2prof = vix2.Profile(glob.sync(path.join(__dirname, '**', '*RGB*.pro'))[0]);
 if (vix2prof) profile(vix2prof);
-console.log("%d/%d unused (%d%%)"[(chmap.unused || []).length? 'red': 'green'], (chmap.unused || []).length, vix2prof.channels.length, Math.round(100 * (chmap.unused || []).length / vix2prof.channels.length));
-console.log("%d/%d unmapped ch remain (%d%%)"[(mapped != vix2prof.channels.length)? 'red': 'green'], vix2prof.channels.length - mapped, vix2prof.channels.length, Math.round(100 * (vix2prof.channels.length - mapped) / vix2prof.channels.length));
+logger("%d/%d unused (%d%%)"[(chmap.unused || []).length? 'red': 'green'], (chmap.unused || []).length, vix2prof.channels.length, Math.round(100 * (chmap.unused || []).length / vix2prof.channels.length));
+logger("%d/%d unmapped ch remain (%d%%)"[(mapped != vix2prof.channels.length)? 'red': 'green'], vix2prof.channels.length - mapped, vix2prof.channels.length, Math.round(100 * (vix2prof.channels.length - mapped) / vix2prof.channels.length));
 chmap.forEach(function(chgrp, grpname)
 {
-    console.log("mapped group '%s' contains %d channels", grpname, chgrp.length);
+    logger("mapped group '%s' contains %d channels", grpname, chgrp.length);
 });
 */
 
@@ -198,7 +198,7 @@ macro_fx.vix2render = function(frtime, vix2buf)
     this.rgba = (vix2buf[396] << 24) | (vix2buf[397] << 16) | (vix2buf[398] << 8) | vix2buf[395];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s %s %s %s => text %s color %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.text || '(none)', hex8(this.rgba || 0));
+    logger("%s vix2render[%s] '%s: %s %s %s %s %s => text %s color %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.text || '(none)', hex8(this.rgba || 0));
 }
 
 //show_group('snglobe', [300, +2], [418, +2]);
@@ -207,68 +207,80 @@ snglobe_fx.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++]);
+    logger("%s vix2render[%s] '%s: %s %s => TODO", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++]);
 }
 
 var gdoor_fx = new Model2D({name: 'gdoor-fx', y: 0, w: 2, zinit: false, vix2ch: [298, +2], vix2alt: [416, +2], macro: +0, bitmap: +1});
+gdoor_fx.onfinish = function()
+{
+    if (!this.unknowns) return;
+    var buf = '';
+    this.unknowns.forEach(function(count, key) { buf += ', ' + key + '=' + count; }); //logger("gdoor unknown: %s occurs %s", key, count); });
+    logger("gdoor unknowns: %s", buf.substr(2));
+} //opc, this.unknowns.toString()); }
 gdoor_fx.vix2render = function(frtime, vix2buf)
 {
 //from CustomFx.cs 2013:
+    var macro = '', bitmap = '';
     switch (vix2buf[416]) //macro
     {
-        case 0: break; //Noop
-        case 180: this.MyFx.vix2.EqBar0.call(this); break;
-        case 181: this.MyFx.vix2.EqBar1.call(this); break;
-        case 182: this.MyFx.vix2.EqBar2.call(this); break;
-        case 183: this.MyFx.vix2.EqBar3.call(this); break;
-        case 184: this.MyFx.vix2.EqBar4.call(this); break;
-        case 200: this.MyFx.vix2.FillBkg.call(this); break;
-        case 201: this.MyFx.vix2.FillFg.call(this); break;
-        case 202: this.MyFx.vix2.FillRGBTest.call(this); break;
-        case 203: this.MyFx.vix2.BTWipe.call(this); break;
-        case 204: this.MyFx.vix2.TBWipe.call(this); break;
-        case 205: this.MyFx.vix2.LRWipe.call(this); break;
-        case 206: this.MyFx.vix2.MidWipe.call(this); break;
-        case 207: this.MyFx.vix2.EdgeWipe.call(this); break;
-        case 208: this.MyFx.vix2.Spiral.call(this); break;
-        case 209: this.MyFx.vix2.GECETest_zzud.call(this); break;
-        case 210: this.MyFx.vix2.GECETest_zzlr.call(this); break;
-        case 211: this.MyFx.vix2.DrawBorder.call(this); break;
-        case 212: this.MyFx.vix2.BTLine.call(this); break;
-        case 213: this.MyFx.vix2.LRLine.call(this); break;
-        case 214: this.MyFx.vix2.SpiralLine.call(this); break;
-        case 215: this.MyFx.vix2.DrawColumn0.call(this); break;
-        case 216: this.MyFx.vix2.DrawColumn1.call(this); break;
-        case 217: this.MyFx.vix2.DrawColumn2.call(this); break;
-        case 218: this.MyFx.vix2.DrawColumn3.call(this); break;
-        case 219: this.MyFx.vix2.DrawRow.call(this); break;
-        case 220: this.MyFx.vix2.Snow.call(this); break;
-        case 221: this.MyFx.vix2.DrawCorners.call(this); break;
-        case 222: this.MyFx.vix2.Fade.call(this); break;
-        case 223: this.MyFx.vix2.Ramp.call(this); break;
-        case 224: this.MyFx.vix2.TreeEcho.call(this); break;
-        case 225: this.MyFx.vix2.SwirlCw.call(this); break;
-        case 226: this.MyFx.vix2.SwirlCcw.call(this); break;
-        case 227: this.MyFx.vix2.Burst.call(this); break;
-        case 233: this.MyFx.vix2.ShowBitmap.call(this); break;
-        case 234: this.MyFx.vix2.ShowText.call(this); break;
-        case 235: this.MyFx.vix2.Countdown.call(this); break;
-        case 236: this.MyFx.vix2.Timer.call(this); break;
-        case 240: this.MyFx.vix2.Chase.call(this); break;
-        case 241: this.MyFx.vix2.Talk.call(this); break;
-        case 242: this.MyFx.vix2.One2Many.call(this); break;
-        case 243: this.MyFx.vix2.SpiralXition.call(this); break;
+        case 0: macro = 'Noop'; break;
+        case 180: macro = 'EqBar0'; break; this.MyFx.vix2.EqBar0.call(this); break;
+        case 181: macro = 'EqBar1'; break; this.MyFx.vix2.EqBar1.call(this); break;
+        case 182: macro = 'EqBar2'; break; this.MyFx.vix2.EqBar2.call(this); break;
+        case 183: macro = 'EqBar3'; break; this.MyFx.vix2.EqBar3.call(this); break;
+        case 184: macro = 'EqBar4'; break; this.MyFx.vix2.EqBar4.call(this); break;
+        case 200: macro = 'FillBkg'; break; this.MyFx.vix2.FillBkg.call(this); break;
+        case 201: macro = 'FillFg'; break; this.MyFx.vix2.FillFg.call(this); break;
+        case 202: macro = 'FillRGBTest'; break; this.MyFx.vix2.FillRGBTest.call(this); break;
+        case 203: macro = 'BTWipe'; break; this.MyFx.vix2.BTWipe.call(this); break;
+        case 204: macro = 'TBWipe'; break; this.MyFx.vix2.TBWipe.call(this); break;
+        case 205: macro = 'LRWipe'; break; this.MyFx.vix2.LRWipe.call(this); break;
+        case 206: macro = 'MidWipe'; break; this.MyFx.vix2.MidWipe.call(this); break;
+        case 207: macro = 'EdgeWipe'; break; this.MyFx.vix2.EdgeWipe.call(this); break;
+        case 208: macro = 'Spiral'; break; this.MyFx.vix2.Spiral.call(this); break;
+        case 209: macro = 'GECETest_zzud'; break; this.MyFx.vix2.GECETest_zzud.call(this); break;
+        case 210: macro = 'FECETest_zzlr'; break; this.MyFx.vix2.GECETest_zzlr.call(this); break;
+        case 211: macro = 'DrawBorder'; break; this.MyFx.vix2.DrawBorder.call(this); break;
+        case 212: macro = 'BTLine'; break; this.MyFx.vix2.BTLine.call(this); break;
+        case 213: macro = 'LRLine'; break; this.MyFx.vix2.LRLine.call(this); break;
+        case 214: macro = 'SpiralLine'; break; this.MyFx.vix2.SpiralLine.call(this); break;
+        case 215: macro = 'DrawColumn0'; break; this.MyFx.vix2.DrawColumn0.call(this); break;
+        case 216: macro = 'DrawColumn1'; break; this.MyFx.vix2.DrawColumn1.call(this); break;
+        case 217: macro = 'DrawColumn2'; break; this.MyFx.vix2.DrawColumn2.call(this); break;
+        case 218: macro = 'DrawColumn3'; break; this.MyFx.vix2.DrawColumn3.call(this); break;
+        case 219: macro = 'DrawRow'; break; this.MyFx.vix2.DrawRow.call(this); break;
+        case 220: macro = 'Snow'; break; this.MyFx.vix2.Snow.call(this); break;
+        case 221: macro = 'DrawCorners'; break; this.MyFx.vix2.DrawCorners.call(this); break;
+        case 222: macro = 'Fade'; break; this.MyFx.vix2.Fade.call(this); break;
+        case 223: macro = 'Ramp'; break; this.MyFx.vix2.Ramp.call(this); break;
+        case 224: macro = 'TreeEcho'; break; this.MyFx.vix2.TreeEcho.call(this); break;
+        case 225: macro = 'SwirlCw'; break; this.MyFx.vix2.SwirlCw.call(this); break;
+        case 226: macro = 'SwirlCcw'; break; this.MyFx.vix2.SwirlCcw.call(this); break;
+        case 227: macro = 'Burst'; break; this.MyFx.vix2.Burst.call(this); break;
+        case 233: macro = 'ShowBitmap'; break; this.MyFx.vix2.ShowBitmap.call(this); break;
+        case 234: macro = 'ShowText'; break; this.MyFx.vix2.ShowText.call(this); break;
+        case 235: macro = 'Countdown'; break; this.MyFx.vix2.Countdown.call(this); break;
+        case 236: macro = 'Timer'; break; this.MyFx.vix2.Timer.call(this); break;
+        case 240: macro = 'Chase'; break; this.MyFx.vix2.Chase.call(this); break;
+        case 241: macro = 'Talk'; break; this.MyFx.vix2.Talk.call(this); break;
+        case 242: macro = 'One2Many'; break; this.MyFx.vix2.One2Many.call(this); break;
+        case 243: macro = 'SpiralXition'; break; this.MyFx.vix2.SpiralXition.call(this); break;
 //        case 244:
 //        case 247:
 //        case 251:
 //        case 255:
         default:
-            logger(10, "Gdoor: unknown macro: %d".red, vix2buf[416]); break; //TODO
+            macro = '??' + vix2buf[416] + '??';
+            if (!this.unknowns) this.unknowns = {};
+            if (isNaN(++this.unknowns['M' + vix2buf[416]])) this.unknowns['M' + vix2buf[416]] = 1;
+//            logger(10, "Gdoor: unknown macro: %d".red, vix2buf[416]); break; //TODO
 //        default: throw "Gdoor: unhandled macro " + vix2buf[416];
     }
+    if (macro == 'ShowBitmap')
     switch (vix2buf[417]) //bitmap
     {
-        case 0: break;
+        case 0: this.bitmap = ''; break;
         case 120: this.bitmap = "Cross-Scroll+Fade.bmp"; break; //loop="-1" hscroll="-1/4"
         case 121: this.bitmap = "globe-ani.bmp"; break; //loop="-1" hscroll="-1/4"
         case 122: this.bitmap = "Emmanuel-static+rainbow.bmp"; break; //loop="-1" hscroll="-1/4"
@@ -287,12 +299,15 @@ gdoor_fx.vix2render = function(frtime, vix2buf)
 //        case 177:
 //        case 180:
         default:
-            logger(10, "Gdoor: unknown bitmap: %d".red, vix2buf[417]); break; //TODO
+            this.bitmap = '??' + vix2buf[417] + '??';
+            if (!this.unknowns) this.unknowns = {};
+            if (isNaN(++this.unknowns['B' + vix2buf[417]])) this.unknowns['B' + vix2buf[417]] = 1;
+//            logger(10, "Gdoor: unknown bitmap: %d".red, vix2buf[417]); break; //TODO
 //        default: throw "Gdoor: unhandled bitmap " + vix2buf[417];
     }
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s => fx %s, bitmap %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], this.fxname, this.bitmap);
+    logger("%s vix2render[%s] '%s: %s %s => fx %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], (macro != 'ShowBitmap')? macro: this.bitmap);
 }
 
 //archfans near bottom:
@@ -316,7 +331,7 @@ tune_to.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s", this.name, frtime, ch, vix2buf[ch++]);
+    logger("%s vix2render[%s] '%s: %s", this.name, frtime, ch, vix2buf[ch++]);
 }
 
 /*
@@ -356,7 +371,7 @@ sh_bank.vix2render = function(frtime, vix2buf)
     this.sheepColor = SheColors[(vix2buf[116]? 1: 0) + (vix2buf[115]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s %s %s => shep %s, canes %s, sheep %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.shepColor, this.caneColor, this.sheepColor);
+    logger("%s vix2render[%s] '%s: %s %s %s %s => shep %s, canes %s, sheep %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], this.shepColor, this.caneColor, this.sheepColor);
 }
 
 /*
@@ -382,7 +397,7 @@ acc.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    logger("%s vix2render[%s] '%s: %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
 }
 //show_group('acc_bank', [101, +2]);
 var acc_bank = new Model2D({name: 'acc-bank', w: 2, zinit: false, vix2ch: [101, +2], on23_off01: 101, on13_off02: 102});
@@ -392,7 +407,7 @@ acc_bank.vix2render = function(frtime, vix2buf)
     this.bankAcc = AccBanks[(vix2buf[101]? 2: 0) + (vix2buf[102]? 1: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s => %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], this.bankAcc);
+    logger("%s vix2render[%s] '%s: %s %s => %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], this.bankAcc);
 }
 
 
@@ -423,7 +438,7 @@ var gdoor_all = new Model2D({name: 'gdoor-all', x: gdoorL.left, y: 33, w: gdoorR
 //(0, 0) in lower left corner
 Model2D.prototype.ColumnNodes = function()
 {
-//    console.log("columns: %s x %s @(%s..%s, %s..%s)", this.width, this.height, this.left, this.right, this.bottom, this.top);
+//    logger("columns: %s x %s @(%s..%s, %s..%s)", this.width, this.height, this.left, this.right, this.bottom, this.top);
     for (var i = 0; i < 37+42+1; ++i)
         if (i < 37) this.nodelist.push(this.pixelXY(this.left + 0, /*this.bottom +*/ this.T2B(i))); //colL is upper part of left edge of canvas
         else if (i < 37+42) this.nodelist.push(this.pixelXY(this.left + i - 37, this.bottom + 0)); //colH is bottom edge of canvas
@@ -434,7 +449,7 @@ Model2D.prototype.ColumnNodes = function()
         this.nodelist.push((y < 50)? this.pixelXY(this.right - 1, /*this.bottom +*/ this.T2B(y)): null);
     for (var y = 0; y < 80; ++y)
         this.nodelist.push(null); //set 4th parallel string even tho there is no hardware; this reduces parallel palette entropy
-//    console.log("columns %d nodes", this.nodelist.length);
+//    logger("columns %d nodes", this.nodelist.length);
 }
 
 //show_group('col', [181, +24]);
@@ -460,7 +475,7 @@ var mtree = new Model2D({name: 'mtree', w: 36, h: 32, zinit: false, zorder: 1, v
 mtree.vix2render = function(frtime, vix2buf)
 {
     var ch = this.opts.vix2ch[0];
-    console.log("%s vix2render[%s] '%s: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    logger("%s vix2render[%s] '%s: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
     for (var br = 0; br < 36; ++br) //24 branches => 36 columns == 1.5 columns per branch
     {
         var brcolor = dim(((br & 1)? this.bankAcolor: this.bankBcolor) || '#0F0', vix2buf[47 + Math.floor(24 * br / 36)]);
@@ -478,7 +493,7 @@ mtree_bank.vix2render = function(frtime, vix2buf)
     mtree.bankBcolor = MtreeColors[(vix2buf[73]? 1: 0) + (vix2buf[74]? 2: 0)];
     var ch = this.opts.vix2ch[0];
 //    this.vix2buf = vix2buf; //just save the values
-    console.log("%s vix2render[%s] '%s: %s %s => A %s, B %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], hex8(mtree.bankAcolor), hex8(mtree.bankBcolor));
+    logger("%s vix2render[%s] '%s: %s %s => A %s, B %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], hex8(mtree.bankAcolor), hex8(mtree.bankBcolor));
     mtree.dirty = true; //already deduped
 }
 
@@ -511,11 +526,11 @@ star.vix2render = function() {} //TODO
 Model2D.prototype.CustomX_T2B = function(x_ranges)
 //CustomX_T2B = function(x_ranges)
 {
-//    console.log("custom t2b, mode", this, x_ranges.length, arguments.length);
+//    logger("custom t2b, mode", this, x_ranges.length, arguments.length);
 //    this.nodelist = []; //new Array(w * h);
     arguments.forEach(function(range)
     {
-//        console.log("x range", range, range[0] + '++' + range[1], this.top + '--' + this.bottom, range[0] + '--' + range[1], this.top + '--' + this.bottom);
+//        logger("x range", range, range[0] + '++' + range[1], this.top + '--' + this.bottom, range[0] + '--' + range[1], this.top + '--' + this.bottom);
         for (var x = range[0]; x <= range[1]; ++x) //L->R
             for (var y = this.top - 1; y >= this.bottom; --y) //T->B
                 this.nodelist.push(this.pixelXY(this.left + x - 1, y));
@@ -523,13 +538,13 @@ Model2D.prototype.CustomX_T2B = function(x_ranges)
             for (var y = this.top - 1; y >= this.bottom; --y) //T->B
                 this.nodelist.push(this.pixelXY(this.left + x - 1, y));
     }.bind(this));
-//    console.log("node list ", this.nodelist.length);
+//    logger("node list ", this.nodelist.length);
 //    return this.nodelist;
 }
 
 //show_group('ic', [2, +14]);
 //NOTE: previous value of x, y, w, h is used if not specified
-debugger;
+//debugger;
 var ic1 = new Model2D({name: 'ic1', x: 0, y: 100, w: 33, h: 10, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //{from: 32, to: 0}, vorder: {from: 9: to: 0}});
 var ic2 = new Model2D({name: 'ic2', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
 var ic3 = new Model2D({name: 'ic3', y: 100, w: 30, zinit: false, order: Model2D.prototype.R2L_T2B, output: 'GRB'}); //[{from: 30, to: 1}]});
@@ -539,13 +554,29 @@ var ic5 = new Model2D({name: 'ic5', y: 100, w: 34, zinit: false, order: Model2D.
 var icbig = new Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { Model2D.prototype.CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14])(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 //var icbig = new Model2D({name: 'icbig', y: 100, w: 15+33, zinit: false, order: function() { (CustomX_T2B.bind(this, [15+33, 1+33], [1, 8], [33, 17], [9, 13], [16, 14]))(); }, output: 'GRB'}); //order: [{from: 15+33, to: 1+33}, {from: 1, to: 8}, {from: 33, to: 17}, {from: 9, to: 13}, {from: 16, to: 14}]});
 var ic_all = new Model2D({name: 'ic-all', x: ic1.left, y: 100, w: icbig.right - ic1.left, zinit: false, vix2ch: [2, +14]}); //yport.alloc(IcicleSegment2D.all, {name: 'ic-all', x: 0, y: 0, w: 207, h: 10, zinit: false}); //CAUTION: must use same port as segments
+function x2ic(x)
+{
+    if (x < 0) return null;
+    else if (x < ic1.right) return ic1;
+    else if (x < ic2.right) return ic2;
+    else if (x < ic3.right) return ic3;
+    else if (x < ic4.right) return ic4;
+    else if (x < ic5.right) return ic5;
+    else if (x < icbig.right) return icbig;
+    else return null;
+}
+const ICSEG_WIDTH = 207.1 / 14; //14 segments => 207 columns ~= 15 columns per segment; add a little to force loop exit even with rounding errors
+//NOTE: some ic are not spread evenly, but the original seq took that into acct so just use x as-is
 ic_all.vix2render = function(frtime, vix2buf)
 {
-    var ch = this.opts.vix2ch[0];
+debugger;
+    var ch = this.opts.vix2ch[0]; //start channel
 //    this.vix2buf = vix2buf; //just save the values
-    logger(80, "%s vix2render[%s] '%s: %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
-    for (var x = 0, col = 0; x < 207; x += 207.1/14, ++col) //14 segments => 207 columns ~= 15 columns per segment; add a little to force loop exit even with rounding errors
+    logger(80, "%s vix2render[%s] '%s: %s %s %s %s %s %s %s %s %s %s %s %s %s %s", this.name, frtime, ch, vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++], vix2buf[ch++]);
+    for (var x = 0, col = 0; x < 207; x += 207.1/14, ++col)
     {
+        var ic = x2ic(Math.round(x)); if (ic) ic.dirty = true;
+        ic = x2ic(Math.round(x + 207.1/14)); if (ic) ic.dirty = true; //NOTE: assumes each seg touches at most 2 models
         var color = dim(WHITE, vix2buf[2 + col]);
         logger(100, "ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
 //        this.MyFx.column.call(this, col, color);
@@ -566,12 +597,12 @@ ab.vix2render = function() {} //TODO
 */
 
 
-//console.log("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
+//logger("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
 //summarize composite models:
 //Model2D.all.forEach(function(model)
 //{
 //    if (!(model.name || '').match(/-all$/i)) return;
-//    console.log("%s: %d x %d = %s pixels @(%d..%d, %d..%d)", model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
+//    logger("%s: %d x %d = %s pixels @(%d..%d, %d..%d)", model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
 //});
 
 
@@ -590,7 +621,7 @@ ab.vix2render = function() {} //TODO
 //debugger;
 var ports = require('my-projects/models/my-ports').all;
 ports.forEach(function(port, inx) { if (!inx) ports.byname = {}; ports.byname[port.name || port.device || null] = port; });
-//console.log("ports by name", ports.byname);
+//logger("ports by name", ports.byname);
 var assts = //kludge: need var name here to keep Javascript happy
 {
 //    'FTDI-G': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, cross, sheep, nat, donkey
@@ -625,17 +656,17 @@ ports.forEach(function(port)
 
 
 //model summary:
-//console.log("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
+//logger("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
 //var vix2models = module.exports.vix2models = [];
 var mapped_vix2ch = {}; //vix2 channel range
 Model2D.all.forEach(function(model)
 {
 //    if (!(model.name || '').match(/-all$/i)) return;
-    logger("model '%s': %d x %d = %s pixels @(%d..%d, %d..%d)".blue, model.name, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
+    logger("model '%s': port '%s', adrs %s, %s x %s = %s pixels @(%s..%s, %s..%s)".blue, model.name, (model.port || {}).name, model.adrs, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
     if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
 /*
 //    vix2map(model);
-    if (typeof model.opts.vix2ch == 'undefined') return; //{ console.log("no vix2 ch ", model.name); return; }
+    if (typeof model.opts.vix2ch == 'undefined') return; //{ logger("no vix2 ch ", model.name); return; }
     if (!Array.isArray(model.opts.vix2ch)) model.opts.vix2ch = [model.opts.vix2ch, 1]; //[0] = startch, [1] = count (optional)
     if (model.opts.vix2alt)
     {
@@ -651,7 +682,7 @@ Model2D.all.forEach(function(model)
 //    vix2models.push(model);
 //    portmap(model);
 });
-//console.log("mapped vix2 ch", JSON.stringify(mapped_vix2ch)); //TODO: consolidate
+//logger("mapped vix2 ch", JSON.stringify(mapped_vix2ch)); //TODO: consolidate
 var vix2chlist = /*module.exports.vix2chlist =*/ Object.keys(mapped_vix2ch).sort(Array.prototype.numsort); //function(lhs, rhs) { return 1 * lhs - 1 * rhs; });
 var buf = '';
 vix2chlist.forEach(function(ch, inx, all) //TODO: use Array.reduce()
@@ -659,7 +690,7 @@ vix2chlist.forEach(function(ch, inx, all) //TODO: use Array.reduce()
     if (!inx || (1 * all[inx - 1] != 1 * ch - 1)) buf += ', ' + ch;
     if ((inx + 1 == all.length) || (1 * all[inx + 1] != 1 * ch + 1)) buf += ' - ' + ch;
 });
-console.log("mapped ranges", buf.substr(2));
+logger("mapped ranges", buf.substr(2));
 logger("Vixen2 channels mapped: %s/%s (%d%%), %s..%s".cyan, vix2chlist.length, vix2prof.channels.length, Math.round(100 * vix2chlist.length / vix2prof.channels.length), vix2chlist.first, vix2chlist.last);
 
 
@@ -673,19 +704,19 @@ function classname(thing) { return thing.constructor.name; } //.prototype.constr
     (porttype.all || []).forEach(function(port, pinx, all)
     {
         if (!(port.models || []).length) return;
-        console.log("%s[%s/%s]: '%s', %s models:", classname(porttype), pinx, all.length, port.device, (port.models || []).length);
+        logger("%s[%s/%s]: '%s', %s models:", classname(porttype), pinx, all.length, port.device, (port.models || []).length);
         ++num_ports;
         (port.models || []).forEach(function(model, minx)
         {
-            console.log("  model[%s/%s]: '%s', canvas: x %s..%s, y %s..%s, w %s, h %s, nodes: %s", minx, port.models.length, model.name, model.left, model.right, model.bottom, model.top, model.width, model.height, (model.nodelist || []).length);
+            logger("  model[%s/%s]: '%s', canvas: x %s..%s, y %s..%s, w %s, h %s, nodes: %s", minx, port.models.length, model.name, model.left, model.right, model.bottom, model.top, model.width, model.height, (model.nodelist || []).length);
             num_nodes += (model.nodelist || []).length;
             ++num_models;
         });
     });
     total_ports += num_ports; total_models += num_models; total_nodes += num_nodes;
-    console.log("#active %s: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", classname(porttype), num_ports, num_models, num_nodes, num_models? Math.round(num_nodes / num_models): 0, num_ports? Math.round(num_nodes / num_ports): 0);
+    logger("#active %s: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", classname(porttype), num_ports, num_models, num_nodes, num_models? Math.round(num_nodes / num_models): 0, num_ports? Math.round(num_nodes / num_ports): 0);
 });
-console.log("total: active ports: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", total_ports, total_models, total_nodes, total_models? Math.round(total_nodes / total_models): 0, total_ports? Math.round(total_nodes / total_ports): 0);
+logger("total: active ports: %d, #real models: %d, #nodes: %d, avg %d nodes/model, %d nodes/port", total_ports, total_models, total_nodes, total_models? Math.round(total_nodes / total_models): 0, total_ports? Math.round(total_nodes / total_ports): 0);
 */
 
 

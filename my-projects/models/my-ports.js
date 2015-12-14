@@ -35,7 +35,7 @@ function PortBase(args)
     this.inbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
 //    this.verbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
     this.outbuf = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
-    this.ioverify = [];
+//    this.ioverify = [];
     Object.defineProperty(this, 'dirty',
     {
         get() { return this.outbuf.size(); }, //this will automatically be reset after outbuf.getContents()
@@ -90,6 +90,7 @@ function flush(seqnum)
     logger(10, "port '%s' flush[%d]: dirty? %s, size %s".cyan, this.name || this.device, this.seqnum, !!this.dirty, this.outbuf.size());
 debugger;
 //    seqnum = this.seqnum; //kludge: make local copy for better tracking (shared copy will only show latest value)
+/* now handled by stream analyzer
     this.verify = function verify_disabled(first) { console.log("(verify)"); } //TODO
     if (this.veri_pending) clearTimeout(this.veri_pending); //postpone final verify until end of frames
     this.veri_pending = setTimeout(function verify_delayed()
@@ -97,14 +98,16 @@ debugger;
         this.veri_pending = null;
         this.verify(true);
     }.bind(this), 1000); //this.loopback_delay || 5); //assume very few simultaneous frames are active
+*/
     if (!this.dirty) return;
 //    logger(20, "write[%s] %s bytes to port '%s':".cyan, this.seqnum, this.outbuf.size(), this.name); //, "tbd");
 //    throw "TODO: write to port";
 //    this.encode();
     var data = this.outbuf.getContents(); //slice(0, outlen); //CAUTION: need to copy data here because buf will be reused; kludge: no len param to write(), so trim buffer instead
     var iorec = {seqnum: this.seqnum || 0, data: data, len: data.length, sendtime: clock.Now(), sendtime_str: clock.Now.asString()};
+    this.iostats(iorec); //record I/O stats for comm perf tuning
 //    this.verbuf.write(data);
-    this.ioverify.push(iorec);
+//    this.ioverify.push(iorec);
     var elapsed = new Elapsed();
     this.write(data, function write_done(err, results)
     {
@@ -119,7 +122,7 @@ debugger;
             logger(10, "drain '%s' seq# %s len %d completed after %s".green, this.name, iorec.seqnum, iorec.len, elapsed.scaled());
             iorec.draintime = elapsed.now;
 //            setTimeout(function drain_delayed() { this.verify(); }.bind(this), this.loopback_delay || 5); //assume very few simultaneous frames are active
-            this.verify();
+//            this.verify();
 //            return cb();
         }.bind(this));
     }.bind(this));
@@ -135,7 +138,7 @@ debugger;
 PortBase.prototype.verify =
 function verify()
 {
-    this.ioverify.shift();
+//    this.ioverify.shift();
     if (this.inbuf.size()) console.log("discarding loopback data");
     this.inbuf.getContents();
 }

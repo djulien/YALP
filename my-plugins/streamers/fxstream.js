@@ -51,8 +51,10 @@ function FxPlayback(opts)
 //however, we use derivation in order to allow multiple instances
 //    this.on('end', function() { console.log("%d json objects read", count); });
     stmon(this, "FxStream");
-    this.stats = {opcodes: {}, withfx: 0, without: 0, unkn: 0, errors: 0, delay_buckets: {}, render_count: 0, render_delay: 0, render_premature: 0};
-    ports.forEach(function(port) { port.dirty = false; }); //reset(); }); //clear port I/O buffers
+    this.stats = {fxcalls: {}, withfx: 0, without: 0, unkn: 0, errors: 0, delay_buckets: {}, render_count: 0, render_delay: 0, render_premature: 0};
+    ports.forEach(function(port) { port.dirty = false; }); //if (port.want_listen) port.want_listen(this); }.bind(this)); //reset(); }); //clear port I/O buffers
+//    models_byname.forEach(function(model) { if (model.want_listen) model.want_listen(this); }.bind(this));
+
     this.on('data', function fxstream_ondata(data) //NOTE: evt is explicitly generated to resemble readable stream api even tho this is a writable stream
     {
 //debugger;
@@ -63,7 +65,7 @@ function FxPlayback(opts)
 //            console.log("in data", data);
         if (typeof data.fx == 'undefined') { ++this.stats.without; return; } //no effect to process
         logger(100, "fx json[%d]: time %s vs. elapsed %s, has buf? %s, data", this.stats.withfx++, has_time? data.time: '(no time)', (this.elapsed || {}).now, Buffer.isBuffer(data.buf), data);
-        if (isNaN(++this.stats.opcodes[data.fx])) this.stats.opcodes[data.fx] = 1;
+        if (isNaN(++this.stats.fxcalls[data.fx])) this.stats.fxcalls[data.fx] = 1;
 //        if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
 //        if (data.fx && /*(data.fx in this) &&*/ (typeof this[fxname] == 'function'); //.prototype;
 debugger;
@@ -90,9 +92,13 @@ debugger;
     }.bind(this))
     .on('finish', function()
     {
-        logger("FxPlayback: %d with fx, %d without, %d unknown fx, %d errors".cyan, this.stats.withfx, this.stats.without, this.stats.unkn, this.stats.errors);
-        logger("FxPlayback: %d render count %d, delay %d, premature %d, buckets: %s".cyan, this.stats.render_count, this.stats.render_delay, this.stats.render_premature, this.stats.delay_buckets.toString());
-        logger("opcodes: %j", this.opcodes);
+        logger("FxPlayback frames: %d with fx, %d without, %d unknown fx, %d errors".cyan, this.stats.withfx, this.stats.without, this.stats.unkn, this.stats.errors);
+        logger("FxPlayback render: %d count %d, delay %d, premature %d, buckets: %s".cyan, this.stats.render_count, this.stats.render_delay, this.stats.render_premature, this.stats.delay_buckets.toString());
+        var buf = '';
+        this.stats.fxcalls.forEach(function fxcall_enum(count, key) { buf += ', ' + key + ' = ' + count; });
+        logger("fx calls: %s", buf.substr(2)); //this.stats.fxcalls.toString());
+        ports.forEach(function(port) { if (port.onfinish) port.onfinish(); });
+        models_byname.forEach(function(model) { if (model.onfinish) model.onfinish(); });
     }.bind(this));
 }
 inherits(FxPlayback, Writable);
@@ -172,7 +178,7 @@ FxStream.prototype._read = function reader(size_ignored)
 MyFx.prototype.FxPlayback = function FxPlayback(rd)
 {
     this.busy = true;
-    this.opcodes = {};
+    this.fxcalls = {};
     var withfx = 0, without = 0, unkn = 0, errors = 0;
     rd
 //    .pipe(echoStream)
@@ -184,7 +190,7 @@ MyFx.prototype.FxPlayback = function FxPlayback(rd)
 //            console.log("in data", data);
             if (typeof data.fx == 'undefined') { ++without; return; } //no effect to process
             console.log("json[%d]: time %s, data %j", withfx++, (typeof data.time != 'undefined')? data.time: '(no time)', data);
-            if (isNaN(++this.opcodes[data.fx])) this.opcodes[data.fx] = 1;
+            if (isNaN(++this.fxcalls[data.fx])) this.fxcalls[data.fx] = 1;
             if (MyFx.myfx.ismine(data.fx)) MyFx.myfx[data.fx](data);
             else { ++unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); }
         }.bind(this))
@@ -197,7 +203,7 @@ MyFx.prototype.FxPlayback = function FxPlayback(rd)
         .on('end', function()
         {
             logger("FxPlayback: %d with fx, %d without, %d unknown fx, %d errors".cyan, withfx, without, unkn, errors);
-            logger("opcodes: %j", this.opcodes);
+            logger("fx calls: %j", this.fxcalls);
             this.busy = false;
         }.bind(this));
     return rd; //fluent

@@ -270,7 +270,7 @@ function imgdata(x, y, w, h, data) //CAUTION: pixels are top-to-bottom (y coord 
     {
         var retval = /*this.has_ctx?*/ this.ctx.getImageData(x, y, w, h); //: null; //always get in; models might need initial values for first render
 //            var uint32view = new Uint32Array(retval.data);
-        logger(30, "imgdata get: x %s, y %s w %s h %s, parent (%s, %s), ctx? %s".blue, x, y, w, h, (this.parent || {}).left, (this.parent || {}).bottom, !!this.has_ctx); //u8 len %s, u32 len %s", retval.data.length, uint32view.length);
+        logger(130, "imgdata get: x %s, y %s w %s h %s, parent (%s, %s), ctx? %s".blue, x, y, w, h, (this.parent || {}).left, (this.parent || {}).bottom, !!this.has_ctx); //u8 len %s, u32 len %s", retval.data.length, uint32view.length);
         if (retval) retval.data.inspect = function my_inspect(depth, opts) //make debug easier
         {
             var buf = '';

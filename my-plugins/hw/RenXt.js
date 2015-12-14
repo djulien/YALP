@@ -247,6 +247,41 @@ const bufdiff = require('my-plugins/utils/buf-diff');
 const unprintable = require('my-plugins/utils/unprintable');
 
 const DefaultNodeType = RENXt.WS281X(RENXt.SERIES); //most of my pixels are this type, so use it as default
+//opcode names:
+//mainly for debug
+function OpcodeNames(opc)
+{
+//debugger;
+    switch (opc)
+    {
+        case RENXt.NOOP: return "NOOP";
+        case RENXt.BITMAP(1):
+        case RENXt.BITMAP(2):
+        case RENXt.BITMAP(4): return "BMP(# BPP)".replace(/#/, opc & 0xF);
+        case RENXt.DUMBLIST: return "DUMBLIST";
+        case RENXt.NODEBYTES: return "NODEBYTES";
+        case RENXt.CLEARSTATS: return "CLEARSTATS";
+        case RENXt.READ_REG: return "READ_REG";
+        case RENXt.WRITE_REG: return "WRITE_REG";
+        case RENXt.SAVE_EEPROM: return "SAVE_EEPROM";
+        case RENXt.ACK: return "ACK";
+        case RENXt.RESET: return "RESET";
+        case RENXt.REFLASH: return "REFLASH";
+        case RENXt.NODEFLUSH: return "NODEFLUSH";
+        case RENXt.ZCRESAMPLE: return "ZCRESAMPLE";
+        case RENXt.TTYACK: return "TTYACK";
+        case RENXt.NODELIST_END: return "NODELIST_END";
+    }
+    var name = '';
+    if (typeof opc == 'number') switch (opc & 0xF0)
+    {
+        case RENXt.SETPAL(0): name = "SETPAL(#)"; break;
+        case RENXt.SETALL(0): name = "SETALL(#)"; break;
+        case RENXt.SETTYPE(0): name = "SETTYPE(#)"; break;
+        case RENXt.NODELIST(0): name = "NODELIST(#)"; break;
+    }
+    return name.replace(/#/, opc & 0x0F);
+}
 
 
 //add data and wedge in custom handlers:
@@ -274,6 +309,16 @@ function AddProtocol(port)
         size: function size() { return port.encbuf.wrlen; }
     };
 
+    var svfinish = port.onfinish;
+    port.onfinish = function onfinish(args)
+    {
+        if (!port.encbuf.stats_opc.length) return;
+        var buf = '';
+        port.encbuf.stats_opc.forEach(function opc_enum(count, key) { buf += ', ' + OpcodeNames(+key) + ' = ' + count; }); //logger("protocol opc enc: %s occurs %s", OpcodeNames(key), count); }); //port.encbuf.stats_opc.toString());
+        logger("protocol opc enc: %s", buf.substr(2));
+//        console.log(port.encbuf.stats_opc);
+        if (svfinish) svfinish();
+    } //.bind(port));
 //    port.old_write = port.write;
 //    port.write = my_write.bind(port);
     var old_inbuf = port.inbuf;
@@ -345,7 +390,7 @@ function my_assign(model)
             this.raw_nodes.inspect = buf_inspector_uint32ary.bind(this.raw_nodes);
             var oldlen = this.port.encbuf.wrlen;
             this.encode();
-            logger(30, "RenXt encode '%s': %d node bytes -> %d enc bytes".blue, this.name, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
+            logger(30, "RenXt encode '%s' adrs %s: %d node bytes -> %d enc bytes".blue, this.name, this.adrs, this.raw_nodes.length, this.port.encbuf.wrlen - oldlen);
             logger(130, "nodes ARGB in: %s".blue, this.raw_nodes.inspect());
             logger(130, "enc out: %d:%j".cyan, this.port.encbuf.usedbuf.length, this.port.encbuf.usedbuf);
         }
@@ -897,43 +942,6 @@ function LoopbackStream(opts)
 inherits(LoopbackStream, Transform);
 
 
-//opcode names:
-//mainly for debug
-function OpcodeNames(opc)
-{
-//debugger;
-    switch (opc)
-    {
-        case RENXt.NOOP: return "NOOP";
-        case RENXt.BITMAP(1):
-        case RENXt.BITMAP(2):
-        case RENXt.BITMAP(4): return "BMP(# BPP)".replace(/#/, opc & 0xF);
-        case RENXt.DUMBLIST: return "DUMBLIST";
-        case RENXt.NODEBYTES: return "NODEBYTES";
-        case RENXt.CLEARSTATS: return "CLEARSTATS";
-        case RENXt.READ_REG: return "READ_REG";
-        case RENXt.WRITE_REG: return "WRITE_REG";
-        case RENXt.SAVE_EEPROM: return "SAVE_EEPROM";
-        case RENXt.ACK: return "ACK";
-        case RENXt.RESET: return "RESET";
-        case RENXt.REFLASH: return "REFLASH";
-        case RENXt.NODEFLUSH: return "NODEFLUSH";
-        case RENXt.ZCRESAMPLE: return "ZCRESAMPLE";
-        case RENXt.TTYACK: return "TTYACK";
-        case RENXt.NODELIST_END: return "NODELIST_END";
-    }
-    var name = '';
-    if (typeof opc == 'number') switch (opc & 0xF0)
-    {
-        case RENXt.SETPAL(0): name = "SETPAL(#)"; break;
-        case RENXt.SETALL(0): name = "SETALL(#)"; break;
-        case RENXt.SETTYPE(0): name = "SETTYPE(#)"; break;
-        case RENXt.NODELIST(0): name = "NODELIST(#)"; break;
-    }
-    return name.replace(/#/, opc & 0x0F);
-}
-
-
 //kludge: replace input fifo with outbuf and run it thru analyser before trashing it:
 LoopbackStream.prototype.non_xform =
 function non_xform(morebuf)
@@ -941,7 +949,7 @@ function non_xform(morebuf)
     var svfifo = this.fifo;
     this.fifo = morebuf;
     this.fifo.rdlen = this.fifo.wrlen; //make it look like incoming
-debugger;
+//debugger;
     this._transform(null, null, function nop() {}, false);
     this.fifo = svfifo;
 }
@@ -1242,7 +1250,8 @@ function RenXtBuffer(opts)
     Object.defineProperty(this, 'usedbuf', {get() { return this.buffer.slice(0, this.wrlen); }});
 
 //    this.dataview = new DataView(this.buffer);
-    this.stats_opc = new Uint8ClampedArray(256); //Uint16Array(256);
+    this.stats_opc = {length: 0}; //new Uint8ClampedArray(256); //Uint16Array(256);
+//    this.stats_opc.fill(0);
     this.waits = [];
 //    this.port.on('data', function port_rcv(data) //collect incoming data
 //    {
@@ -1264,7 +1273,7 @@ function rewind()
 //    if (!this.dataview) this.dataview = new DataView(this.buffer);
 //    if (!this.stats_opc) this.stats_opc = new Uint16Array(256);
     this.buffer.fill(0xee); //for easier debug
-    this.stats_opc.fill(0);
+//no-preserve    this.stats_opc.fill(0);
     return this; //fluent
 }
 
@@ -1504,7 +1513,8 @@ function emit_uint16_raw(val, count) //ensure correct byte order
 RenXtBuffer.prototype.emit_opc =
 function emit_opc(value, count)
 {
-    this.stats_opc[value] += count || 1;
+//    this.has_opc = true;
+    if (isNaN(this.stats_opc[value] += count || 1)) { this.stats_opc[value] = count || 1; ++this.stats_opc.length; }
     this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case
     return this; //fluent
 }
