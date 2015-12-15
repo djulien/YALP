@@ -273,7 +273,7 @@ gdoor_fx.vix2render = function(frtime, vix2buf)
         default:
             macro = '??' + vix2buf[416] + '??';
             if (!this.unknowns) this.unknowns = {};
-            if (isNaN(++this.unknowns['M' + vix2buf[416]])) this.unknowns['M' + vix2buf[416]] = 1;
+            if (!++this.unknowns['M' + vix2buf[416]] /*isNaN*/) this.unknowns['M' + vix2buf[416]] = 1;
 //            logger(10, "Gdoor: unknown macro: %d".red, vix2buf[416]); break; //TODO
 //        default: throw "Gdoor: unhandled macro " + vix2buf[416];
     }
@@ -301,7 +301,7 @@ gdoor_fx.vix2render = function(frtime, vix2buf)
         default:
             this.bitmap = '??' + vix2buf[417] + '??';
             if (!this.unknowns) this.unknowns = {};
-            if (isNaN(++this.unknowns['B' + vix2buf[417]])) this.unknowns['B' + vix2buf[417]] = 1;
+            if (!++this.unknowns['B' + vix2buf[417]] /*isNaN*/) this.unknowns['B' + vix2buf[417]] = 1;
 //            logger(10, "Gdoor: unknown bitmap: %d".red, vix2buf[417]); break; //TODO
 //        default: throw "Gdoor: unhandled bitmap " + vix2buf[417];
     }
@@ -578,8 +578,9 @@ debugger;
         var ic = x2ic(Math.round(x)); if (ic) ic.dirty = true;
         ic = x2ic(Math.round(x + 207.1/14)); if (ic) ic.dirty = true; //NOTE: assumes each seg touches at most 2 models
         var color = dim(WHITE, vix2buf[2 + col]);
-        logger(100, "ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
+        logger(100-1, "ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
 //        this.MyFx.column.call(this, col, color);
+//        logger(100, "ic nodes are now: %s", this.imgdata().data.toString());
         this.fill(Math.round(x), 0, Math.round(x + 207.1/14) - Math.round(x), this.height, color);
     }
     this.dirty = true;
@@ -648,7 +649,7 @@ if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: 
 ports.forEach(function(port)
 {
 //    if (!model.port) return;
-//    if (isNaN(++model.port.num_models)) { model.port.num_models = 1; model.port.num_nodes = 0; }
+//    if (!++model.port.num_models) { model.port.num_models = 1; model.port.num_nodes = 0; }
     /*if (!port.num_nodes)*/ port.num_nodes = 0;
     port.models.forEach(function(model) { port.num_nodes += (model.nodelist || []).length; });
     logger("port '%s': type %s, #models %s, #nodes %s".blue, port.name || port.device, port.constructor.name, port.models.length, port.num_nodes);
@@ -673,12 +674,12 @@ Model2D.all.forEach(function(model)
         if (!Array.isArray(model.opts.vix2alt)) model.opts.vix2alt = [model.opts.vix2alt, 1];
         if (model.opts.vix2alt[1] != model.opts.vix2ch[1]) throw new Error(sprintf("model '%s' alt ch mismatch: %j vs. %j".red, model.name, model.opts.vix2alt, model.opts.vix2ch));
         for (var ch = model.opts.vix2alt[0]; ch < model.opts.vix2alt[0] + model.opts.vix2alt[1]; ++ch)
-            if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
+            if (!++mapped_vix2ch[ch] /*-isNaN*-/) mapped_vix2ch[ch] = 1;
     }
 */
     if (model.opts.vix2ch)
         for (var ch = model.opts.vix2ch[0]; ch < model.opts.vix2ch[0] + model.opts.vix2ch[1]; ++ch)
-            if (isNaN(++mapped_vix2ch[ch])) mapped_vix2ch[ch] = 1;
+            if (!++mapped_vix2ch[ch] /*isNaN*/) mapped_vix2ch[ch] = 1;
 //    vix2models.push(model);
 //    portmap(model);
 });

@@ -65,7 +65,7 @@ function FxPlayback(opts)
 //            console.log("in data", data);
         if (typeof data.fx == 'undefined') { ++this.stats.without; return; } //no effect to process
         logger(100, "fx json[%d]: time %s vs. elapsed %s, has buf? %s, data", this.stats.withfx++, has_time? data.time: '(no time)', (this.elapsed || {}).now, Buffer.isBuffer(data.buf), data);
-        if (isNaN(++this.stats.fxcalls[data.fx])) this.stats.fxcalls[data.fx] = 1;
+        if (!++this.stats.fxcalls[data.fx] /*isNaN*/) this.stats.fxcalls[data.fx] = 1;
 //        if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
 //        if (data.fx && /*(data.fx in this) &&*/ (typeof this[fxname] == 'function'); //.prototype;
 debugger;
@@ -93,7 +93,9 @@ debugger;
     .on('finish', function()
     {
         logger("FxPlayback frames: %d with fx, %d without, %d unknown fx, %d errors".cyan, this.stats.withfx, this.stats.without, this.stats.unkn, this.stats.errors);
-        logger("FxPlayback render: %d count %d, delay %d, premature %d, buckets: %s".cyan, this.stats.render_count, this.stats.render_delay, this.stats.render_premature, this.stats.delay_buckets.toString());
+        var buf = '';
+        this.stats.delay_buckets.forEach(function fxcall_enum(count, key) { buf += ', ' + key + ' = ' + count; });
+        logger("FxPlayback render: %d count %d, delay %d, premature %d, buckets: %s".cyan, this.stats.render_count, this.stats.render_delay, this.stats.render_premature, buf.substr(2)); //this.stats.delay_buckets.toString());
         var buf = '';
         this.stats.fxcalls.forEach(function fxcall_enum(count, key) { buf += ', ' + key + ' = ' + count; });
         logger("fx calls: %s", buf.substr(2)); //this.stats.fxcalls.toString());
@@ -144,7 +146,7 @@ FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
     if (this.opts.speed === 0) delay = 0; //no throttling
     this.stats.render_delay += Math.abs(delay); //use abs() so premature events won't decrease apparent problems
     var delay_bucket = buckets(delay, 3);
-    if (isNaN(++this.stats.delay_buckets[delay_bucket])) this.stats.delay_buckets[delay_bucket] = 1;
+    if (!++this.stats.delay_buckets[delay_bucket] /*isNaN*/) this.stats.delay_buckets[delay_bucket] = 1;
     ++this.stats.render_count;
     if (this.opts.speed === 0); //no throttling
     else if (delay < -2.5) logger("frame %s is overdue by %s".red, frtime, delay);
@@ -190,7 +192,7 @@ MyFx.prototype.FxPlayback = function FxPlayback(rd)
 //            console.log("in data", data);
             if (typeof data.fx == 'undefined') { ++without; return; } //no effect to process
             console.log("json[%d]: time %s, data %j", withfx++, (typeof data.time != 'undefined')? data.time: '(no time)', data);
-            if (isNaN(++this.fxcalls[data.fx])) this.fxcalls[data.fx] = 1;
+            if (!++this.fxcalls[data.fx] /-*isNaN*-/) this.fxcalls[data.fx] = 1;
             if (MyFx.myfx.ismine(data.fx)) MyFx.myfx[data.fx](data);
             else { ++unkn; logger("unknown effect: '%s' (ignored)".red, data.fx || '(none)'); }
         }.bind(this))

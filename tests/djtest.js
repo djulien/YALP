@@ -79,7 +79,7 @@ YalpSplitter.DefaultOptions = { want_strline: true, dedup: true};
 var splitter = new YalpSplitter({firstch: 0, xaltch: 3, numch: 10});
 splitter.warn = function(msg)
 {
-    if (isNaN(++this.stats.warnings)) this.stats.warnings = 1;
+    if (!++this.stats.warnings) this.stats.warnings = 1;
     var args = Array.from(arguments);
     args[0] = colors.yellow("warning: " + args[0]);
     console.error.apply(null, args);

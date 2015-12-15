@@ -49,7 +49,7 @@ MruArray.prototype.push = function(newval)
     ++this.length_all;
 //    console.log("typeof histo ", newval, this.bucket(newval), typeof this.histogram[this.bucket(newval)] );
 //    console.log("typeof histo ", isNaN(++this.histogram[this.bucket(newval)]) );
-    if (isNaN(++this.histogram[this.bucket(newval)])) this.histogram[this.bucket(newval)] = 1; //CAUTION: typeof NaN == 'number', so just check NaN
+    if (!++this.histogram[this.bucket(newval)] /*isNaN*/) this.histogram[this.bucket(newval)] = 1; //CAUTION: typeof NaN == 'number', so just check NaN
 }
 
 

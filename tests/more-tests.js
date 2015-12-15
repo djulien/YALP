@@ -68,6 +68,82 @@ playback('./Amaz.json');
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
+/// analyze comm + firmware integrity:
+//
+
+
+//function my_unstringify(str)
+//{
+//    return str.replace(/([A-Z0-9$@_]+):/gi, "\"$1\":").replace(/ /g, '').replace(/\n/g, '\\n');
+//}
+
+function analyze(infile)
+{
+    var data = fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile));
+
+    var parser = new stream.Writable();
+    parser.objectMode = true;
+    parser._write = function (chunk, encoding, done)
+    {
+debugger;
+        if (!++this.lines)
+        {
+            this.lines = 1;
+            this.num_raw = this.total_rawlen = this.max_rawlen = 0;
+            this.num_out = this.total_outlen = 0;
+            this.num_loopbk = this.total_loopbklen = 0;
+            this.seq_fifo = []; //{length: 0};
+            this.num_wrerr = this.num_drerr = this.num_drokay = 0;
+        }
+////        console.log(chunk.toString(encoding));
+//        console.log("line %s enc: %s, is buf? %s", this.lines, encoding, Buffer.isBuffer(chunk));
+////        chunk = my_unstringify(chunk.toString()); //encoding));
+////        console.log("line %s enc: %s, is buf? %s", this.lines, encoding, Buffer.isBuffer(chunk));
+        if (!chunk || !chunk.length) { console.log("no chunk line %s".red, this.lines); done(); return; }
+//        var svchunk = chunk;
+//        try{
+        if (Buffer.isBuffer(chunk)) chunk = JSON.parse(chunk, bufferJSON.reviver);
+//        }catch(exc) { console.log("ERROR line %s len %s:".red, this.lines, chunk.length, exc.message || exc); done(); return; }
+//        console.log("chunk:", typeof chunk, chunk); //my_unstringify(chunk.toString()));
+////        var data = chunk.type? JSON.parse(chunk, bufferJSON.reviver): chunk;
+////        console.log("data:", typeof data, data); //my_unstringify(chunk.toString()));
+        if (chunk.rawbuf)
+        {
+            if (chunk.rawbuf.length != chunk.buflen) throw "Bad len line# " + this.lines;
+            ++this.num_raw; this.total_rawlen += chunk.buflen;
+            if (chunk.buflen > this.max_rawlen) this.max_rawlen = chunk.buflen;
+        }
+        else if (chunk.wrerr) ++this.num_wrerr;
+        else if (chunk.drerr) ++this.num_drerr;
+        else if (chunk.drokay) ++this.num_drokay;
+        else if (chunk.numsync && chunk.adrs && (chunk.src === "out"))
+        {
+            this.seq_fifo.push(chunk);
+            ++this.num_out;
+            this.total_outlen += chunk.numsync + 1 + chunk.litlen + chunk.datalen;
+            console.log(chunk.numsync, chunk.litlen, chunk.datalen, chunk.lit);
+        }
+        else throw "unrecog entry on line " + this.lines + ": " + chunk;
+//        console.log("data:", data);
+//        process.exit();
+        done();
+    };
+//    parser.on('error', function(err) { console.log("ERROR:".red, err.message || err); });
+    parser.on('finish', function()
+    {
+        console.log("%s lines found", this.lines);
+        console.log("#raw: %s, total len: %s, avg len %s, max len %s", this.num_raw, this.total_rawlen, this.num_raw? Math.round(this.total_rawlen / this.num_raw): 0, this.max_rawlen);
+        console.log("#out: %s, total len: %s, avg len %s, unacct raw: %s", this.num_out, this.total_outlen, this.num_out? Math.round(this.total_outlen / this.num_out): 0, this.total_rawlen - this.total_outlen);
+        console.log("#wrerr: %s, #drerr: %s, #drokay: %s", this.num_wrerr, this.num_drerr, this.num_drokay);
+    }.bind(parser));
+    data.pipe(split()).pipe(parser); //NOTE: need split() to go from text to object stream
+//NO    data.end(); //close pipe after data all read??
+}
+//analyze('./ttyUSB3-out.log');
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
 /// others:
 //
 

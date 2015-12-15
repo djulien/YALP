@@ -1,6 +1,17 @@
 
 'use strict';
 
+const CFG =
+{
+    port_mon: true, //record open/read/write/close/error events to log (stmon)?
+    log_level: 10, //logging detail level (set high to exclude from log)
+    def_sport: {baud: 242500, bits: '8N1', fps: 20}, //default serial port config; target 50 msec frame rate
+    sport_immed: false, //set false to allow caller to change port config before using it
+//??    sport_hupcl: true, //close serial port => drop DTR on Linux
+    buffersize: 4096, //set this to override FPS restrictions; simplifies special cases such as RenXt enum
+};
+
+
 require('colors');
 const fs = require('fs');
 const path = require('path');
@@ -46,6 +57,7 @@ function PortBase(args)
             if (!newval) this.outbuf.getContents(); //clear current contents
         },
     });
+    this.iostats = [];
     PortBase.all.push(this); //allows easier enum over all instances
 }
 //inherits(PortBase, streamBuffers.WritableStreamBuffer);
@@ -58,6 +70,16 @@ PortBase.all = [];
 //{
 //    this.outbuf.getContents(); //clear current contents
 //}
+
+
+//PortBase.prototype.iostats =
+////this.iostats =
+//{
+//    wrerr: function wrerr(err, seqnum, elapsed) { this.emit('iostats', {err: err, seqnum: seqnum, elapsed: elapsed}); },
+////        wrokay: function wrokay(results, seqnum, elapsed),
+//    drerr: function drerr(err, seqnum, elapsed) { this.emit('iostats
+//    drokay: function drokay(datalen, seqnum, elapsed),
+//};
 
 
 PortBase.prototype.assign =
@@ -84,12 +106,13 @@ function assign(model)
 PortBase.prototype.flush =
 function flush(seqnum)
 {
-    if (!this.dirty) return; //TODO: still try a verify?
+    if (!this.dirty) return;
+    var elapsed = new Elapsed();
     if (typeof seqnum != 'undefined') this.seqnum = seqnum; //caller overrides default seq#
-    if (isNaN(++this.seqnum)) this.seqnum = 1;
+    if (!++this.seqnum /*isNaN*/) this.seqnum = 1;
     logger(10, "port '%s' flush[%d]: dirty? %s, size %s".cyan, this.name || this.device, this.seqnum, !!this.dirty, this.outbuf.size());
-debugger;
-//    seqnum = this.seqnum; //kludge: make local copy for better tracking (shared copy will only show latest value)
+//debugger;
+    seqnum = this.seqnum; //kludge: make local copy for better tracking (shared copy will only show latest value)
 /* now handled by stream analyzer
     this.verify = function verify_disabled(first) { console.log("(verify)"); } //TODO
     if (this.veri_pending) clearTimeout(this.veri_pending); //postpone final verify until end of frames
@@ -99,28 +122,36 @@ debugger;
         this.verify(true);
     }.bind(this), 1000); //this.loopback_delay || 5); //assume very few simultaneous frames are active
 */
-    if (!this.dirty) return;
+//    if (!this.dirty) return;
 //    logger(20, "write[%s] %s bytes to port '%s':".cyan, this.seqnum, this.outbuf.size(), this.name); //, "tbd");
 //    throw "TODO: write to port";
 //    this.encode();
     var data = this.outbuf.getContents(); //slice(0, outlen); //CAUTION: need to copy data here because buf will be reused; kludge: no len param to write(), so trim buffer instead
-    var iorec = {seqnum: this.seqnum || 0, data: data, len: data.length, sendtime: clock.Now(), sendtime_str: clock.Now.asString()};
-    this.iostats(iorec); //record I/O stats for comm perf tuning
+//    var iorec = {seqnum: this.seqnum || 0, /*data: data,*/ len: data.length, sendtime: clock.Now()}; //, sendtime_str: clock.Now.asString()};
+//    this.iostats(iorec); //record I/O stats for comm perf tuning
 //    this.verbuf.write(data);
 //    this.ioverify.push(iorec);
-    var elapsed = new Elapsed();
+//    var elapsed = new Elapsed();
+    if (!++this.num_writes)
+    {
+        this.num_writes = 1;
+        this.once('close', function onclose() { this.iostats.push({eof: true, numwr: this.num_writes}); }.bind(this));
+    }
+//TODO: tag writes with seq# for easier tracking
     this.write(data, function write_done(err, results)
     {
+debugger;
 //        console.log(typeof outbuf);
 //        var outdesc = outbuf.length + ':"' + unprintable((typeof outbuf === 'string')? outbuf: (outbuf.toString('utf8').substr(0, 20) + '...')) + '"';
-        if (err) { iorec.err = err; iorec.errtime = elapsed.now; console.log('write "%s" seq# %s err after %s: '.red, this.name, iorec.seqnum, elapsed.scaled(), err); return; } //cb(err); }
-        logger(10, 'wrote "%s" seq# %s %d bytes ok after %s; results %d:'.green, this.name, iorec.seqnum, iorec.len, elapsed.scaled(), results.length, results);
-        iorec.writetime = elapsed.now;
+//        this.iostats.seqnum = seqnum; this.iostats.elapsed = elapsed;
+        if (err) { this.iostats.push({wrerr: err.message || "some kind of write error", seqnum: seqnum, time: elapsed.now}); return; } //console.log('write "%s" seq# %s err after %s: '.red, this.name, iorec.seqnum, elapsed.scaled(), err); return; } //cb(err); }
+//        logger(10, 'wrote "%s" seq# %s %d bytes ok after %s; results %d:'.green, this.name, iorec.seqnum, iorec.len, elapsed.scaled(), results.length, results);
+//        this.iostats.wrokay(results || "okay", seqnum, elapsed.now);
         this.drain(function drain_done(err)
         {
-            if (err) { iorec.errtime = elapsed.now; console.log('drain %s err '.red + err, iorec.seqnum); return; } // cb(err); }
-            logger(10, "drain '%s' seq# %s len %d completed after %s".green, this.name, iorec.seqnum, iorec.len, elapsed.scaled());
-            iorec.draintime = elapsed.now;
+            if (err) { this.iostats.push({drerr: err.message || "some kind of drain error", seqnum: seqnum, timer: elapsed.now}); return; } //console.log('drain %s err '.red + err, iorec.seqnum); return; } // cb(err); }
+//            logger(10, "drain '%s' seq# %s len %d completed after %s".green, this.name, iorec.seqnum, iorec.len, elapsed.scaled());
+            this.iostats.push({drokay: "wr+dr len # okay".replace(/#/, data.length), seqnum: seqnum, time: elapsed.now});
 //            setTimeout(function drain_delayed() { this.verify(); }.bind(this), this.loopback_delay || 5); //assume very few simultaneous frames are active
 //            this.verify();
 //            return cb();
@@ -205,22 +236,20 @@ serial.list(function serial_enum(err, ports)
 
 //supported serial port bit configs:
 //add more as desired
-var CONFIG =
+const CONFIG =
 {
     '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
     '8N1.5': {dataBits: 8, parity: 'none', stopBits: 1.5}, //NOTE: might report error but seems to work anyway
     '8N2': {dataBits: 8, parity: 'none', stopBits: 2},
 };
-const FPS = 20; //target 50 msec frame rate
-
 function config(baud, bits, fps)
 {
     var cfg = CONFIG[bits];
     if (!cfg) throw "Unhandled serial config: '" + bits + "'";
     cfg.baudrate = baud;
-//    cfg.buffersize = Math.floor(baud / (1 + cfg.dataBits + cfg.stopBits + 1) / fps); //number of bytes that can be transferred each frame
-    cfg.buffersize = 4096; //NOTE: ignore FPS restrictions to simplify special cases such as RenXt enum
-    cfg.hupcl = true;
+    cfg.buffersize = CFG.buffersize || Math.floor(baud / (1 + cfg.dataBits + cfg.stopBits + 1) / fps); //number of bytes that can be transferred each frame
+//    cfg.buffersize = 4096; //NOTE: ignore FPS restrictions to simplify special cases such as RenXt enum
+    if (typeof CFG.sport_hupcl != 'undefined') cfg.hupcl = CFG.sport_hupcl;
 //    cfg..disconnectedCallback = TODO?
 }
 
@@ -230,11 +259,11 @@ function config(baud, bits, fps)
 const MySerialPort = module.exports.SerialPort =
 function MySerialPort(spath, options, openImmediately, callback)
 {
-    openImmediately = false; //give caller time to change port
     if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
+    if (typeof CFG.sport_immed != 'undefined') openImmediately = CFG.sport_immed; //give caller time to change port
 //    serial.SerialPort.apply(this, arguments);
-//    serial.SerialPort.call(this, spath, options || config(242500, '8N1', FPS), false); //openImmediately || false, callback); //false => don't open immediately (default = true)
-    var m_sport = new serial.SerialPort(spath, options || config(242500, '8N1', FPS), openImmediately, callback); //false => don't open immediately (nextTick, default = true)
+//    serial.SerialPort.call(this, spath, options || CFG.def_sport, false); //openImmediately || false, callback); //false => don't open immediately (default = true)
+    var m_sport = new serial.SerialPort(spath, options || config(CFG.def_sport.baud, CFG.def_sport.bits, CFG.def_sport.fps), openImmediately, callback); //false => don't open immediately (nextTick, default = true)
     PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
     this.device = m_sport.path;
     this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
@@ -249,7 +278,7 @@ function MySerialPort(spath, options, openImmediately, callback)
     m_sport.on('close', function close_cb() { logger(10, "closed %s".cyan, this.name || this.device); }.bind(this));
     m_sport.on('disconnect', function discon_cb(err) { logger(10, "disconnected %s: %s".red, this.name || this.device, err || '(error)'); }.bind(this));
 */
-    stmon(m_sport, "serial port '" + (this.name || this.device) + "'");
+    if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'");
 
 //    this.write = function write_serial(data, write_cb) { return m_sport.write.apply(m_sport, arguments); }; //.bind(this);
 //    this.drain = function drain_serial(drain_cb) { return m_sport.drain.apply(m_sport, arguments); }; //.bind(this);
@@ -257,7 +286,7 @@ function MySerialPort(spath, options, openImmediately, callback)
 //    this.drain = m_sport.drain.bind(m_sport);
 //    this.open = m_sport.open.bind(m_sport);
 //    this.self_emit = function self_emit(evt, data) { /*debugger;*/ return m_sport.emit.apply(m_sport, arguments); }
-    ['open', 'emit', 'write', 'drain', 'close'].forEach(function passthru_each(method) { this[method] = m_sport[method].bind(m_sport); }.bind(this));
+    ['on', 'once', 'open', 'emit', 'write', 'drain', 'close'].forEach(function passthru_each(method) { this[method] = m_sport[method].bind(m_sport); }.bind(this));
 //    if (openImmediately !== false) //setTimeout(function delayed_open()
 //    {
 //        var elap = new Elapsed();
@@ -340,7 +369,7 @@ var noport = named(new PortBase(), 'none');
 PortBase.all.forEach(function port_each(port)
 {
     if (!port.device) return;
-//    chpool.port = new serial.SerialPort(chpool.opts.device, config(242500, '8N1', FPS), false); //false => don't open immediately (default = true)
+//    chpool.port = new serial.SerialPort(chpool.opts.device, CFG.def_sport, false); //false => don't open immediately (default = true)
     RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
 });
 

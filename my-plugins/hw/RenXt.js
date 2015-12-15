@@ -246,6 +246,12 @@ const Elapsed = require('my-plugins/utils/elapsed');
 const bufdiff = require('my-plugins/utils/buf-diff');
 const unprintable = require('my-plugins/utils/unprintable');
 
+JSON.my_stringify = function my_stringify(thing) //TODO: use YAML for readability?  kludge: just don't like those quotes :(
+{
+    return JSON.stringify(thing);
+//    return JSON.stringify(thing).replace(/"([A-Z0-9$@_]+)":/gi, "$1:").replace(/([^0-9]),/g, "$1, "); //.replace(/\n */g, '');
+}
+
 const DefaultNodeType = RENXt.WS281X(RENXt.SERIES); //most of my pixels are this type, so use it as default
 //opcode names:
 //mainly for debug
@@ -293,7 +299,7 @@ function AddProtocol(port)
 //    var oldmethods = {assign: port.assign, flush: port.flush}; //, verify: port.verify};
     /*if (!this.encbuf)*/
     port.encbuf = new RenXtBuffer(4096); //port.buf.length); //ignore-NOTE: don't do this until after all channels assigned; TODO: replace with stream-buffer?
-    port.encbuf.emit_raw(RenXt.RENARD_SYNC, 5); //allow controllers to auto-detect baud rate or stop what they were doing first time
+//no-defer    port.encbuf.emit_raw(RenXt.RENARD_SYNC, 5); //allow controllers to auto-detect baud rate or stop what they were doing first time
     port.encbuf.src = "out";
 
     port.old_outbuf = port.outbuf;
@@ -302,6 +308,7 @@ function AddProtocol(port)
         getContents: function getcont()
         {
             var retbuf = new Buffer(this.encbuf.usedbuf); //NOTE: need to copy buffer contents because it will be reused
+            if (retbuf.length) this.inbuf.push(JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length}) + '\n'); //include copy before parsing
             if (this.encbuf.wrlen) this.inbuf.non_xform(this.encbuf); //copy output to loopback log so it can be compared for comm and firmware diagnostics
             this.encbuf.rewind();
             return retbuf;
@@ -309,6 +316,11 @@ function AddProtocol(port)
         size: function size() { return port.encbuf.wrlen; }
     };
 
+    port.iostats = //send to analysis stream rather than accumulating in memory
+    {
+        length: 0, //kludge: make it look like an empty array
+        push: function iostats_push(info) { port.inbuf.push(JSON.my_stringify(info) + '\n'); },
+    };
     var svfinish = port.onfinish;
     port.onfinish = function onfinish(args)
     {
@@ -343,7 +355,7 @@ function AddProtocol(port)
     port.old_flush = port.flush; //allow previous method to be called as well; grab from instance rather than prototype in case it was overridden
     port.flush = my_flush.bind(port);
 
-    port.verify = my_verify.bind(port); //NOTE: completely overrides previous method
+//    port.verify = my_verify.bind(port); //NOTE: completely overrides previous method
 //    port.cfg_sent = false; //force config info to be sent first time
     console.log("RenXt protocol added to %s".yellow, port.name);
 }
@@ -487,7 +499,7 @@ function encode(nodes) //port, nodes,// first) //NOTE: runs in port context
 function encode_adrs(first)
 {
     if (first || !this.cfg_sent) //need to config addresses before sending anything else
-        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.nodebytes);
+        this.port.encbuf.SetConfig(this.adrs, this.opts.nodetype, this.nodebytes, this.port.encbuf.wrlen? 1: 5);
     else this.port.encbuf.SelectAdrs(this.adrs);
     this.cfg_sent = true;
 //        if (!model.adrs) { console.log("RenXt encode: skipping model '%s' no address", model.name); return; }
@@ -496,7 +508,7 @@ function encode_adrs(first)
 //    if (!(seqnum % WANT_COMM_DEBUG))
     if (this.sent_ack--) return; //check firmware status periodically
     this.sent_ack = 20; //do it again in 20 frames
-    logger(30, "checking firmware status every %d frames".cyan, this.sent_ack);
+    logger(30, "checking '%s' firmware status every %d frames".cyan, this.name || this.device, this.sent_ack);
     this.port.encbuf
         .emit_opc(RENXt.ACK) //check listener/packet status
 //        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
@@ -578,7 +590,7 @@ function encode_series(first) //_smart(model) //, nodes)
 
     this.port.encbuf
 //        .SelectAdrs(this.adrs)
-        .SetPal(myhist.colors, this.opts.output); //this.pal);
+        .SetPal(myhist.colors, this.opts.output); //this.pal); //TODO: shared palette
 //TODO: GECE RGB2IBGRZ color conv
 //TODO: splitable
     if (bpp && (bitmap_size < inverted_size)) //flat bitmap
@@ -639,7 +651,7 @@ function encode_series(first) //_smart(model) //, nodes)
                 this.port.encbuf.emit_byte(prevofs);
             }.bind(this));
         }.bind(this));
-        this.port.encbuf.emit_byte(RENXt.NODELIST_END); //end of inverted lists
+        if (myhist.colors.length > 1) this.port.encbuf.emit_byte(RENXt.NODELIST_END); //end of inverted lists
     }
     this.port.encbuf.NodeFlush(this.wait_states);
 }
@@ -647,9 +659,10 @@ function encode_series(first) //_smart(model) //, nodes)
 
 function encode_parallel(first) //, nodes)
 {
+    encode_adrs.apply(this, arguments); //send config, select adrs, etc.
 //nodetype: RenXt.WS281X(RenXt.PARALLEL)
     this.port.encbuf
-        .SelectAdrs(this.adrs)
+//        .SelectAdrs(this.adrs)
         .emit_buf(new Buffer("TODO: PARALLEL"))
         .NodeFlush(this.wait_states);
 }
@@ -738,7 +751,7 @@ function histogram(nodes, desc)
         for (var i = 0; i < nodes.length; i += 4)
         {
             var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //ABGR, drop A
-            if (isNaN(++counts[color])) { counts[color] = 1; index[color] = index.length++; }
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
 /*
             var inx = keys[color];
             if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
@@ -750,7 +763,7 @@ function histogram(nodes, desc)
         for (var i = 0; i < nodes.length; ++i)
         {
             var color = nodes[i] & 0xFFFFFF; //ABGR, drop A
-            if (isNaN(++counts[color])) { counts[color] = 1; index[color] = index.length++; }
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
         }
     var palette = Object.keys(counts);
     palette.sort(function pal_sort(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
@@ -769,6 +782,7 @@ function histogram(nodes, desc)
 const REN_EOF = 0x200;
 
 
+/*
 //compare port inbuf with saved outbuf:
 //this helps catch firmware bugs and comm problems by verifying outbuf was received and processed
 //NOTE: this code runs async after I/O has occurred, so it can only report errors and not prevent them
@@ -787,7 +801,7 @@ function my_verify(final_incomplete) //outbuf, inbuf)
     }
 //        if (this.inbuf.size() < iorec.len) return; //not enough data to verify
 //        var elapsed = new Elapsed(iorec.sendtime);
-    if (isNaN(++iorec.veri_retry)) iorec.veri_retry = 1;
+    if (!++iorec.veri_retry /-*isNaN*-/) iorec.veri_retry = 1;
     console.log("trying to verify iorec", iorec);
     if (!this.sentbuf)
     {
@@ -847,6 +861,7 @@ debugger;
         sent = rcvd = null;
     }
 }
+*/
 
 /*
     var ch, junk;
@@ -978,14 +993,14 @@ function xform(chunk, encoding, done, eof)
         var parsed = this.fifo.parse(true, !chunk && (eof !== false)); //{adrs, seqnum, lit, data}
         if (!parsed) break;
         parsed.src = this.fifo.src; //show where it came from
-        if (isNaN(++this.fifo.pkt_count)) this.fifo.pkt_count = 1;
+        if (!++this.fifo.pkt_count /*isNaN*/) this.fifo.pkt_count = 1;
         parsed.pktnum = this.fifo.pkt_count;
         parsed.elaped = this.elapsed.now; //mainly for debug
         var opc = parsed.lit? parsed.lit[0]: null;
         if (opc) parsed.opc = OpcodeNames(opc) || ('#' + hex(opc, 2)); //mainly for debug
         parsed.litlen = (parsed.lit || []).length; //mainly for debug
         parsed.datalen = (parsed.data || []).length; //mainly for debug
-        this.push(JSON.stringify(parsed) + '\n');
+        this.push(JSON.my_stringify(parsed) + '\n');
         logger(10, "loopback: parsed pkt# %s, %s remaining".cyan, parsed.pktnum, this.fifo.rdlen - this.fifo.rdofs);
         eatlen = this.fifo.rdofs; //remove valid packet from fifo
     }
@@ -1341,11 +1356,11 @@ function SelectAdrs(adrs)
 }
 
 RenXtBuffer.prototype.SetConfig =
-function SetConfig(adrs, node_type, node_bytes)
+function SetConfig(adrs, node_type, node_bytes, sync_count)
 {
 //    if (typeof node_type == 'undefined') node_type = RenXt.WS281X(RenXt.SERIES);
     this
-        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(RenXt.RENARD_SYNC, sync_count) //allow controllers to auto-detect baud rate or stop what they were doing first time
         .emit_raw(adrs)
 //firmware requires SentNodes state bit to be off in order to change node type (otherwise flagged as protocol error)
 //since we know what all the state bits should be, just overwrite them all rather than using a complicated read-modify-write process to try to preserve some of them
@@ -1514,7 +1529,7 @@ RenXtBuffer.prototype.emit_opc =
 function emit_opc(value, count)
 {
 //    this.has_opc = true;
-    if (isNaN(this.stats_opc[value] += count || 1)) { this.stats_opc[value] = count || 1; ++this.stats_opc.length; }
+    if (!(this.stats_opc[value] += count || 1) /*isNaN*/) { this.stats_opc[value] = count || 1; ++this.stats_opc.length; }
     this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case
     return this; //fluent
 }
