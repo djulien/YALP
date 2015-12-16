@@ -578,7 +578,7 @@ debugger;
         var ic = x2ic(Math.round(x)); if (ic) ic.dirty = true;
         ic = x2ic(Math.round(x + 207.1/14)); if (ic) ic.dirty = true; //NOTE: assumes each seg touches at most 2 models
         var color = dim(WHITE, vix2buf[2 + col]);
-        logger(100-1, "ic color: #FCA * %s => %s", vix2buf[2 + col], hex8(color));
+        logger(100-1, "ic x %s/207, col %s/14, color: #FCA * %s => %s", x, col, vix2buf[2 + col], hex8(color));
 //        this.MyFx.column.call(this, col, color);
 //        logger(100, "ic nodes are now: %s", this.imgdata().data.toString());
         this.fill(Math.round(x), 0, Math.round(x + 207.1/14) - Math.round(x), this.height, color);
@@ -596,6 +596,9 @@ floods.vix2render = function() {} //TODO
 var ab = new Model2D({name: 'ab', w: 3, h: 8, zinit: false, zorder: 1, vix2ch: [16, +24], body: +0, headwings: +1, bell: +2});
 ab.vix2render = function() {} //TODO
 */
+
+var trace = new Model2D({name: 'trace', x: 0, w: 4, h: 1, zinit: false});
+Object.trace.
 
 
 //logger("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
