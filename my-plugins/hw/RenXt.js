@@ -308,7 +308,7 @@ function AddProtocol(port)
         getContents: function getcont()
         {
             var retbuf = new Buffer(this.encbuf.usedbuf); //NOTE: need to copy buffer contents because it will be reused
-            if (retbuf.length) this.inbuf.push(JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length}) + '\n'); //include copy before parsing
+            if (retbuf.length) this.inbuf.push(JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length, seqnum: this.seqnum}) + '\n'); //include copy before parsing
             if (this.encbuf.wrlen) this.inbuf.non_xform(this.encbuf); //copy output to loopback log so it can be compared for comm and firmware diagnostics
             this.encbuf.rewind();
             return retbuf;

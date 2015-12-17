@@ -558,9 +558,9 @@ function buf_resize(bufname, needlen, grouping)
 Model2D.prototype.generateNodelist =
 function generateNodelist()
 {
-    if (!this.opts.order) return;
+    if (!this.opts.order && (this.width * this.height != 1)) return;
     this.nodelist = [];
-    (this.opts.order.bind(this))(); //call(this); //generate ordered node list
+    ((this.opts.order || Model2D.prototype.T2B_L2R).bind(this))(); //call(this); //generate ordered node list
     if (!this.nodelist.length) throw "Model '" + this.name + "' no nodelist generated";
     this.setRenderType(this.opts.output);
     logger(30, "model '%s' generated %s nodes on %s x %s canvas, %s byte/node %s".blue, this.name, this.nodelist.length, this.width, this.height, this.bytesPerNode, this.opts.output || 'RGB'); //, this.outbuf.length);

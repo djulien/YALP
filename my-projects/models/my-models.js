@@ -597,8 +597,17 @@ var ab = new Model2D({name: 'ab', w: 3, h: 8, zinit: false, zorder: 1, vix2ch: [
 ab.vix2render = function() {} //TODO
 */
 
-var trace = new Model2D({name: 'trace', x: 0, w: 4, h: 1, zinit: false});
-Object.trace.
+
+//dummy object to allow output to be tagged for easier trace/debug:
+var trace = new Model2D({name: 'trace', x: 0, w: 1, h: 1, zinit: false});
+trace.old_render = trace['render']; //kludge: use indirect adrs to avoid hoisting function from below
+trace.render = function render()
+{
+debugger;
+    this.dirty = true;
+    this.pixel(0, 0, (this.port.seqnum << 8) | 0xFF);
+    return this.old_render.apply(this, arguments);
+}
 
 
 //logger("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
@@ -630,7 +639,7 @@ var assts = //kludge: need var name here to keep Javascript happy
 {
 //    'FTDI-G': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, cross, sheep, nat, donkey
 //    'FTDI-B': [angel, mtree, gift, star], //city, tb
-    'FTDI-W': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig], //ab
+    'FTDI-W': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig, trace], //ab
 //    'FTDI-Y': [gece, floods12, floods34, shep1, shep2, shep3, shep4],
     'none': [mtree, macro_fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
 }.forEach(function(models, portname)
