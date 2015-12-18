@@ -246,13 +246,35 @@ const Elapsed = require('my-plugins/utils/elapsed');
 const bufdiff = require('my-plugins/utils/buf-diff');
 const unprintable = require('my-plugins/utils/unprintable');
 
+function my_inspect(depth, opts) //make debug easier
+{
+    var buf = '';
+    for (var ofs = 0; ofs < this.length; ++ofs)
+    {
+        if (ofs >= buffer.INSPECT_MAX_BYTES) { buf += ' ... ' + (this.length - ofs) + ' '; break; }
+        if (!(ofs % 16) && ofs) buf += " 'x" + ofs.toString(16); //show byte offset periodically
+//        switch (grouping)
+//        {
+//            case 3: buf += ' ' + hex(this.readUInt24BE(ofs), 6); break;
+//            case 4: buf += ' ' + hex(this.readUInt32BE(ofs), 8); break;
+//            default: throw "Unhandled chunk size: " + grouping;
+//        }
+        buf += ' ' + (!ofs? 'x' : '') + this[ofs].toString(16); //hex(this[ofs], 2);
+    }
+    return '<Buffer ' + this.length + ':' + buf + '>';
+}
+
 JSON.my_stringify = function my_stringify(thing) //TODO: use YAML for readability?  kludge: just don't like those quotes :(
 {
     return JSON.stringify(thing, function buf_replacer(key, value)
     {
-        if (!Buffer.isBuffer(value)) return value;
-        var buf = '';
-        
+        if (!value) return value;
+        if (!Buffer.isBuffer(value))
+            if (!value.data || !value.type || !Array.isArray(value.data) || (value.type != 'Buffer'))
+                return value;
+//        value.inspect = my_inspect.bind(value);
+//        return value.inspect();
+        return my_inspect.call(value.data);
     });
 //    return JSON.stringify(thing).replace(/"([A-Z0-9$@_]+)":/gi, "$1:").replace(/([^0-9]),/g, "$1, "); //.replace(/\n */g, '');
 }
@@ -312,6 +334,8 @@ function AddProtocol(port)
     {
         getContents: function getcont()
         {
+            this.encbuf.interleave(); //enforce wait states before sending
+//TODO: avoid the extra buffer copy
             var retbuf = new Buffer(this.encbuf.usedbuf); //NOTE: need to copy buffer contents because it will be reused
             if (retbuf.length) this.inbuf.push(JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length, seqnum: this.seqnum}) + '\n'); //include copy before parsing
             if (this.encbuf.wrlen) this.inbuf.non_xform(this.encbuf); //copy output to loopback log so it can be compared for comm and firmware diagnostics
@@ -373,7 +397,7 @@ function my_assign(model)
     if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes (need to specify model node order)";
     this.old_assign.apply(this, arguments); // /*.bind(port)*/(model);
     var nodetype = model.opts.nodetype || DefaultNodeType;
-    model.adrs = this.models.length; //assign unique adrs for each prop on this port, in correct hardware order
+    model.adrs = this.opts.adrs || this.models.length; //assign unique adrs for each prop on this port, in correct hardware order; let caller override
     model.setRenderType('ARGB'); //NOTE: use 32-bit value to preserve byte alignment in node analyzer; //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw ABGR pixel data; also don't want R<->G swap before quant
     model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
     model.nodebytes = model.opts.nodebytes || Math.ceil(model.nodelist.length / 4 / 2); //memory size of nodes in controller; 2 nodes/byte, quad bytes
@@ -387,8 +411,10 @@ function my_assign(model)
 //latest: 5 MIPS: 48 nodes => 8 usec, 36 nodes => 5 usec, 20 nodes => 2 usec, 10 nodes => 0 usec
 //timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
 //???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
-            case RENXt.SETALL: return Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 8) == 8)? 48: 5));
-            case RENXt.NODEFLUSH: return 999; //kludge: execution time depends on pixel type so just pick a large number to force opcode to end of pipeline
+            case RENXt.SETALL: return [Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 8) == 8)? 48: 5)), this.adrs];
+            case RENXt.NODEFLUSH: return [999, this.adrs]; //kludge: execution time depends on pixel type so just pick a large number to force opcode to end of pipeline
+            case RENXt.ZCRESAMPLE:
+            case RENXt.RESET:
             default: throw "Unhandled opcode: " + opc;
         }
     }.bind(model);
@@ -638,7 +664,13 @@ function encode_series(first) //_smart(model) //, nodes)
         indexed_nodes.forEach(function split_each(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
         myhist.colors.forEach(function inverted_each(color, palinx)
         {
-            if (!palinx) { this.port.encbuf.SetAll(0, this.wait_states); return; } //background color doesn't use a list
+//TODO: SetAll+Flush?
+            if (!palinx) //background color uses SetAll instead of a node list
+            {
+                this.port.encbuf.SetAll(0, this.wait_states);
+                if (this.waits) this.port.encbuf.SelectAdrs(this.adrs); //wait state needed on next opcode, so emit adrs again
+                return;
+            }
             nodelists[palinx].sort(); //node inx must be in increasing order for correct bank switching
             var node_esc = RENXt.NODELIST(palinx); //esc code to start next list or switch banks
             var prevbank = RENXt.NodeBank(0), prevofs = RENXt.NodeOffset(0); //reset bank tracking
@@ -1272,7 +1304,7 @@ function RenXtBuffer(opts)
 //    this.dataview = new DataView(this.buffer);
     this.stats_opc = {length: 0}; //new Uint8ClampedArray(256); //Uint16Array(256);
 //    this.stats_opc.fill(0);
-    this.waits = [];
+//    this.waits = {};
 //    this.port.on('data', function port_rcv(data) //collect incoming data
 //    {
 //        this.latest = this.elapsed.now;
@@ -1294,6 +1326,7 @@ function rewind()
 //    if (!this.stats_opc) this.stats_opc = new Uint16Array(256);
     this.buffer.fill(0xee); //for easier debug
 //no-preserve    this.stats_opc.fill(0);
+    this.waits = {}; //length: 0};
     return this; //fluent
 }
 
@@ -1330,7 +1363,34 @@ function flush(cb)
 //        console.log("write[%d/%d] ", ofs, this.wrlen, this.buffer.slice(ofs, 64));
     console.log("write %d ", this.wrlen, outbuf);
     console.log("wait states:", this.waits);
-    if (this.waits.length) this.waits = [];
+/*
+   aAaaaAbBbbbBcCcccC
+     ^   ^ ^   ^ ^   ^
+   aAbBbbbBcCcccCaaaA
+     ^   ^
+*/
+    var max_delay = this.waits.reduce(function find_latest(previousValue, currentValue) { return Math.max(previousValue, (currentValue != 999)? currentValue: 0); });
+    if (max_delay > this.encbuf.wrlen)
+    {
+        console.log("waitst: pad buf +%s for longest wait '%s", max_delay - this.encbuf.wrlen, max_delay);
+        this.encbuf.emit_byte(RENXt.NOOP, max_delay - this.encbuf.wrlen); //pad to reach longest wait state
+    }
+    this.waits.forEach(function delay_opc(wait, inx, all) //interleave opcodes to reduce wait states
+    {
+debugger;
+        if (!inx) return;
+        var prior = all[inx - 1]; prior.buflen = wait.ofs - prior.ofs; //run 1 back for reduce
+        if (prior.delay > this.encbuf.wrlen) this.encbuf.emit_byte(RENXt.NOOP, prior.delay - this.encbuf.wrlen);
+        this.encbuf.buffer.copy(this.encbuf.buffer, prior.ofs, this.wrlen, this.wrlen + wait.ofs - prior.ofs);
+        this.encbuf.buffer.copy(this.encbuf.buffer, wait.ofs, prior.ofs, this.wrlen + wait.ofs - prior.ofs);
+        console.log("waitst: shift opc from '%s..%s to '%s, fill with '%s..%s", prior.ofs, wait.ofs, this.wrlen, wait.ofs, this.wrlen - this.ofs);
+
+wait.delay + wait.count, wait.delay + wait.count + this.wrlen - wait.ofs);
+        if (wait.count == 999) return;
+        this.encbuf.buffer.fill(RENXt.NOOP, wait.ofs, wait.delay + wait.count);
+        this.wrlen += wait.delay + wait.count - wait.ofs;
+    });
+//    if (this.waits.length) this.waits = [];
     return this.port.write(outbuf, function port_written(err, results)
     {
 //        console.log(typeof outbuf);
@@ -1354,6 +1414,35 @@ function flush(cb)
 RenXtBuffer.prototype.SelectAdrs =
 function SelectAdrs(adrs)
 {
+//    var delayed = this.waits[adrs];
+//    if (delayed) delayed.nxtofs = this.wrofs; //push({ofs: this.wrofs});
+//    this.waits.forEach(function undelay(opc, inx, all)
+//    {
+//        if (this.wrlen >=
+//    });
+//    this.waits.push({ofs: this.wrlen, delay: 0, adrs: adrs});
+/*
+    var delayed = this.waits[0];
+    if (!delayed); //no outstanding wait states; don't need to block next set of opcodes
+    else if (adrs != delayed.adrs) //ins ahead of delayed opc
+    {
+        delayed.buf = new Buffer(this.wrlen - delayed.ofs);
+        this.buffer.copy(delayed.buf, 0, delayed.ofs, this.wrlen);
+        console.log("waits: move '%s..%s to holding buf[%s]", delayed.ofs, this.wrlen, 0);
+        this.wrlen = delayed.ofs;
+    }
+    else if (this.wrlen < delayed.ofs + delayed.count) this.waits.push({ofs: this.wrlen, adrs: adrs}); //fence needed; previous wait state unsatisfied
+    else //previous wait state satisfied
+    {
+debugger;
+        console.log("waitst: shift opc from '%s to '%s..%s, fill '%s..%s, grows by %s", wait.ofs, wait.delay + wait.count, wait.ofs, wait.delay + wait.count, wait.delay + wait.count - wait.ofs);
+        if (wait.count == 999) return;
+        this.encbuf.buffer.copy(this.encbuf.buffer, wait.ofs, wait.delay + wait.count, wait.delay + wait.count + this.wrlen - wait.ofs);
+        this.encbuf.buffer.fill(RENXt.NOOP, wait.ofs, wait.delay + wait.count);
+        this.wrlen += wait.delay + wait.count - wait.ofs;
+    }
+*/
+    if (this.waits.length) this.waits.push({ofs: this.wrlen, adrs: adrs}); //allow all opc after first delayed to be reordered
     this
         .emit_raw(RenXt.RENARD_SYNC)
         .emit_raw(adrs);
@@ -1535,15 +1624,41 @@ function emit_opc(value, count)
 {
 //    this.has_opc = true;
     if (!(this.stats_opc[value] += count || 1) /*isNaN*/) { this.stats_opc[value] = count || 1; ++this.stats_opc.length; }
-    this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case
+    this.emit_raw(value, count); //NOTE: assumes opcode doesn't need to be escaped, which should be the case (only data bytes should need esc)
     return this; //fluent
 }
+
+/*
+RenXtBuffer.prototype.interleave =
+function interleave()
+{
+    this.rdofs = 0;
+    this.rdlen = this.wrlen;
+//    if (true) //interleave opcodes so wait states overlap with other processors (reduces serial bandwidth wastage)
+    {
+    }
+//no interleave; just pad opcodes to enforce wait states
+    for (;;)
+    {
+        var wait = this.waits.shift(); //{ofs, delay, adrs}
+        if (!wait) break;
+        this.rdofs = wait.ofs;
+        var byte = this.deque_raw();
+        if ((byte & ~REN_EOF) != RenXt.RENARD_SYNC) throw "Expected Sync after opcode with wait state";
+        if (byte & REN_EOF) return; //all further wait states will be correct at end of packet
+
+    }
+    this.waits.push({ofs: this.wrlen, delay: count || 1}); //set wait state for current opcode
+}
+*/
 
 RenXtBuffer.prototype.delay_next =
 function delay_next(count)
 {
-    if (count < 1) return; //no need for wait
-    this.waits.push({ofs: this.wrlen, delay: count || 1}); //set wait state for current opcode
+    if (count[0] < 1) return; //no need for wait
+//    if (this.waits[count[1]]) throw "duplicate wait state for adrs " + count[1];
+//    /*var delayed =*/ this.waits[count[1]] = {last_ofs: this.wrlen, delay: count[0] || 1}; //.push(); //set wait state for current opcode
+    waits.push({ofs: this.wrlen, delay: count[0] || 1, adrs: count[1]}; //fence; delay next opcode if necessary
     return this; //fluent
 }
 

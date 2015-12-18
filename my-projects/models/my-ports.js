@@ -135,7 +135,7 @@ debugger;
     if (!++this.num_writes)
     {
         this.num_writes = 1;
-//        process.nextTick(function delay_once() { 
+//        process.nextTick(function delay_once() {
         this.once('close', function onclose() { this.iostats.push({eof: true, numwr: this.num_writes}); }.bind(this)); //}.bind(this)); //need to wait until child class ctor completes
     }
 //TODO: tag writes with seq# for easier tracking
@@ -145,7 +145,7 @@ debugger;
 //        console.log(typeof outbuf);
 //        var outdesc = outbuf.length + ':"' + unprintable((typeof outbuf === 'string')? outbuf: (outbuf.toString('utf8').substr(0, 20) + '...')) + '"';
 //        this.iostats.seqnum = seqnum; this.iostats.elapsed = elapsed;
-        if (err) { this.iostats.push({wrerr: err.message || "some kind of write error", seqnum: seqnum, time: elapsed.now}); return; } //console.log('write "%s" seq# %s err after %s: '.red, this.name, iorec.seqnum, elapsed.scaled(), err); return; } //cb(err); }
+        if (err) { this.iostats.push({wrerr: err.message || "some kind of write error", seqnum: seqnum, port: this.name || this.device, time: elapsed.now}); return; } //console.log('write "%s" seq# %s err after %s: '.red, this.name, iorec.seqnum, elapsed.scaled(), err); return; } //cb(err); }
 //        logger(10, 'wrote "%s" seq# %s %d bytes ok after %s; results %d:'.green, this.name, iorec.seqnum, iorec.len, elapsed.scaled(), results.length, results);
 //        this.iostats.wrokay(results || "okay", seqnum, elapsed.now);
         this.drain(function drain_done(err)
