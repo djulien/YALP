@@ -162,6 +162,7 @@ function Model2D(opts)
                 m_dirty = newval;
 //                if (newval && this.port) this.port.dirty = true;
                 if (newval && this.parent) this.parent.dirty = true; //child makes parent dirty but not un-dirty
+//                if (newval && this.parent && this.parent.port && !this.parent.port.write) throw "Dirty port: nowhere to write";
             },
             enumerable: true,
         },
@@ -172,7 +173,11 @@ function Model2D(opts)
     Object.defineProperty(this, 'port',
     {
         get() { return m_port; },
-        set(newval) { if (m_port = newval) m_port.assign(this); }, //tells protocol handler to allocate resources
+        set(newval) //tells protocol handler to allocate resources
+        {
+            if (m_port = newval) m_port.assign(this);
+            if (!m_port.write) logger("Output for model '%s' will be discarded (no port write)".yellow, this.name);
+        },
         enumerable: true,
     });
 

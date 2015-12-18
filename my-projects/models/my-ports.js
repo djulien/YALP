@@ -106,12 +106,12 @@ function assign(model)
 PortBase.prototype.flush =
 function flush(seqnum)
 {
-    if (!this.dirty) return;
+    if (!this.dirty || !this.write) return;
     var elapsed = new Elapsed();
     if (typeof seqnum != 'undefined') this.seqnum = seqnum; //caller overrides default seq#
     if (!++this.seqnum /*isNaN*/) this.seqnum = 1;
     logger(10, "port '%s' flush[%d]: dirty? %s, size %s".cyan, this.name || this.device, this.seqnum, !!this.dirty, this.outbuf.size());
-//debugger;
+debugger;
     seqnum = this.seqnum; //kludge: make local copy for better tracking (shared copy will only show latest value)
 /* now handled by stream analyzer
     this.verify = function verify_disabled(first) { console.log("(verify)"); } //TODO
@@ -135,7 +135,8 @@ function flush(seqnum)
     if (!++this.num_writes)
     {
         this.num_writes = 1;
-        this.once('close', function onclose() { this.iostats.push({eof: true, numwr: this.num_writes}); }.bind(this));
+//        process.nextTick(function delay_once() { 
+        this.once('close', function onclose() { this.iostats.push({eof: true, numwr: this.num_writes}); }.bind(this)); //}.bind(this)); //need to wait until child class ctor completes
     }
 //TODO: tag writes with seq# for easier tracking
     this.write(data, function write_done(err, results)

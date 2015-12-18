@@ -68,7 +68,7 @@ function FxPlayback(opts)
         if (!++this.stats.fxcalls[data.fx] /*isNaN*/) this.stats.fxcalls[data.fx] = 1;
 //        if (FxPlayback.myfx.MyFx.ismine(data.fx)) FxPlayback.myfx.MyFx[data.fx](data); //apply fx
 //        if (data.fx && /*(data.fx in this) &&*/ (typeof this[fxname] == 'function'); //.prototype;
-debugger;
+//debugger;
 //        (FxPlayback.myfx.MyFx[data.fx] || this.nofx)(data); //apply fx; TODO: bind?
 //JS broken!        (models_byname[data.target || 'entire'].fx[data.fx] || this.nofx)(data); //apply fx to whole-house if target model not specified
         var target = models_byname[data.target || 'entire'];

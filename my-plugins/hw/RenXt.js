@@ -248,7 +248,12 @@ const unprintable = require('my-plugins/utils/unprintable');
 
 JSON.my_stringify = function my_stringify(thing) //TODO: use YAML for readability?  kludge: just don't like those quotes :(
 {
-    return JSON.stringify(thing);
+    return JSON.stringify(thing, function buf_replacer(key, value)
+    {
+        if (!Buffer.isBuffer(value)) return value;
+        var buf = '';
+        
+    });
 //    return JSON.stringify(thing).replace(/"([A-Z0-9$@_]+)":/gi, "$1:").replace(/([^0-9]),/g, "$1, "); //.replace(/\n */g, '');
 }
 
