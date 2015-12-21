@@ -119,8 +119,8 @@ HW.Serial.enum = function(cb)
 }
 
 
-var ChannelPool = require('my-projects/models/chpool');
-var model = require('my-projects/models/model');
+var ChannelPool = require('my-projects/models/chpool-bk');
+var model = require('my-projects/models/model-bk');
 var Rect2D = model.Rect2D;
 
 //ports, hw assignments:

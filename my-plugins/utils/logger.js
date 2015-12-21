@@ -63,7 +63,11 @@ module.exports = function(opts)
             if (logfile) logfile.end("(flush)\n");
             logfile = null;
         }, 2000);
-        process.on('exit', function(code) { if (logfile) logfile.end("exit(%d)", code); logfile = null; });
+        if (!logger.onexit)
+        {
+            logger.onexit = true;
+            process.on('exit', function(code) { if (logfile) logfile.end("exit(%d)", code); logfile = null; });
+        }
     }
 
     var ColorCodes = /\x1b\[\d+m/g;

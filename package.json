@@ -144,6 +144,7 @@
     "mp3dat": "^0.1.1",
     "mute-stream": "^0.0.5",
     "nan": "^2.1.0",
+    "ndarray": "^1.0.18",
     "node-cache": "^3.0.0",
     "node-glob-loader": "^0.0.15",
     "node-hook": "^0.2.0",

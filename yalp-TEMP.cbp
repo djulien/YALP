@@ -151,6 +151,7 @@
 		<Unit filename="my-projects/models/icicles-bk.js" />
 		<Unit filename="my-projects/models/model-2d.js" />
 		<Unit filename="my-projects/models/model-bk.js" />
+		<Unit filename="my-projects/models/my-canvas.js" />
 		<Unit filename="my-projects/models/my-models.js" />
 		<Unit filename="my-projects/models/my-ports.js" />
 		<Unit filename="my-projects/models/myModelStreams.js" />
@@ -208,6 +209,7 @@
 		<Unit filename="public/socket.html" />
 		<Unit filename="scripts/imhere.js" />
 		<Unit filename="scripts/install-bk.sh" />
+		<Unit filename="scripts/mkgrid.js" />
 		<Unit filename="scripts/mp3player.js" />
 		<Unit filename="scripts/notilde.sh" />
 		<Unit filename="scripts/symlinks.js" />
@@ -217,6 +219,7 @@
 		<Unit filename="tests/YalpStream.json" />
 		<Unit filename="tests/canvas-test.html" />
 		<Unit filename="tests/canvas-test.js" />
+		<Unit filename="tests/color-test.js" />
 		<Unit filename="tests/createjs.html" />
 		<Unit filename="tests/djtest.js" />
 		<Unit filename="tests/email-bk.js" />

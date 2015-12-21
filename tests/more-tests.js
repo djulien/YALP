@@ -63,12 +63,12 @@ function playback(infile)
     data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
 //NO    data.end(); //close pipe after data all read??
 }
-playback('./Amaz.json');
+//setTimeout(function() { playback('./Amaz.json'); }, 1000);
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// analyze comm + firmware integrity:
+/// 3. analyze comm + firmware integrity:
 //
 
 
@@ -140,6 +140,57 @@ debugger;
 //NO    data.end(); //close pipe after data all read??
 }
 //analyze('./ttyUSB3-out.log');
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////
+/// port test:
+//
+
+function port_test()
+{
+    var ff = 0;
+    var models = require('my-projects/models/my-models').models;
+    process.nextTick(function() { models.ic1.port.open(); }); //kludge: can't use models until next tick
+    setInterval(function()
+    {
+debugger;
+        if (ff++ & 1)
+        {
+            console.log("off");
+            models.ic1.fill('#000000').render();
+            models.ic2.fill('#000000').render();
+            models.ic3.fill('#000000').render();
+            models.ic4.fill('#000000').render();
+            models.ic5.fill('#000000').render();
+        }
+        else
+        {
+            console.log("on");
+            models.ic1.fill('#ff00ff').render();
+            models.ic2.fill('#ff0000').render();
+            models.ic3.fill('#00ff00').render();
+            models.ic4.fill('#0000ff').render();
+            models.ic5.fill('#00ffff').render();
+        }
+        models.ic5.port.flush();
+    }, 2500);
+/*
+test_strip
+    .fill(0xFF0000)
+    .wait(1000)
+    .fill(0x0000FF)
+    .wait(1000)
+    .pixel(0, 0x111111)
+    .pixel(1, 0x222222)
+    .pixel(2, 0x333333)
+    .pixel(3, 0x444444)
+    .wait(500)
+    .save('../tmp/stream2.yalp')
+    .playback({persist: true, loop: 2});
+*/
+}
+port_test();
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

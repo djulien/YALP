@@ -78,7 +78,7 @@ function FxPlayback(opts)
         if (typeof target == 'function') target.call(model, data); //apply fx to whole-house if target model not specified
         else this.nofx(data);
         if (!has_time) return; //don't need to refresh hardware on this frame
-debugger;
+//debugger;
 //        FxPlayback.myfx.MyFx.render(data.time);
 //NOTE: render runs about 1 frame ahead so port flush will be on time
 //models can have free-running animation/effects, but a timed frame must occur in stream in other to update/render model updates
@@ -113,7 +113,7 @@ FxPlayback.prototype.nofx = function nofx(data)
 //    console.log("this", this);
 //    if (!(this instanceof FxPlayback)) throw "wrong this";
     var msg = sprintf("unknown effect for model '%s': '%s'".red, data.target || 'entire', data.fx || '(none)');
-    debugger;
+//debugger;
     ++this.stats.unkn;
     switch (CatchMissing) //true => throw exc, false => log message, null => ignore
     {
@@ -157,7 +157,7 @@ FxPlayback.prototype.flush_ports = function flush_ports(frtime, retry)
         setTimeout(function() { this.flush_ports(frtime, true); }.bind(this), delay);
         return;
     }
-    /*models.*/ ports.forEach(function(port) { port.flush(frtime); });
+    /*models.*/ ports.forEach(function(port) { port.flush(); }); //frtime); });
 }
 
 

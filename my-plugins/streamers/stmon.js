@@ -61,26 +61,39 @@ function rdwr(desc, cb)
 }
 
 
-function not_stmon(stream, desc) { return stream; }
+function not_stmon(stream, desc, showbuf) { return stream; }
 
 
 //log stream events (for debug):
-function stmon(stream, desc)
+function stmon(stream, desc, showbuf)
 {
     if (!desc /*arguments.length < 2*/) desc = "unamed stream"; //{ stream = desc; desc = "stream"; }
     if (!isStream(stream)) throw "'" + desc + "' is not a stream";
     desc = (isStream.duplex(stream)? 'D': '') + (isStream.readable(stream)? 'R': '') + (isStream.writable(stream)? 'W': '') + " " + (desc || 'stream');
+    var oldwrite = stream.write;
+    stream.write = function stmon_onwrite(data, cb)
+    {
+        var sbuf = showbuf? ': ' + JSON.stringify(data): '';
+        logger("%s OUTGOING len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
+        oldwrite.apply(stream, arguments);
+        sbuf = null;
+    };
     return stream
-        .on('open', function() { logger("%s opened".green, desc); })
-        .on('readable', function(data) { logger("%s readable".blue, desc); }) //readable only
-        .on('data', function(data) { logger("%s data in len %d".blue, desc, data.length || '(no len)'); }) //readable only
+        .on('open', function() { logger("%s opened %s".green, desc); })
+        .on('readable', function(data) { logger("%s readable".blue, desc); data = null; }) //readable only
+        .on('data', function stmon_ondata(data) //readable only, not for writes
+        {
+            var sbuf = showbuf? ': ' + JSON.stringify(data): '';
+            logger("%s INCOMING len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
+            sbuf = data = null;
+        })
         .on('drain', function() { logger("%s drained".green, desc); }) //writable only
-        .on('pipe', function() { logger("%s piped".cyan, desc); })
-        .on('unpipe', function() { logger("%s unpiped".cyan, desc); })
+        .on('pipe', function(src) { logger("%s piped from a %s".cyan, desc, src.constructor.name); })
+        .on('unpipe', function(src) { logger("%s unpiped from a %s".cyan, desc, src.constructor.name); })
         .on('end', function() { logger("%s end".green, desc); }) //readable only?
         .on('finish', function() { logger("%s flushed".green, desc); }) //writable only?
         .on('close', function() { logger("%s closed".cyan, desc); })
-        .on('error', function(err) { logger("%s error: %j".red, desc, err); });
+        .on('error', function(err) { logger("%s error: %j".red, desc, err); err = null; });
 }
 
 

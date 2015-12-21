@@ -3,7 +3,7 @@
 
 const CFG =
 {
-    port_mon: true, //record open/read/write/close/error events to log (stmon)?
+    port_mon: true, //record open/read/write/close/error events to log (stmon)? falsey => no logging, true => log in/out buf, other => just log event (no data)
     log_level: 10, //logging detail level (set high to exclude from log)
     def_sport: {baud: 242500, bits: '8N1', fps: 20}, //default serial port config; target 50 msec frame rate
     sport_immed: false, //set false to allow caller to change port config before using it
@@ -108,10 +108,11 @@ function flush(seqnum)
 {
     if (!this.dirty || !this.write) return;
     var elapsed = new Elapsed();
+    if (!this.seqnum) this.seqnum = 0;
     if (typeof seqnum != 'undefined') this.seqnum = seqnum; //caller overrides default seq#
-    if (!++this.seqnum /*isNaN*/) this.seqnum = 1;
+//    if (!++this.seqnum /*isNaN*/) this.seqnum = 1;
     logger(10, "port '%s' flush[%d]: dirty? %s, size %s".cyan, this.name || this.device, this.seqnum, !!this.dirty, this.outbuf.size());
-debugger;
+//debugger;
     seqnum = this.seqnum; //kludge: make local copy for better tracking (shared copy will only show latest value)
 /* now handled by stream analyzer
     this.verify = function verify_disabled(first) { console.log("(verify)"); } //TODO
@@ -134,14 +135,16 @@ debugger;
 //    var elapsed = new Elapsed();
     if (!++this.num_writes)
     {
+//debugger;
         this.num_writes = 1;
 //        process.nextTick(function delay_once() {
+//        console.warn("add onclose to ".red, this.name || this.device);
         this.once('close', function onclose() { this.iostats.push({eof: true, numwr: this.num_writes}); }.bind(this)); //}.bind(this)); //need to wait until child class ctor completes
     }
 //TODO: tag writes with seq# for easier tracking
     this.write(data, function write_done(err, results)
     {
-debugger;
+//debugger;
 //        console.log(typeof outbuf);
 //        var outdesc = outbuf.length + ':"' + unprintable((typeof outbuf === 'string')? outbuf: (outbuf.toString('utf8').substr(0, 20) + '...')) + '"';
 //        this.iostats.seqnum = seqnum; this.iostats.elapsed = elapsed;
@@ -160,6 +163,7 @@ debugger;
     }.bind(this));
 //too soon    this.verify();
 //    return {port: this.name || this.device, frtime: frtime, frnext: (frnext_min !== false)? frnext_min: undefined, buflen: buflen, buf: buf}; //this.outbuf.getContents()};
+    if (!++this.seqnum /*isNaN*/) this.seqnum = 1;
     this.dirty = false;
 }
 
@@ -264,13 +268,14 @@ function MySerialPort(spath, options, openImmediately, callback)
     if (typeof CFG.sport_immed != 'undefined') openImmediately = CFG.sport_immed; //give caller time to change port
 //    serial.SerialPort.apply(this, arguments);
 //    serial.SerialPort.call(this, spath, options || CFG.def_sport, false); //openImmediately || false, callback); //false => don't open immediately (default = true)
+    console.log("open serial port %s", spath);
     var m_sport = new serial.SerialPort(spath, options || config(CFG.def_sport.baud, CFG.def_sport.bits, CFG.def_sport.fps), openImmediately, callback); //false => don't open immediately (nextTick, default = true)
     PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
     this.device = m_sport.path;
     this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
 
 //status tracking (for debug):
-/*
+
     m_sport.on("open", function open_cb() { logger(10, 'opened %s'.green, this.name || this.device); }.bind(this));
 //.flush(cb(err)) data received but not read
 //debugger;
@@ -278,8 +283,8 @@ function MySerialPort(spath, options, openImmediately, callback)
     m_sport.on('error', function error_cb(err) { debugger; logger(10, "ERR on %s: ".red, this.name || this.device, err || '(error)'); }.bind(this));
     m_sport.on('close', function close_cb() { logger(10, "closed %s".cyan, this.name || this.device); }.bind(this));
     m_sport.on('disconnect', function discon_cb(err) { logger(10, "disconnected %s: %s".red, this.name || this.device, err || '(error)'); }.bind(this));
-*/
-    if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'");
+
+    if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'", CFG.port_mon === true);
 
 //    this.write = function write_serial(data, write_cb) { return m_sport.write.apply(m_sport, arguments); }; //.bind(this);
 //    this.drain = function drain_serial(drain_cb) { return m_sport.drain.apply(m_sport, arguments); }; //.bind(this);
@@ -299,7 +304,7 @@ function MySerialPort(spath, options, openImmediately, callback)
 //    if (openImmediately !== false) m_sport.open(); //open after evt handlers are in place
 
 //    MySerialPort.all.push(this); //allows easier enum over all instances
-    process.nextTick(function inbuf_piped() { m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
+    process.nextTick(function inbuf_piped() { /*debugger;*/ if (!++this.inbuf.piped) this.inbuf.piped = 1; m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
 }
 //inherits(MySerialPort, serial.SerialPort);
 //Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
@@ -360,19 +365,23 @@ function named(obj, name)
 
 
 //first define my hardware ports:
-var yport = named(new FakeSerialPort('/dev/ttyUSB0'), 'FTDI-Y');
+var yport = named(new FakeSerialPort('/dev/ttyUSB3'), 'FTDI-Y');
 var gport = named(new FakeSerialPort('/dev/ttyUSB1'), 'FTDI-G');
 var bport = named(new FakeSerialPort('/dev/ttyUSB2'), 'FTDI-B');
-var wport = named(new MySerialPort('/dev/ttyUSB3'), 'FTDI-W');
+var wport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-W');
 var noport = named(new PortBase(), 'none');
 
 //then assign protocol handlers:
-PortBase.all.forEach(function port_each(port)
+process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
 {
-    if (!port.device) return;
+    PortBase.all.forEach(function port_each(port)
+    {
+        if (!port.device) return;
 //    chpool.port = new serial.SerialPort(chpool.opts.device, CFG.def_sport, false); //false => don't open immediately (default = true)
-    RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
+        RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
+    });
 });
+//wport.open();
 
 
 //var ChannelPool = require('my-projects/models/chpool');
