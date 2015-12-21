@@ -86,6 +86,7 @@ PortBase.prototype.assign =
 function assign(model)
 {
     logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
+    model.inx_port = this.models.length;
     this.models.push(model);
 //no; already done        model.port = this;
 }

@@ -158,21 +158,22 @@ debugger;
         if (ff++ & 1)
         {
             console.log("off");
-            models.ic1.fill('#000000').render();
-            models.ic2.fill('#000000').render();
-            models.ic3.fill('#000000').render();
-            models.ic4.fill('#000000').render();
-            models.ic5.fill('#000000').render();
+            models.ic1.fill('#000000'); //.render();
+            models.ic2.fill('#000000'); //.render();
+            models.ic3.fill('#000000'); //.render();
+            models.ic4.fill('#000000'); //.render();
+            models.ic5.fill('#000000'); //.render();
         }
         else
         {
             console.log("on");
-            models.ic1.fill('#ff00ff').render();
-            models.ic2.fill('#ff0000').render();
-            models.ic3.fill('#00ff00').render();
-            models.ic4.fill('#0000ff').render();
-            models.ic5.fill('#00ffff').render();
+            models.ic1.fill('#ff00ff'); //.render();
+            models.ic2.fill('#ff0000'); //.render();
+            models.ic3.fill('#00ff00'); //.render();
+            models.ic4.fill('#0000ff'); //.render();
+            models.ic5.fill('#00ffff'); //.render();
         }
+        models.forEach(function(model) { model.render(); });
         models.ic5.port.flush();
     }, 2500);
 /*

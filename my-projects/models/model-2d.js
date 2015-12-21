@@ -276,10 +276,28 @@ Model2D.prototype.pixel_cache =
 function pixel_cache(want_data)
 {
 //TODO: improve this
+    var that = this.parent || this;
     if (want_data) //get all pixels, RGBA
-        if (!(this.parent || this).pix_cache) (this.parent || this).pix_cache = (this.parent || this).imgdata().data;
+        if (!that.pix_cache)
+        {
+            that.pix_cache = that.imgdata().data;
+debugger;
+            var buf = '', prior;
+            for (var i = 0; i <= that.pix_cache.length; i += PIXEL_WIDTH)
+            {
+                var nxtval = (i < that.pix_cache.length)? that.pix_cache.readUInt32BE(i) >>> 0: -1;
+                var n = hex(nxtval, 8), p = i? hex(prior.val, 8): '-';
+                if (i && (nxtval == prior.val)) continue; //no change
+                if (i && (prior.ofs < i - PIXEL_WIDTH)) buf += ' *' + ((i - prior.ofs) / PIXEL_WIDTH);
+                if (i == that.pix_cache.length) break;
+                buf += ', #' + hex(nxtval, 8);
+                prior = {val: nxtval, ofs: i};
+            }
+//            if (prior.ofs < that.pix_cache.length - 1) buf += ' *' + 
+            logger(50, "reload pixel cache %d: %s", that.pix_cache.length, buf.substr(2));
+        }
     if (!want_data) //flush cached pixel data before it becomes stale
-        if ((this.parent || this).pix_cache) (this.parent || this).pix_cache = null;
+        if (that.pix_cache) that.pix_cache = null;
 }
 
 
@@ -955,7 +973,7 @@ debugger;
 Model2D.prototype.flush =
 function flush(args)
 {
-    this.pixel_cache(false); //flush cached pixel data before it becomes stale; TODO: improve this
+//    this.pixel_cache(false); //flush cached pixel data before it becomes stale; TODO: improve this
     if (this.port) this.port.flush.apply(this.port, arguments);
 //no    return this; //no need for fluent since caller needs a delay after a flush anyway; non-fluent ret here will force it and avoid mistakes
 }

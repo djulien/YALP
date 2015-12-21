@@ -404,7 +404,7 @@ function my_assign(model)
     if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes (need to specify model node order)";
     if (this.old_assign) this.old_assign.apply(this, arguments); // /*.bind(port)*/(model);
     var nodetype = model.opts.nodetype || DefaultNodeType;
-    model.adrs = model.opts.adrs || this.models.length; //assign unique adrs for each prop on this port, in correct hardware order; let caller override
+    model.adrs = model.opts.adrs || model.inx_port + 1; //this.models.length; //assign unique adrs for each prop on this port, in correct hardware order; let caller override
     model.setRenderType('ARGB'); //NOTE: use 32-bit value to preserve byte alignment in node analyzer; //RENXt.IsDumb(nodetype)? 'raw': 'mono'); //RgbQuant in encode() wants raw ABGR pixel data; also don't want R<->G swap before quant
     model.encode = (RENXt.IsDumb(nodetype)? encode_chplex: RENXt.IsParallel(nodetype)? encode_parallel: encode_series).bind(model);
     model.nodebytes = model.opts.nodebytes || Math.ceil(model.nodelist.length / 4 / 2); //memory size of nodes in controller; 2 nodes/byte, quad bytes
@@ -418,7 +418,7 @@ function my_assign(model)
 //latest: 5 MIPS: 48 nodes => 8 usec, 36 nodes => 5 usec, 20 nodes => 2 usec, 10 nodes => 0 usec
 //timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
 //???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
-            case RENXt.SETALL: return [Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 8) == 8)? 48: 5)), this.adrs];
+            case RENXt.SETALL: return [Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 4.6) == 8)? 48: 5)), this.adrs];
             case RENXt.NODEFLUSH: return [999, this.adrs]; //kludge: execution time depends on pixel type so just pick a large number to delay all remaining opcodes for this processor to end of pipeline
             case RENXt.ZCRESAMPLE:
             case RENXt.RESET:
@@ -626,6 +626,14 @@ function encode_series(first) //_smart(model) //, nodes)
 //    myhist.colors.forEach(function swap_each(color, inx, all) { myhist.colors_rgb[inx] = ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF); }); //put in RGB order
 //    myhist.colors_rgb.inspect = buf_inspector_uint32ary.bind(myhist.colors_rgb);
 //    console.log("final RGB palette", myhist.colors_rgb);
+/* TODO: SetAll(non-0) if #pal ents == 1
+    if ((myhist.colors.length < 16) && !myhist.counts[0]) //add black to improve changes of palette reuse in next frame
+    {
+        myhist.counts[0] = 1;
+        myhist.index[0] = myhist.colors.count;
+        myhist.colors.push(0);
+    }
+*/
 
 //    console.log("renxt: model '%s', #nodes %s, #pal %s vs limit %s, BAD reduced #ents %s", this.name, this.raw_nodes.length / 4, pal.length, Object.keys(counts).length, reduced.length);
     encode_adrs.apply(this, arguments); //send config, select adrs, etc.
@@ -704,9 +712,9 @@ function encode_series(first) //_smart(model) //, nodes)
 //TODO: SetAll+Flush?
             if (!palinx) //background color uses SetAll instead of a node list
             {
-                var svnumwait = this.port.encbuf.waits.length;
+                var svopc = this.port.encbuf.opc_blocks[this.adrs].length;
                 this.port.encbuf.SetAll(0, this.wait_states);
-                if (this.port.encbuf.waits.length != svnumwait) this.port.encbuf.SelectAdrs(this.adrs); //wait state needed on next opcode, so emit adrs again
+                if (this.port.encbuf.opc_blocks[this.adrs].length != svopc) this.port.encbuf.SelectAdrs(this.adrs); //wait state needed on next opcode, so emit adrs again
                 return;
             }
             nodelists[palinx].sort(); //node inx must be in increasing order for correct bank switching
@@ -1069,14 +1077,14 @@ function xform(chunk, encoding, done, eof)
         if (!parsed) break;
         parsed.src = this.fifo.src; //show where it came from
         if (!++this.fifo.fr_count /*isNaN*/) this.fifo.fr_count = 1;
-        parsed.frnum = this.fifo.fr_count;
+        parsed.pktnum = this.fifo.fr_count;
         parsed.elaped = this.elapsed.now; //mainly for debug
         var opc = parsed.lit? parsed.lit[0]: null;
         if (opc) parsed.opc = OpcodeNames(opc) || ('#' + hex(opc, 2)); //mainly for debug
         parsed.litlen = (parsed.lit || []).length; //mainly for debug
         parsed.datalen = (parsed.data || []).length; //mainly for debug
         this.push(JSON.my_stringify(parsed) + '\n');
-        logger(10, "loopback: parsed fr# %s, %s remaining".cyan, parsed.frnum, this.fifo.rdlen - this.fifo.rdofs);
+        logger(10, "loopback: parsed pkt# %s, %s remaining".cyan, parsed.pktnum, this.fifo.rdlen - this.fifo.rdofs);
         eatlen = this.fifo.rdofs; //remove valid packet from fifo
     }
     if (eatlen) this.fifo.remove(0, eatlen); //consume successfully parsed data
@@ -1364,7 +1372,7 @@ function rewind()
 //    if (!this.stats_opc) this.stats_opc = new Uint16Array(256);
     this.buffer.fill(0xee); //for easier debug
 //no-preserve    this.stats_opc.fill(0);
-    this.waits = []; //{}; //length: 0};
+    this.opc_blocks = {}; //{}; //length: 0};
     return this; //fluent
 }
 
@@ -1421,7 +1429,7 @@ function flush(cb)
 }
 
 RenXtBuffer.prototype.SelectAdrs =
-function SelectAdrs(adrs)
+function SelectAdrs(adrs, sync_count)
 {
 //    var delayed = this.waits[adrs];
 //    if (delayed) delayed.nxtofs = this.wrofs; //push({ofs: this.wrofs});
@@ -1451,9 +1459,14 @@ debugger;
         this.wrlen += wait.delay + wait.count - wait.ofs;
     }
 */
-    if (this.waits.length) this.waits.push({ofs: this.wrlen, adrs: adrs}); //allow all opc after first delayed to be reordered
+//    /*if (this.waits.length)*/ this.waits.push({ofs: this.wrlen, adrs: adrs}); //allow all opc after first delayed to be reordered
+this block min delay = cur len for adrs
+    if (typeof this.opc_latest != 'undefined') this.opc_latest.min_delay = 
+    var opc_blocks = this.opc_blocks[adrs];
+    if (!opc_blocks) opc_blocks = this.opc_blocks[adrs] = [];
+    opc_blocks.push(this.opc_latest = {ofs: this.wrlen});
     this
-        .emit_raw(RenXt.RENARD_SYNC)
+        .emit_raw(RenXt.RENARD_SYNC, sync_count || 1)
         .emit_raw(adrs);
     return this; //fluent
 }
@@ -1463,8 +1476,9 @@ function SetConfig(adrs, node_type, node_bytes, sync_count)
 {
 //    if (typeof node_type == 'undefined') node_type = RenXt.WS281X(RenXt.SERIES);
     this
-        .emit_raw(RenXt.RENARD_SYNC, sync_count) //count > 1 to allow controllers to auto-detect baud rate or stop what they were doing first time
-        .emit_raw(adrs)
+//        .emit_raw(RenXt.RENARD_SYNC, sync_count)
+//        .emit_raw(adrs)
+        .SelectAdrs(adrs, sync_count) //count > 1 to allow controllers to auto-detect baud rate or stop what they were doing first time
 //firmware requires SentNodes state bit to be off in order to change node type (otherwise flagged as protocol error)
 //since we know what all the state bits should be, just overwrite them all rather than using a complicated read-modify-write process to try to preserve some of them
 //state bits are at 0x73 in PIC shared RAM; 0x01 = Echo (should be on), 0x02 = Esc pending (should be off), 0x04 = Protocol inactive (should be off), 0x08 = Sent nodes (should be on)
@@ -1640,6 +1654,7 @@ function emit_opc(value, count)
 RenXtBuffer.prototype.interleave =
 function interleave()
 {
+    logger(50, "wait states: %s", JSON.stringify(this.opc_blocks)); //NOTE: already sorted by sort time
 /*
     this.rdofs = 0;
     this.rdlen = this.wrlen;
@@ -1699,7 +1714,9 @@ function delay_next(count)
     if (count[0] < 1) return; //no need to delay next opcode
 //    if (this.waits[count[1]]) throw "duplicate wait state for adrs " + count[1];
 //    /*var delayed =*/ this.waits[count[1]] = {last_ofs: this.wrlen, delay: count[0] || 1}; //.push(); //set wait state for current opcode
-    this.waits.push({ofs: this.wrlen, delay: count[0] || 1, adrs: count[1]}); //fence; delay next opcode if necessary
+//    this.waits.push({ofs: this.wrlen, delay: count[0] || 1, adrs: count[1]}); //fence; delay next opcode if necessary
+    opc_blocks.push(this.opc_latest = {ofs: this.wrlen});
+
     return this; //fluent
 }
 
