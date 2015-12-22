@@ -93,7 +93,7 @@ function stmon(stream, desc, showbuf)
         .on('end', function() { logger("%s end".green, desc); }) //readable only?
         .on('finish', function() { logger("%s flushed".green, desc); }) //writable only?
         .on('close', function() { logger("%s closed".cyan, desc); })
-        .on('error', function(err) { logger("%s error: %j".red, desc, err); err = null; });
+        .on('error', function(err) { logger("%s error: %j".red, desc, err.message || err); err = null; });
 }
 
 

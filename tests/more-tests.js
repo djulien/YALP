@@ -152,7 +152,7 @@ function port_test()
     var ff = 0;
     var models = require('my-projects/models/my-models').models;
     process.nextTick(function() { models.ic1.port.open(); }); //kludge: can't use models until next tick
-    setInterval(function()
+    var timer = setInterval(function()
     {
 debugger;
         if (ff++ & 1)
@@ -175,6 +175,7 @@ debugger;
         }
         models.forEach(function(model) { model.render(); });
         models.ic5.port.flush();
+        if (ff > 10) clearInterval(timer);
     }, 2500);
 /*
 test_strip

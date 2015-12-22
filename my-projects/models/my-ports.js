@@ -276,7 +276,7 @@ function MySerialPort(spath, options, openImmediately, callback)
     this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
 
 //status tracking (for debug):
-
+/* NOTE: this needs emitter.setMaxListeners(> 4) on close
     m_sport.on("open", function open_cb() { logger(10, 'opened %s'.green, this.name || this.device); }.bind(this));
 //.flush(cb(err)) data received but not read
 //debugger;
@@ -284,7 +284,7 @@ function MySerialPort(spath, options, openImmediately, callback)
     m_sport.on('error', function error_cb(err) { debugger; logger(10, "ERR on %s: ".red, this.name || this.device, err || '(error)'); }.bind(this));
     m_sport.on('close', function close_cb() { logger(10, "closed %s".cyan, this.name || this.device); }.bind(this));
     m_sport.on('disconnect', function discon_cb(err) { logger(10, "disconnected %s: %s".red, this.name || this.device, err || '(error)'); }.bind(this));
-
+*/
     if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'", CFG.port_mon === true);
 
 //    this.write = function write_serial(data, write_cb) { return m_sport.write.apply(m_sport, arguments); }; //.bind(this);

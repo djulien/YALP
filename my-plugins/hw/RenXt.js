@@ -361,6 +361,7 @@ function AddProtocol(port)
         var buf = '';
         port.encbuf.stats_opc.forEach(function opc_enum(count, key) { buf += ', ' + OpcodeNames(+key) + ' = ' + count; }); //logger("protocol opc enc: %s occurs %s", OpcodeNames(key), count); }); //port.encbuf.stats_opc.toString());
         logger("protocol opc enc: %s", buf.substr(2));
+        logger("protocol interleave: %s", JSON.stringify(port.encbuf.stats_interleave));
 //        console.log(port.encbuf.stats_opc);
         if (svfinish) svfinish();
     } //.bind(port));
@@ -418,8 +419,8 @@ function my_assign(model)
 //latest: 5 MIPS: 48 nodes => 8 usec, 36 nodes => 5 usec, 20 nodes => 2 usec, 10 nodes => 0 usec
 //timing: 16F1827 at 8 MIPS is taking 2 - 3 char times to set 640 nodes, so denominator above can be ~ 210
 //???check this: 16F688 at 4.5 MIPS takes 2 - 3 char times for 40 nodes or 13 chars for 240 nodes
-            case RENXt.SETALL: return [Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 4.6) == 8)? 48: 5)), this.adrs];
-            case RENXt.NODEFLUSH: return [999, this.adrs]; //kludge: execution time depends on pixel type so just pick a large number to delay all remaining opcodes for this processor to end of pipeline
+            case RENXt.SETALL: return Math.ceil((this.nodebytes - 10) / (((this.opts.mips || 4.6) == 8)? 48: 5));
+            case RENXt.NODEFLUSH: return 999; //kludge: execution time depends on pixel type so just pick a large number to delay all remaining opcodes for this processor to end of pipeline
             case RENXt.ZCRESAMPLE:
             case RENXt.RESET:
             default: throw "Unhandled opcode: " + opc;
@@ -657,7 +658,7 @@ function encode_series(first) //_smart(model) //, nodes)
             else if (this.prior_palette.counts[this.prior_palette.colors[0]] == this.prior_palette.counts[myhist.colors[0]]) need_palette = false; //can use same bkg color
         var buf = '';
         myhist.colors.forEach(function pal_enum(color, inx) { buf += ', #' + hex(color, 8) + '=' + myhist.counts[color]; });
-        logger(10, "seq# %s, model '%s' needs palette? %s #ents %d, use_bitmap? %s, same most common freq? %s (%s vs. %s), pal: %s", this.port.seqnum, this.name, need_palette, myhist.colors.length, use_bitmap? bpp + ' bpp': false, this.prior_palette.counts[this.prior_palette.colors[0]] == this.prior_palette.counts[myhist.colors[0]], hex(this.prior_palette.colors[0], 8), hex(myhist.colors[0]), buf.substr(2));
+        logger(10, "seq# %s, model '%s' needs palette? %s #ents %d, use_bitmap? %s, same most common freq? %s (%s vs. %s), pal: %s".blue, this.port.seqnum, this.name, need_palette, myhist.colors.length, use_bitmap? bpp + ' bpp': false, this.prior_palette.counts[this.prior_palette.colors[0]] == this.prior_palette.counts[myhist.colors[0]], hex(this.prior_palette.colors[0], 8), hex(myhist.colors[0]), buf.substr(2));
     }
 
     if (need_palette)
@@ -709,12 +710,14 @@ function encode_series(first) //_smart(model) //, nodes)
         indexed_nodes.forEach(function split_each(colorinx, nodeinx) { if (colorinx) nodelists[colorinx].push(nodeinx); }); //split nodes into inverted lists
         myhist.colors.forEach(function inverted_each(color, palinx)
         {
-//TODO: SetAll+Flush?
+//TODO: SetAll+Flush? (firmware update)
             if (!palinx) //background color uses SetAll instead of a node list
             {
-                var svopc = this.port.encbuf.opc_blocks[this.adrs].length;
+//                var svopc = this.port.encbuf.opc_blocks[this.adrs].length;
                 this.port.encbuf.SetAll(0, this.wait_states);
-                if (this.port.encbuf.opc_blocks[this.adrs].length != svopc) this.port.encbuf.SelectAdrs(this.adrs); //wait state needed on next opcode, so emit adrs again
+//                if (this.port.encbuf.opc_blocks[this.adrs].length != svopc)
+                if (this.port.encbuf.opc_blocks.latest.delay_next)
+                    this.port.encbuf.SelectAdrs(this.adrs); //wait state needed on next opcode, so emit adrs again
                 return;
             }
             nodelists[palinx].sort(); //node inx must be in increasing order for correct bank switching
@@ -736,7 +739,9 @@ function encode_series(first) //_smart(model) //, nodes)
         }.bind(this));
         if (myhist.colors.length > 1) this.port.encbuf.emit_byte(RENXt.NODELIST_END); //end of inverted lists
     }
-    this.port.encbuf.NodeFlush(this.wait_states);
+    this.port.encbuf
+        .NodeFlush(this.wait_states)
+        .EndOfOpcode(); //mark end of last block
 }
 
 
@@ -747,7 +752,8 @@ function encode_parallel(first) //, nodes)
     this.port.encbuf
 //        .SelectAdrs(this.adrs)
         .emit_buf(new Buffer("TODO: PARALLEL"))
-        .NodeFlush(this.wait_states);
+        .NodeFlush(this.wait_states)
+        .EndOfOpcode(); //mark end of last block
 }
 
 
@@ -818,7 +824,8 @@ function encode_chplex(first)
 //    console.log("dumb tail pad %d + eof", tailpad);
     this.port.encbuf
         .emit_byte(0, 4 * Math.ceil(listlen / 4) - listlen + 1) //end of list marker + quad-byte padding
-        .NodeFlush(this.wait_states); //flush changes; must be last opcode for this processor
+        .NodeFlush(this.wait_states) //flush changes; must be last opcode for this processor
+        .EndOfOpcode(); //mark end of last block
 }
 
 
@@ -1349,6 +1356,7 @@ function RenXtBuffer(opts)
 
 //    this.dataview = new DataView(this.buffer);
     this.stats_opc = {length: 0}; //new Uint8ClampedArray(256); //Uint16Array(256);
+    this.stats_interleave = {}; //padlen: 0, count: 0, changed: 0, unchanged: 0, loop: 0};
 //    this.stats_opc.fill(0);
 //    this.waits = {};
 //    this.port.on('data', function port_rcv(data) //collect incoming data
@@ -1371,7 +1379,7 @@ function rewind()
 //    if (!this.dataview) this.dataview = new DataView(this.buffer);
 //    if (!this.stats_opc) this.stats_opc = new Uint16Array(256);
     this.buffer.fill(0xee); //for easier debug
-//no-preserve    this.stats_opc.fill(0);
+//no;preserve    this.stats_opc.fill(0);
     this.opc_blocks = {}; //{}; //length: 0};
     return this; //fluent
 }
@@ -1428,9 +1436,27 @@ function flush(cb)
     }.bind(this));
 }
 
+RenXtBuffer.prototype.EndOfOpcode =
+function EndOfOpcode()
+{
+    if (typeof this.opc_blocks.latest != 'undefined') //mark end of previous block
+        this.opc_blocks.latest.len = this.wrlen - this.opc_blocks.latest.stofs;
+}
+
 RenXtBuffer.prototype.SelectAdrs =
 function SelectAdrs(adrs, sync_count)
 {
+//    /*if (this.waits.length)*/ this.waits.push({ofs: this.wrlen, adrs: adrs}); //allow all opc after first delayed to be reordered
+    this.EndOfOpcode(); //mark end of previous block
+    this.opc_blocks.latest = {stofs: this.wrlen, adrs: adrs}; //remember start of next block
+    var opc_block = this.opc_blocks[adrs];
+    if (!opc_block) opc_block = this.opc_blocks[adrs] = [];
+    opc_block.push(this.opc_blocks.latest);
+    this
+        .emit_raw(RenXt.RENARD_SYNC, sync_count || 1)
+        .emit_raw(adrs);
+    return this; //fluent
+}
 //    var delayed = this.waits[adrs];
 //    if (delayed) delayed.nxtofs = this.wrofs; //push({ofs: this.wrofs});
 //    this.waits.forEach(function undelay(opc, inx, all)
@@ -1459,17 +1485,6 @@ debugger;
         this.wrlen += wait.delay + wait.count - wait.ofs;
     }
 */
-//    /*if (this.waits.length)*/ this.waits.push({ofs: this.wrlen, adrs: adrs}); //allow all opc after first delayed to be reordered
-this block min delay = cur len for adrs
-    if (typeof this.opc_latest != 'undefined') this.opc_latest.min_delay = 
-    var opc_blocks = this.opc_blocks[adrs];
-    if (!opc_blocks) opc_blocks = this.opc_blocks[adrs] = [];
-    opc_blocks.push(this.opc_latest = {ofs: this.wrlen});
-    this
-        .emit_raw(RenXt.RENARD_SYNC, sync_count || 1)
-        .emit_raw(adrs);
-    return this; //fluent
-}
 
 RenXtBuffer.prototype.SetConfig =
 function SetConfig(adrs, node_type, node_bytes, sync_count)
@@ -1654,7 +1669,71 @@ function emit_opc(value, count)
 RenXtBuffer.prototype.interleave =
 function interleave()
 {
-    logger(50, "wait states: %s", JSON.stringify(this.opc_blocks)); //NOTE: already sorted by sort time
+//    this.opc_blocks.forEach(function enum_adrs(blocks_by_adrs, adrs) //set min delay for each opcode
+//    {
+//        var opc_ofs = 0;
+//        blocks_by_adrs.forEach(function block_enum(opc_block) //, inx, all) //cycle thru all addresses
+//        {
+//            if (!opc_block.min_delay) opc_min.delay = opc_ofs;
+//            opc_ofs += opc_block.len + (opc_block.delay_next || 0);
+//        });
+//    });
+debugger;
+    delete this.opc_blocks.latest; //mainly for debug; remove clutter
+    var opc_bytes = new Buffer(this.buffer), outofs = 0, padlen = 0, numiter = 0;
+    for (;;) //re-emit all opcodes; choose order to minimize delays by overlapping wait states
+    {
+        logger(150, "opc blocks: %s", JSON.stringify(this.opc_blocks)); //NOTE: already sorted by start time
+        var next_opc = null;
+        this.opc_blocks.forEach(function block_enum(opc_block) //, inx, all) //cycle thru next opcode for all addresses
+        {
+            if ((typeof opc_block != 'object') || !opc_block.length) return;
+//            if (typeof opc_block.min_start == 'undefined') opc_block.min_start = outofs; //soonest that unspecified block can now
+//            if (opc_block.delay_next)
+            if ((next_opc !== null) && ((opc_block[0].min_start || outofs) >= next_opc.min_start)) return;
+            next_opc = Object.assign({min_start: outofs}, opc_block[0]);
+        });
+        if (next_opc === null) break; //all opcodes re-emitted
+        if (next_opc.min_start > outofs) //gap needed to satisfy wait state
+        {
+            padlen += next_opc.pad_len = next_opc.min_start - outofs; //mainly for debug
+            this.buffer.fill(0, outofs, next_opc.min_start);
+            outofs = next_opc.min_start;
+        }
+        opc_bytes.copy(this.buffer, outofs, next_opc.stofs, next_opc.stofs + next_opc.len);
+        outofs += next_opc.len;
+        this.opc_blocks[next_opc.adrs].shift();
+        if (next_opc.delay_next && this.opc_blocks[next_opc.adrs].length) this.opc_blocks[next_opc.adrs][0].min_start = outofs + next_opc.delay_next;
+        logger("next opc: %s, new out ofs %d".blue, next_opc, outofs);
+        if (!++this.stats_interleave.numiter) this.stats_interleave.numiter = 1;
+    }
+    if (!(this.stats_interleave.padlen += padlen)) this.stats_interleave.padlen = padlen;
+    if (padlen) if (!++this.stats_interleave.count) this.stats_interleave.count = 1;
+    var cmp = bufdiff(opc_bytes, this.buffer), cmp_rev = cmp? bufdiff.reverse(opc_bytes, this.buffer): 0;
+    if (cmp) console.log("interleave: cmp: %d, %d".cyan, cmp, cmp_rev);
+    if (cmp) { if (!++this.stats_interleave.changed) this.stats_interleave.changed = 1; }
+    else { if (!++this.stats_interleave.unchanged) this.stats_interleave.unchanged = 1; }
+/*
+"2":
+    {"stofs":0,"adrs":2,"len":13},
+    {"stofs":13,"adrs":2,"delay_next":999,"len":8}
+"3":
+    {"stofs":21,"adrs":3,"len":13},
+    {"stofs":34,"adrs":3,"delay_next":999,"len":8}
+"4":
+    {"stofs":42,"adrs":4,"len":13},
+    {"stofs":55,"adrs":4,"delay_next":999,"len":8}
+"5":
+    {"stofs":63,"adrs":5,"len":13},
+    {"stofs":76,"adrs":5,"delay_next":999,"len":8}
+"6":
+    {"stofs":84,"adrs":6,"len":13},
+    {"stofs":97,"adrs":6,"delay_next":999,"len":8}
+"85":
+    {"stofs":105,"adrs":85,"len":13},
+    {"stofs":118,"adrs":85,"delay_next":999,"len":8}
+*/
+}
 /*
     this.rdofs = 0;
     this.rdlen = this.wrlen;
@@ -1674,7 +1753,6 @@ function interleave()
     }
     this.waits.push({ofs: this.wrlen, delay: count || 1}); //set wait state for current opcode
 }
-===
     console.log("wait states:", this.waits, "max delay inx: ", maxdel_inx);
 /-*
    aAaaaAbBbbbBcCcccC
@@ -1704,19 +1782,18 @@ wait.delay + wait.count, wait.delay + wait.count + this.wrlen - wait.ofs);
         this.wrlen += wait.delay + wait.count - wait.ofs;
     });
 //    if (this.waits.length) this.waits = [];
-===
 */
-}
+
 
 RenXtBuffer.prototype.delay_next =
 function delay_next(count)
 {
-    if (count[0] < 1) return; //no need to delay next opcode
+    if (count < 1) return; //no need to delay next opcode
 //    if (this.waits[count[1]]) throw "duplicate wait state for adrs " + count[1];
 //    /*var delayed =*/ this.waits[count[1]] = {last_ofs: this.wrlen, delay: count[0] || 1}; //.push(); //set wait state for current opcode
 //    this.waits.push({ofs: this.wrlen, delay: count[0] || 1, adrs: count[1]}); //fence; delay next opcode if necessary
-    opc_blocks.push(this.opc_latest = {ofs: this.wrlen});
-
+//    opc_blocks.push(this.opc_latest = {ofs: this.wrlen});
+    this.opc_blocks.latest.delay_next = count; //temporarily remember pad len until start of next opcode (if any)
     return this; //fluent
 }
 

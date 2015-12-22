@@ -293,8 +293,8 @@ debugger;
                 buf += ', #' + hex(nxtval, 8);
                 prior = {val: nxtval, ofs: i};
             }
-//            if (prior.ofs < that.pix_cache.length - 1) buf += ' *' + 
-            logger(50, "reload pixel cache %d: %s", that.pix_cache.length, buf.substr(2));
+//            if (prior.ofs < that.pix_cache.length - 1) buf += ' *' +
+            logger(50, "reload pixel cache %d ents: %s".blue, that.pix_cache.length / PIXEL_WIDTH, buf.substr(2));
         }
     if (!want_data) //flush cached pixel data before it becomes stale
         if (that.pix_cache) that.pix_cache = null;
