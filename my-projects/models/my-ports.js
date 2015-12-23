@@ -89,7 +89,7 @@ PortBase.all = [];
 PortBase.prototype.assign =
 function assign(model)
 {
-    logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
+    if (this.write) logger("assigned model '%s' to port '%s'".blue, model.name, this.name || this.device);
     model.inx_port = this.models.length;
     this.models.push(model);
 //no; already done        model.port = this;
@@ -349,10 +349,19 @@ function FakeSerialPort(spath, options, openImmediately, callback)
                     /*if (this.draincb) this.*/ drain_cb(null);
 //debugger;
 //                    logger("incoming:", typeof data, Buffer.isBuffer(data), data);
-                    if (data && data.inspect) data = data.inspect();
+                    var buf = '';
+                    for (var i = 0; i < data.length; ++i)
+                        if (i && (data[i - 1] == RenXt.RENARD_SYNC) && (data[i] < 0x10))
+                        {
+                            data[i] += 0x80; //simulate active protocol
+                            buf += ', \'' + i + '=x' + data[i].toString(16);
+                        }
+//no                    if (data && data.inspect) data = data.inspect();
 //                    data = JSON.parse(data); //unserialize to look more like incoming data
 //                    logger("becomes:", typeof data, Buffer.isBuffer(data), data);
-                    this.emit('data', data); //simulated loopback; TODO: simulate active protocol
+                    if (buf) logger(50, "simulated protocol: %s", buf.substr(2));
+debugger;                
+                    this.emit('data', data); //simulated loopback
                 }.bind(this), Math.max(5 + Math.ceil(.044 * data.length), 16)); //252K baud ~= 44 usec/char + 5 msec USB latency
 //bad                this.draincb = cb;
             }
@@ -405,7 +414,7 @@ process.nextTick(function() //kludge: nodelists aren't generated until next proc
 var yport = named(new FakeSerialPort('/dev/ttyUSB3'), 'FTDI-Y');
 var gport = named(new FakeSerialPort('/dev/ttyUSB1'), 'FTDI-G');
 var bport = named(new FakeSerialPort('/dev/ttyUSB2'), 'FTDI-B');
-var wport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-W');
+var wport = named(new /*My*/ FakeSerialPort('/dev/ttyUSB0'), 'FTDI-W');
 var noport = named(new PortBase(), 'none');
 
 //wport.open();

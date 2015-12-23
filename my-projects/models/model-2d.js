@@ -181,13 +181,13 @@ function Model2D(opts)
         set(newval) //tells protocol handler to allocate resources
         {
             if (m_port = newval) m_port.assign(this);
-            if (!m_port.write) logger("Output for model '%s' will be discarded (no port write)".yellow, this.name);
+            if (!m_port.write) logger("Model '%s' output discarded (no port.write)".yellow, this.name);
         },
         enumerable: true,
     });
 
 //finalize model setup:
-    process.nextTick(function() { logger(100-1, "TICK model gen nodes"); this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (so protocol handler can look at nodes), but after parent has been sized (so layout is correct)
+    process.nextTick(function() { logger(100-1, "TICK model '%s' gen nodes", this.name); this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (so protocol handler can look at nodes), but after parent has been sized (so layout is correct)
     if (this.opts.port) this.port = this.opts.port;
 //    var m_parent = this; //preserve "this" for nested ctor
 //TODO?    this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
@@ -281,7 +281,7 @@ function pixel_cache(want_data)
         if (!that.pix_cache)
         {
             that.pix_cache = that.imgdata().data;
-debugger;
+//debugger;
             var buf = '', prior;
             for (var i = 0; i <= that.pix_cache.length; i += PIXEL_WIDTH)
             {
@@ -294,7 +294,7 @@ debugger;
                 prior = {val: nxtval, ofs: i};
             }
 //            if (prior.ofs < that.pix_cache.length - 1) buf += ' *' +
-            logger(50, "reload pixel cache %d ents: %s".blue, that.pix_cache.length / PIXEL_WIDTH, buf.substr(2));
+            logger(50, "reload pixel cache %d ents: %s".blue, that.pix_cache.length / PIXEL_WIDTH, '(omitted)'); //buf.substr(2));
         }
     if (!want_data) //flush cached pixel data before it becomes stale
         if (that.pix_cache) that.pix_cache = null;
@@ -774,7 +774,7 @@ Model2D.prototype.generateNodelist =
 function generateNodelist()
 {
     logger(130, "generate node list for model '%s' using order '%s' w %s x h %s".blue, this.name, ((this.opts.order || '(none)') + '').substr(0, 100), this.width, this.height);
-debugger;
+//debugger;
     if (!this.opts.order && (this.width * this.height != 1)) return;
 //    console.log("parent width, height for model '%s': %s, %s", this.name, (this.parent || {}).width, (this.parent || {}).height);
     this.nodelist = [];
@@ -964,7 +964,7 @@ function renderNodes_GRB(pxbuf)
 //NOTE: null is used as a placeholder node and should be set to off to reduce entropy
         var abgr = pxbuf.readUInt32LE(RENDER_ADJUST * pxofs); //ABGR
         var grb = ((abgr & 0xFFFF) << 8) | ((abgr & 0xFF0000) >>> 16); // ABGR -> GRB
-debugger;
+//debugger;
         this.port.outbuf.writeUInt24BE(grb);
     }.bind(this));
 }

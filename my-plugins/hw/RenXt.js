@@ -403,7 +403,7 @@ function AddProtocol(port)
 //runs with port context
 function my_assign(model)
 {
-debugger;
+//debugger;
     logger("assign model '%s' with %d nodes to port '%s'".blue, model.name, (model.nodelist || []).length, this.name || this.device);
     if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes (need to specify model node order)";
     if (this.old_assign) this.old_assign.apply(this, arguments); // /*.bind(port)*/(model);
@@ -1685,7 +1685,7 @@ function interleave()
 //            opc_ofs += opc_block.len + (opc_block.delay_next || 0);
 //        });
 //    });
-debugger;
+//debugger;
     delete this.opc_blocks.latest; //mainly for debug; remove clutter
     var opc_bytes = new Buffer(this.buffer), outofs = 0, padlen = 0, numiter = 0;
     for (;;) //re-emit all opcodes; choose order to minimize delays by overlapping wait states
