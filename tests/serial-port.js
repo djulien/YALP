@@ -114,9 +114,12 @@ RenXtBuffer.prototype.SetConfig = function(adrs, node_type, node_bytes)
 
 RenXtBuffer.prototype.SetPal = function(adrs, colors)
 {
-    if (arguments.length > 1) this
+    if (arguments.length < 2) return;
+    if (adrs !== null)
+    this
         .emit_raw(RenXt.RENARD_SYNC)
-        .emit_raw(adrs)
+        .emit_raw(adrs);
+    this
         .emit_opc(RenXt.SETPAL(arguments.length - 1))
     Array.from/*prototype.slice.call*/(arguments).slice(1).forEach(function(color, inx)
     {
@@ -127,9 +130,11 @@ RenXtBuffer.prototype.SetPal = function(adrs, colors)
 
 RenXtBuffer.prototype.NodeFlush = function(adrs)
 {
+    if (adrs !== null)
     this
         .emit_raw(RenXt.RENARD_SYNC)
-        .emit_raw(adrs)
+        .emit_raw(adrs);
+    this
         .emit_opc(RenXt.NODEFLUSH)
         .pad(10); //TODO
     return this; //fluent
@@ -137,9 +142,11 @@ RenXtBuffer.prototype.NodeFlush = function(adrs)
 
 RenXtBuffer.prototype.SetAll = function(adrs, palinx)
 {
+    if (adrs !== null)
     this
         .emit_raw(RenXt.RENARD_SYNC)
-        .emit_raw(adrs)
+        .emit_raw(adrs);
+    this
         .emit_opc(RenXt.SETALL(palinx))
         .pad(10); //TODO
     return this; //fluent
@@ -215,7 +222,8 @@ RenXtBuffer.prototype.emit_opc = function(value, count)
 RenXtBuffer.prototype.pad = function(count)
 {
     this.since_pad = 0; //avoid recursion
-    this.emit_raw(RenXt.RENARD_PAD, count);
+//    this.emit_raw(RenXt.RENARD_PAD, count);
+    this.emit_raw(RenXt.NOOP, count);
 //    stats_opc[RENARD_PAD] += count || 1;
 //    debug(10, "pad @'0x%x, @rate %d", used, pad_rate);
     return this; //fluent
@@ -605,9 +613,55 @@ function test2(port)
 //                console.log(ctlr);
                 var ramscale = (ctlr.ram <= 256)? 1: (ctlr.ram <= 512)? 2: 4, ramdesc = ('   ' + ((ctlr.ram < 1000)? ctlr.ram: Math.round(ctlr.ram, 1024) + 'K')).substr(-3);
                 var devdesc = ('      ' + (device_codes[ctlr.uctlr_type] || "UNKN")).substr(-6); //truncate if too long
-                console.log(sprintf("0x%.2x%7s %d.%.2d %x+%x %s %3.0fk %2.0fM %s %5d%9d %3d %x:%x %s\n", /*i,*/ ctlr.address, devdesc, ctlr.fwver / 0x10, ctlr.fwver % 0x10, Math.min(ctlr.pins >> 8, 15), ctlr.pins & 0xff, ramdesc, Math.floor(ctlr.max_baud / 1000), Math.floor(ctlr.clock / 1000000), NodeTypes[ctlr.node_type & 0xF], ctlr.num_nodes, ctlr.iochars, ctlr.ioerrs, ctlr.protoerrs / 0x10, ctlr.protoerrs % 0x10, ctlr.name));
+                console.log(sprintf("0x%.2x%7s %d.%.2d %x+%x %s %3dk %2dM %s %5d%9d %3d %x:%x %s\n", /*i,*/ ctlr.address, devdesc, ctlr.fwver / 0x10, ctlr.fwver % 0x10, Math.min(ctlr.pins >> 8, 15), ctlr.pins & 0xff, ramdesc, Math.floor(ctlr.max_baud / 1000), Math.floor(ctlr.clock / 1000000), NodeTypes[ctlr.node_type & 0xF], ctlr.num_nodes, ctlr.iochars, ctlr.ioerrs, ctlr.protoerrs / 0x10, ctlr.protoerrs % 0x10, ctlr.name));
             });
+
+//            clearTimeout(timer);
+            var colors = [0x00ff00, 0xff0000, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff];
+
+            SetAll(0);
+            return;
+            var loop = 0;
+            setInterval(function()
+            {
+                SetAll(colors[loop]);
+                if (++loop >= colors.length) loop = 0;
+            }, 50);
         });
+
+    function SetAll(color)
+    {
+        port.RenXt
+            .rewind()
+            .emit_raw(RenXt.RENARD_SYNC, 2); //allow controllers to auto-detect baud rate or stop what
+        var limit = 0;
+        for (var adrs = 1; adrs < RenXt.RENARD_SPECIAL_MIN; ++adrs) //NOTE: buffer can be as large as needed since there is no FPS limitation
+        {
+            if (adrs > ctlrs.length) break;
+//                var wrlen = -port.RenXt.wrlen;
+            port.RenXt
+                .SetPal(adrs, [color])
+//                    .SetAll(null, 0)
+                .emit_opc(RenXt.SETALL(0));
+//                    .NodeFlush(null);
+//                    .emit_opc(RenXt.NODEFLUSH);
+//                wrlen += port.RenXt.wrlen;
+//                if (!port.RenXt.hasroom(wrlen)) break; //not room for another
+        }
+        for (var adrs = 1; adrs <  RenXt.RENARD_SPECIAL_MIN; ++adrs) //NOTE: buffer can be as large as needed since there is no FPS limitation
+        {
+            if (adrs > ctlrs.length) break;
+            port.RenXt
+//                    .NodeFlush(null);
+                .emit_raw(RenXt.RENARD_SYNC)
+                .emit_raw(adrs)
+                .emit_opc(RenXt.NODEFLUSH);
+        }
+        console.log("reset %d props".yellow, adrs);
+        port.RenXt
+            .emit_raw(RenXt.RENARD_SYNC) //send out a final sync to mark end of last packet
+            .flush(function(err) { console.log("flushed"); });
+    }
 
     function get_response(adrs)
     {
@@ -630,7 +684,7 @@ function test2(port)
     }
 }
 
-setTimeout(function() { var el = new Elapsed(); sport.close(function(err)
+var timer = setTimeout(function() { var el = new Elapsed(); sport.close(function(err)
 {
     if (err) console.log("close err: ".red + err);
     else console.log("closed after %s".green, el.scaled());

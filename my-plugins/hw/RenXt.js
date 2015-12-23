@@ -339,7 +339,7 @@ function AddProtocol(port)
             this.encbuf.interleave(); //enforce wait states before sending
 //TODO: avoid the extra buffer copy
             var retbuf = new Buffer(this.encbuf.usedbuf); //NOTE: need to copy buffer contents because it will be reused
-            if (retbuf.length) this.inbuf.push('\n' + JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length, seqnum: this.seqnum}) + '\n'); //include copy before parsing
+            if (retbuf.length) this.inbuf.push('\n' + JSON.my_stringify({rawbuf: retbuf, buflen: retbuf.length, seqnum: this.seqnum, src: 'outbound'}) + '\n'); //include copy before parsing
             if (this.encbuf.wrlen) this.inbuf.non_xform(this.encbuf); //copy output to loopback log so it can be compared for comm and firmware diagnostics
             this.encbuf.rewind();
             return retbuf;
@@ -352,7 +352,7 @@ function AddProtocol(port)
     port.iostats = //send to analysis stream rather than accumulating in memory
     {
         length: 0, //kludge: make it look like an empty array
-        push: function iostats_push(info) { port.inbuf.push(JSON.my_stringify(info) + '\n'); },
+        push: function iostats_push(info) { logger(100-1, "iostats.push"); port.inbuf.push(JSON.my_stringify(info) + '\n'); },
     };
     var svfinish = port.onfinish;
     port.onfinish = function onfinish(args)
@@ -484,6 +484,7 @@ function my_flush(args)
 //        this.pending_trailer = null;
 //    }
     if (this.encbuf.wrlen) this.encbuf.emit_raw(RenXt.RENARD_SYNC); //terminate last opcode for more reliable packet parsing below; also helps reset controllers to know state at end of each frame
+    logger("flush %d enc bytes", this.encbuf.wrlen);
     return this.old_flush.apply(this, arguments);
 }
 
@@ -561,7 +562,7 @@ function encode_adrs(first)
     if (this.opts.ack === false) return;
     if (this.sent_ack--) return; //check firmware status periodically
     this.sent_ack = (this.opts.ack === true)? 20: this.opts.ack; //do it again in 20 (default) frames, or however often caller chooses
-    logger(30, "checking '%s' firmware status every %d frames".cyan, this.name || this.device, this.sent_ack);
+    logger(30, "checking '%s' firmware status every %d frames".cyan, this.name || this.device, this.sent_ack || 20);
     this.port.encbuf
         .emit_opc(RENXt.ACK) //check listener/packet status
 //        out.BeginOpcodeData(); //remainder of opcode bytes will be returned from processor
@@ -1045,6 +1046,8 @@ function LoopbackStream(opts)
 //    Object.defineProperty(this.fifo.buffer, 'length', { get() { return this.size(); }});
 //    this.fifo.buffer.slice = function slicer(start, end) { return this.size()? this.peek(start || 0, (end || this.size()) - (start || 0)): null; }
 //    this.bufxt.rewind(); //already done
+    var oldpush = this.push;
+    this.push = function mypush(args) { logger(99, "push"); return oldpush.apply(this, arguments); }
 }
 inherits(LoopbackStream, Transform);
 

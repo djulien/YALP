@@ -187,7 +187,7 @@ function Model2D(opts)
     });
 
 //finalize model setup:
-    process.nextTick(function() { logger("TICK"); this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (in case protocol handle looks at nodes), but after parent has been sized (so layout is correct)
+    process.nextTick(function() { logger(100-1, "TICK model gen nodes"); this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (so protocol handler can look at nodes), but after parent has been sized (so layout is correct)
     if (this.opts.port) this.port = this.opts.port;
 //    var m_parent = this; //preserve "this" for nested ctor
 //TODO?    this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
@@ -773,7 +773,7 @@ function buf_resize(bufname, needlen, grouping)
 Model2D.prototype.generateNodelist =
 function generateNodelist()
 {
-    logger(30, "generate node list for model '%s' using order '%s' w %s x h %s".blue, this.name, (this.opts.order + '' || '(none)').substr(0, 100), this.width, this.height);
+    logger(130, "generate node list for model '%s' using order '%s' w %s x h %s".blue, this.name, ((this.opts.order || '(none)') + '').substr(0, 100), this.width, this.height);
 debugger;
     if (!this.opts.order && (this.width * this.height != 1)) return;
 //    console.log("parent width, height for model '%s': %s, %s", this.name, (this.parent || {}).width, (this.parent || {}).height);
@@ -782,7 +782,7 @@ debugger;
     if (!this.nodelist.length) throw "Model '" + this.name + "' no nodelist generated";
     this.setRenderType(this.opts.output);
     logger(30, "model '%s' generated %s nodes on %s x %s canvas, %s byte/node %s, left %s, bottom %s, width %s, height %s, right %s, top %s".blue, this.name, this.nodelist.length, this.width, this.height, this.bytesPerNode, this.opts.output || 'RGB', this.left, this.bottom, this.width, this.height, this.right, this.top); //, this.outbuf.length);
-    logger(50, "node list: %s".blue, this.nodelist.toString());
+    logger(150, "node list: %s".blue, this.nodelist.toString());
 }
 
 Model2D.prototype.setRenderType =

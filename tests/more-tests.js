@@ -57,7 +57,7 @@ function playback(infile)
 //NO; clogs up   var data = hardwired();
 //NO    var data = vix2();
     var data = stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
-    var models = require('my-projects/models/my-models').models; //kludge: models must tick before ports, so load them first
+//    var models = require('my-projects/models/my-models').models; //kludge: models must tick before ports, so load them first
     const FxPlayback = require('my-plugins/streamers/fxstream');
     var myfx = new FxPlayback(); myfx.opts.speed = 0;
 //    myfx.FxPlayback(data);
@@ -70,7 +70,7 @@ function playback(infile)
 //NO    data.end(); //close pipe after data all read??
 }
 ////setTimeout(function() { playback('./Amaz.json'); }, 1000);
-playback('./Amaz.json');
+//playback('./Amaz.json');
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -158,11 +158,13 @@ function port_test()
 {
     var ff = 0;
     var models = require('my-projects/models/my-models').models;
-    process.nextTick(function() { logger("TICK"); models.ic1.port.open(); send(); }); //kludge: can't use models until next tick
-//    var timer = setInterval(function()
-//    {
-//        send();
-//    }, 2500);
+    process.nextTick(function() { logger("TICK open"); models.ic1.port.open(); /*send()*/; }); //kludge: can't use models until next tick
+    var timer = setInterval(function()
+    {
+        send();
+        setTimeout(function() { models.ic1.port.close(); }, 2000);
+        clearInterval(timer);
+    }, 1000); //kludge: serial port needs ~ .6 - .7 sec to open
 
     function send()
     {
@@ -204,7 +206,7 @@ test_strip
     .playback({persist: true, loop: 2});
 */
 }
-//port_test();
+port_test();
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

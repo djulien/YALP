@@ -92,8 +92,8 @@ function stmon(stream, desc, showbuf)
 
 function fmt(desc, data, showbuf)
 {
-    var sbuf = !showbuf? '': (typeof data == 'string')? ': ' + unprintable(data): ': ' + JSON.stringify(data);
-    logger("%s len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
+    var sbuf = !showbuf? '': (typeof data == 'string')? ': ' + unprintable(data): !Buffer.isBuffer(data)? ': ' + JSON.stringify(data): data.inspect? ': ' + data.inspect(): ': ' + data;
+    logger("%s len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf); //.inspect? sbuf.inspect(): sbuf);
     sbuf = null;
 }
 

@@ -676,9 +676,9 @@ var assts = //kludge: need var name here to keep Javascript happy
 {
 //    'FTDI-G': [acssr1, acssr2, acssr3, acssr4, acssr5, acssr6, acssr7, gdoorL, gdoorR, /*ab*/], //acssrs = archfans, cross, sheep, nat, donkey
 //    'FTDI-B': [angel, mtree, gift, star], //city, tb
-    'FTDI-W': [cols_LMRH, ic1, ic2, ic3, ic4, ic5, icbig, trace], //ab
+    'FTDI-W': [/*cols_LMRH,*/ ic1, ic2, ic3, ic4, ic5, icbig, trace], //ab
 //    'FTDI-Y': [gece, floods12, floods34, shep1, shep2, shep3, shep4],
-    'none': [mtree, macro_fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
+    'none': [cols_LMRH, mtree, macro_fx, snglobe_fx, gdoor_fx, tune_to, sh_bank, acc, acc_bank, colL, colM, colR, mtree_bank, ic_all, Model2D.entire],
 }.forEach(function(port_models, portname)
 {
     if (/*(portname !== null) &&*/ !ports.byname[portname]) throw "Unknown port: '" + portname + "'";
@@ -697,7 +697,7 @@ if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: 
 //var ports = module.exports.ports = {};
 process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
 {
-    logger("TICK");
+    logger(180, "TICK port summary");
     ports.forEach(function(port)
     {
 //    if (!model.port) return;
@@ -708,14 +708,6 @@ process.nextTick(function() //kludge: nodelists aren't generated until next proc
     });
 });
 
-Model2D.all.forEach(function(model)
-{
-//    if (!(model.name || '').match(/-all$/i)) return;
-    logger("model '%s': port '%s', adrs %s, %s x %s = %s pixels @(%s..%s, %s..%s)".blue, model.name, (model.port || {}).name, model.adrs, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
-    if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
-});
-
-
 //model summary:
 //logger("entire canvas: %d x %d (%s pixels)", entire.width, entire.height, hfmt(entire.width * entire.height, {scale: 'binary'}));
 //var vix2models = module.exports.vix2models = [];
@@ -724,7 +716,7 @@ Model2D.all.forEach(function(model)
 {
 //    if (!(model.name || '').match(/-all$/i)) return;
     logger("model '%s': port '%s', adrs %s, %s x %s = %s pixels @(%s..%s, %s..%s)".blue, model.name, (model.port || {}).name, model.adrs, model.width, model.height, not_hfmt(model.width * model.height, {scale: 'binary'}), model.left, model.right, model.bottom, model.top);
-//    if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
+    if (typeof model.port == 'undefined') throw "Model '" + model.name + "' not assigned to a port";
 /*
 //    vix2map(model);
     if (typeof model.opts.vix2ch == 'undefined') return; //{ logger("no vix2 ch ", model.name); return; }
