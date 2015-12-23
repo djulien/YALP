@@ -367,8 +367,10 @@ function AddProtocol(port)
     } //.bind(port));
 //    port.old_write = port.write;
 //    port.write = my_write.bind(port);
-    var old_inbuf = port.inbuf;
+    var old_inbuf = port.inbuf
     port.inbuf = new LoopbackStream({dest: old_inbuf});
+    var old_write = port.inbuf.write;
+    port.inbuf.write = function(args) { logger("inbuf write"); return old_write.apply(port.inbuf, arguments); }
 //    fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
 /*
     inbuf.unpipe(old_writer);
