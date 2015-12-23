@@ -187,7 +187,7 @@ function Model2D(opts)
     });
 
 //finalize model setup:
-    process.nextTick(function() { this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (in case protocol handle looks at nodes), but after parent has been sized (so layout is correct)
+    process.nextTick(function() { logger("TICK"); this.generateNodelist(); }.bind(this)); //NOTE: this must occur before assigning port (in case protocol handle looks at nodes), but after parent has been sized (so layout is correct)
     if (this.opts.port) this.port = this.opts.port;
 //    var m_parent = this; //preserve "this" for nested ctor
 //TODO?    this.Model2D = Model2D.prototype.SubModel2D.bind(null, this); //pass "this" as first param for parent/child linkage
@@ -773,6 +773,8 @@ function buf_resize(bufname, needlen, grouping)
 Model2D.prototype.generateNodelist =
 function generateNodelist()
 {
+    logger(30, "generate node list for model '%s' using order '%s' w %s x h %s".blue, this.name, (this.opts.order + '' || '(none)').substr(0, 100), this.width, this.height);
+debugger;
     if (!this.opts.order && (this.width * this.height != 1)) return;
 //    console.log("parent width, height for model '%s': %s, %s", this.name, (this.parent || {}).width, (this.parent || {}).height);
     this.nodelist = [];

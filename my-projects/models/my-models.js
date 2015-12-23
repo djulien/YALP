@@ -636,7 +636,7 @@ ab.vix2render = function(frtime, vix2buf) {} //TODO
 
 
 //dummy object to allow output to be tagged for easier trace/debug:
-var trace = new Model2D({name: 'trace', x: 0, w: 1, h: 1, zinit: false, adrs: 0x55});
+var trace = new Model2D({name: 'trace', x: 0, w: 1, h: 1, zinit: false, adrs: 0x55, ack: false});
 //trace.old_render = trace['render']; //no worky; kludge: use indirect adrs to avoid hoisting function from below
 trace.render = function render()
 {
@@ -697,6 +697,7 @@ if (/*num_assigned != models.all.length*/ unassigned) throw "Unassigned models: 
 //var ports = module.exports.ports = {};
 process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
 {
+    logger("TICK");
     ports.forEach(function(port)
     {
 //    if (!model.port) return;

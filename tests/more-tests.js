@@ -57,13 +57,20 @@ function playback(infile)
 //NO; clogs up   var data = hardwired();
 //NO    var data = vix2();
     var data = stmon(fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile)), "infile '" + infile + "'")
+    var models = require('my-projects/models/my-models').models; //kludge: models must tick before ports, so load them first
     const FxPlayback = require('my-plugins/streamers/fxstream');
     var myfx = new FxPlayback(); myfx.opts.speed = 0;
 //    myfx.FxPlayback(data);
-    data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
+    process.nextTick(function() //kludge: can't use models until next tick
+    {
+        logger("TICK");
+//        models.ic1.port.open();
+        data.pipe(split()).pipe(myfx); //NOTE: need split() to go from text to object stream
+    });
 //NO    data.end(); //close pipe after data all read??
 }
-//setTimeout(function() { playback('./Amaz.json'); }, 1000);
+////setTimeout(function() { playback('./Amaz.json'); }, 1000);
+playback('./Amaz.json');
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,8 +158,13 @@ function port_test()
 {
     var ff = 0;
     var models = require('my-projects/models/my-models').models;
-    process.nextTick(function() { models.ic1.port.open(); }); //kludge: can't use models until next tick
-    var timer = setInterval(function()
+    process.nextTick(function() { logger("TICK"); models.ic1.port.open(); send(); }); //kludge: can't use models until next tick
+//    var timer = setInterval(function()
+//    {
+//        send();
+//    }, 2500);
+
+    function send()
     {
 debugger;
         if (ff++ & 1)
@@ -176,7 +188,7 @@ debugger;
         models.forEach(function(model) { model.render(); });
         models.ic5.port.flush();
         if (ff > 10) clearInterval(timer);
-    }, 2500);
+    }
 /*
 test_strip
     .fill(0xFF0000)
@@ -192,7 +204,7 @@ test_strip
     .playback({persist: true, loop: 2});
 */
 }
-port_test();
+//port_test();
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -223,6 +235,7 @@ var outs = rdwr('hard-wired in-out');
 if (true)
 process.nextTick(function() //NOTE: this will clog up memory
 {
+    logger("TICK");
 //    rows.forEach(function(row) { outs.write(JSON.stringify(row) + '\n'); });
     for (var inx = 0; inx < rows.length; ++inx) outs.write(JSON.stringify(rows[inx]) + '\n');
     logger("%d hardwired frames written".cyan, rows.length);
@@ -230,7 +243,7 @@ process.nextTick(function() //NOTE: this will clog up memory
 //outs.write(JSON.stringify("eof")); //NO + "]");
     outs.end(); //eof
 });
-else process.nextTick(function() { send_next(0); }); //throttle writes to match destination
+else process.nextTick(function() { logger("TICK"); send_next(0); }); //throttle writes to match destination
 return outs; //fluent (pipes)
 
 function send_next(inx)

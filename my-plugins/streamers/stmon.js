@@ -5,6 +5,7 @@ require('colors');
 const fs = require('fs');
 const path = require('path');
 const logger = require('my-plugins/utils/logger')();
+const unprintable = require('my-plugins/utils/unprintable');
 const isStream = require('is-stream');
 const stream = require('stream');
 const PassThrough = stream.PassThrough || require('readable-stream').PassThrough;
@@ -73,20 +74,13 @@ function stmon(stream, desc, showbuf)
     var oldwrite = stream.write;
     stream.write = function stmon_onwrite(data, cb)
     {
-        var sbuf = showbuf? ': ' + JSON.stringify(data): '';
-        logger("%s OUTGOING len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
+        fmt(desc + " OUTGOING", data, showbuf);
         oldwrite.apply(stream, arguments);
-        sbuf = null;
     };
     return stream
         .on('open', function() { logger("%s opened %s".green, desc); })
         .on('readable', function(data) { logger("%s readable".blue, desc); data = null; }) //readable only
-        .on('data', function stmon_ondata(data) //readable only, not for writes
-        {
-            var sbuf = showbuf? ': ' + JSON.stringify(data): '';
-            logger("%s INCOMING len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
-            sbuf = data = null;
-        })
+        .on('data', function stmon_ondata(data) { fmt(desc + " INCOMING", data, showbuf); data = null; }) //readable only, not for writes
         .on('drain', function() { logger("%s drained".green, desc); }) //writable only
         .on('pipe', function(src) { logger("%s piped from a %s".cyan, desc, src.constructor.name); })
         .on('unpipe', function(src) { logger("%s unpiped from a %s".cyan, desc, src.constructor.name); })
@@ -96,5 +90,11 @@ function stmon(stream, desc, showbuf)
         .on('error', function(err) { logger("%s error: %j".red, desc, err.message || err); err = null; });
 }
 
+function fmt(desc, data, showbuf)
+{
+    var sbuf = !showbuf? '': (typeof data == 'string')? ': ' + unprintable(data): ': ' + JSON.stringify(data);
+    logger("%s len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf);
+    sbuf = null;
+}
 
 //eof

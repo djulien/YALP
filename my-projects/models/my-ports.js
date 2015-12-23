@@ -269,7 +269,7 @@ function MySerialPort(spath, options, openImmediately, callback)
     if (typeof CFG.sport_immed != 'undefined') openImmediately = CFG.sport_immed; //give caller time to change port
 //    serial.SerialPort.apply(this, arguments);
 //    serial.SerialPort.call(this, spath, options || CFG.def_sport, false); //openImmediately || false, callback); //false => don't open immediately (default = true)
-    console.log("open serial port %s", spath);
+    console.log("open serial port %s? %s", spath, openImmediately);
     var m_sport = new serial.SerialPort(spath, options || config(CFG.def_sport.baud, CFG.def_sport.bits, CFG.def_sport.fps), openImmediately, callback); //false => don't open immediately (nextTick, default = true)
     PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
     this.device = m_sport.path;
@@ -305,7 +305,7 @@ function MySerialPort(spath, options, openImmediately, callback)
 //    if (openImmediately !== false) m_sport.open(); //open after evt handlers are in place
 
 //    MySerialPort.all.push(this); //allows easier enum over all instances
-    process.nextTick(function inbuf_piped() { /*debugger;*/ if (!++this.inbuf.piped) this.inbuf.piped = 1; m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
+    process.nextTick(function inbuf_piped() { /*debugger;*/ logger("TICK"); if (!++this.inbuf.piped) this.inbuf.piped = 1; m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
 }
 //inherits(MySerialPort, serial.SerialPort);
 //Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
@@ -319,6 +319,8 @@ function FakeSerialPort(spath, options, openImmediately, callback)
 //    var args = Array.from(arguments);
 //    if (args.length > 2) args[2] = false;
     MySerialPort.apply(this, arguments); //args); //base class
+    this.open = function open_fake() { this.emit('open'); } //NOTE: need to override this to prevent real port from being opened
+    this.close = function close_fake() { debugger; this.emit('close'); }
     this.write = function write_fake(data, write_cb)
     {
 //??        function write_delayed() { cb(null, "ok"); } //use values current at time of call, not later
@@ -331,6 +333,11 @@ function FakeSerialPort(spath, options, openImmediately, callback)
                 setTimeout(function drain_delayed()
                 {
                     /*if (this.draincb) this.*/ drain_cb(null);
+//debugger;
+//                    logger("incoming:", typeof data, Buffer.isBuffer(data), data);
+                    if (data && data.inspect) data = data.inspect();
+//                    data = JSON.parse(data); //unserialize to look more like incoming data
+//                    logger("becomes:", typeof data, Buffer.isBuffer(data), data);
                     this.emit('data', data); //simulated loopback; TODO: simulate active protocol
                 }.bind(this), Math.max(5 + Math.ceil(.044 * data.length), 16)); //252K baud ~= 44 usec/char + 5 msec USB latency
 //bad                this.draincb = cb;
@@ -369,12 +376,13 @@ function named(obj, name)
 var yport = named(new FakeSerialPort('/dev/ttyUSB3'), 'FTDI-Y');
 var gport = named(new FakeSerialPort('/dev/ttyUSB1'), 'FTDI-G');
 var bport = named(new FakeSerialPort('/dev/ttyUSB2'), 'FTDI-B');
-var wport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-W');
+var wport = named(new FakeSerialPort('/dev/ttyUSB0'), 'FTDI-W');
 var noport = named(new PortBase(), 'none');
 
 //then assign protocol handlers:
 process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
 {
+    logger("TICK");
     PortBase.all.forEach(function port_each(port)
     {
         if (!port.device) return;

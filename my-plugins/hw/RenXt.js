@@ -401,7 +401,8 @@ function AddProtocol(port)
 //runs with port context
 function my_assign(model)
 {
-//debugger;
+debugger;
+    logger("assign model '%s' with %d nodes to port '%s'".blue, model.name, (model.nodelist || []).length, this.name || this.device);
     if (!(model.nodelist || []).length) throw "RenXt model '" + model.name + "' has no nodes (need to specify model node order)";
     if (this.old_assign) this.old_assign.apply(this, arguments); // /*.bind(port)*/(model);
     var nodetype = model.opts.nodetype || DefaultNodeType;
@@ -557,8 +558,9 @@ function encode_adrs(first)
 //        model.want_cfg = true; //force config info to be sent first time; NOTE: must send config to all models on this port to set correct addresses
 //        model.cfg_sent = false; //force config info to be sent first time
 //    if (!(seqnum % WANT_COMM_DEBUG))
+    if (this.opts.ack === false) return;
     if (this.sent_ack--) return; //check firmware status periodically
-    this.sent_ack = 20; //do it again in 20 frames
+    this.sent_ack = (this.opts.ack === true)? 20: this.opts.ack; //do it again in 20 (default) frames, or however often caller chooses
     logger(30, "checking '%s' firmware status every %d frames".cyan, this.name || this.device, this.sent_ack);
     this.port.encbuf
         .emit_opc(RENXt.ACK) //check listener/packet status
@@ -1030,7 +1032,7 @@ function LoopbackStream(opts)
 //NOTE: can instantiate custom stream directly; see http://stackoverflow.com/questions/21491567/how-to-implement-a-writable-stream
 //however, we use derivation in order to allow multiple instances
 //    this.on('end', function onend() { console.log("%d json objects read", count); });
-    stmon(this, "RenXtLoopbackStream");
+    stmon(this, "RenXtLoopbackStream", true);
     if (opts.dest) this.pipe(opts.dest);
 //debugger;
 
@@ -1704,7 +1706,7 @@ debugger;
         outofs += next_opc.len;
         this.opc_blocks[next_opc.adrs].shift();
         if (next_opc.delay_next && this.opc_blocks[next_opc.adrs].length) this.opc_blocks[next_opc.adrs][0].min_start = outofs + next_opc.delay_next;
-        logger("next opc: %s, new out ofs %d".blue, next_opc, outofs);
+        logger(120, "next opc: %s, new out ofs %d".blue, next_opc, outofs);
         if (!++this.stats_interleave.numiter) this.stats_interleave.numiter = 1;
     }
     if (!(this.stats_interleave.padlen += padlen)) this.stats_interleave.padlen = padlen;
