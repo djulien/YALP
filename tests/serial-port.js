@@ -27,6 +27,7 @@ function RenXtBuffer(opts)
     this.stats_opc = new Uint16Array(256);
     this.port.on('data', function(data) //collect incoming data
     {
+debugger;
         this.latest = this.elapsed.now;
         if (Buffer.isBuffer(data)) { data.copy(this.buffer, this.rdlen); this.rdlen += data.length; }
         else { this.buffer.write(data, this.rdlen, data.length); this.rdlen += data.length; }
@@ -60,6 +61,7 @@ RenXtBuffer.prototype.isempty = function(len)
 //if (sport.flush) console.log("flush was already there".red);
 RenXtBuffer.prototype.flush = function(cb)
 {
+debugger;
 //write + drain:
     this.elapsed = new Elapsed();
     if (!cb) cb = function(err) { return err; }
@@ -617,9 +619,10 @@ function test2(port)
             });
 
 //            clearTimeout(timer);
-            var colors = [0x00ff00, 0xff0000, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff];
+            var colors = [0x00ff00, 0xff0000, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffffff]; //red, green, blue, yellow, cyan, magenta, white (GRB)
 
-            SetAll(0);
+            console.log("Turning all off".cyan);
+            SetAll(0x1010);
             return;
             var loop = 0;
             setInterval(function()

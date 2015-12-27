@@ -108,6 +108,7 @@
   "dependencies": {
     "audio5": "^0.1.10",
     "binary-reader": "^0.1.2",
+    "binaryjs": "^0.2.1",
     "bison": "^1.1.1",
     "brace": "^0.5.1",
     "browserify": "^11.2.0",

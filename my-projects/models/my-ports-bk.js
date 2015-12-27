@@ -28,156 +28,12 @@ const logger = require('my-plugins/utils/logger')();
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// Basic hardware port types:
+/// Port (physical device) base class for defining output buffer and attaching models
 //
-
-
-//hardware port types:
-//all hardware ports must provide Duplex stream api
-
-const serial = require('serialport'); //https://github.com/voodootikigod/node-serialport
-
-
-//show list of available ports (async):
-serial.list(function serial_enum(err, ports)
-{
-    if (err) logger("serial port enum ERR: %j".red, err);
-    else logger("found %d serial ports, USB are:".cyan, ports.length);
-    (ports || []).forEach(function port_each(port, inx)
-    {
-//        if (port.comName.match(/ttyUSB|ttyS[0-5]$/))
-        if (port.comName.match(/ttyUSB/)) logger("  serial[%s/%s]: '%s' '%s' '%s'".cyan, inx, ports.length, port.comName, port.manufacturer, port.pnpId);
-    });
-});
-
-
-//supported serial port bit configs:
-//add more as desired
-const CONFIG =
-{
-    '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
-    '8N1.5': {dataBits: 8, parity: 'none', stopBits: 1.5}, //NOTE: might report error but seems to work anyway
-    '8N2': {dataBits: 8, parity: 'none', stopBits: 2},
-};
-function config(baud, bits, fps)
-{
-    var cfg = CONFIG[bits];
-    if (!cfg) throw "Unhandled serial config: '" + bits + "'";
-    cfg.baudrate = baud;
-    cfg.buffersize = CFG.buffersize || Math.floor(baud / (1 + cfg.dataBits + cfg.stopBits + 1) / fps); //number of bytes that can be transferred each frame
-//    cfg.buffersize = 4096; //NOTE: ignore FPS restrictions to simplify special cases such as RenXt enum
-    if (typeof CFG.sport_hupcl != 'undefined') cfg.hupcl = CFG.sport_hupcl;
-//    cfg..disconnectedCallback = TODO?
-}
-
-
-//simplified wrapper
-//derive from duplex stream
-//some code taken from serialport-stream
-//API: .write, .on('data'), .open, .close
-const MySerialPort = module.exports.SerialPort =
-function MySerialPort(spath, options, openImmediately, callback)
-{
-    if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
-    if (typeof CFG.sport_immed != 'undefined') openImmediately = CFG.sport_immed; //give caller time to change port
-//    serial.SerialPort.apply(this, arguments);
-//    serial.SerialPort.call(this, spath, options || CFG.def_sport, false); //openImmediately || false, callback); //false => don't open immediately (default = true)
-    logger(100, "open serial port %s immed? %s".blue, spath, openImmediately);
-//    PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
-    Duplex.call(this); //base class
-//    var m_sport = new
-    var m_sport = makenew(serial.SerialPort, [spath, options || config(CFG.def_sport.baud, CFG.def_sport.bits, CFG.def_sport.fps), openImmediately || false, callback]); //true, function open_cb(err, fd) //openImmediately || false, callback); //false => don't open immediately (nextTick, default = true)
-    m_sport.setMaxListeners(5); //avoid mem leak warnings
-//    m_sport.on('data', function ondata(data) { self.push(data); }); //redir incoming serial data to readable side of Duplex
-//    this.close = function myclose() { return m_sport.close(); }
-    m_sport.pipe(this); //same effect as above
-    this.device = m_sport.path;
-//no;make generic    this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
-    stmon(m_sport, 'serial ' + this.device, true);
-    m_sport.open(function open_cb(err, fd) //open takes a while, so start now
-    {
-        debugger;
-//        if (err) return self.emit('error', err);
-//        self._fd = fd;
-//        self._readStream = fs.createReadStream(spath, { fd: fd, autoClose: false });
-//        self._readStream.on('error', function (err) { self.emit('error', err) });
-//        self._writeStream = fs.createWriteStream(spath, { fd: fd, autoClose: false });
-//        self._writeStream.on('error', function (err) { self.emit('error', err) });
-        self.emit('open');
-    });
-    this.pipe(m_sport);
-
-//status tracking (for debug):
-//NOTE: this needs emitter.setMaxListeners(> 4) on close
-//    m_sport.setMaxListeners(5); //avoid mem leak warnings
-//NOTE: sport.on('data') { inbuf.write(data) } === sport.pipe(inbuf)
-//    m_sport.on("open", function open_cb() { logger(10, 'opened %s'.green, this.name || this.device); }.bind(this));
-//.flush(cb(err)) data received but not read
-//debugger;
-//    m_sport.on('data', function data_cb(data) { this.inbuf.write(data); logger(10, 'data received on \'%s\' len %d: "%j"'.blue, this.name || this.device, data.length, data); }.bind(this)); //unprintable(.toString('utf8'))
-//    m_sport.on('error', function error_cb(err) { debugger; logger(10, "ERR on %s: ".red, this.name || this.device, err || '(error)'); }.bind(this));
-//    m_sport.on('close', function close_cb() { logger(10, "closed %s".cyan, this.name || this.device); }.bind(this));
-//    m_sport.on('disconnect', function discon_cb(err) { logger(10, "disconnected %s: %s".red, this.name || this.device, err || '(error)'); }.bind(this));
-//no;generic    if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'", CFG.port_mon === true); //debug, no functional purpose
-
-//    this.ducktype(m_sport);
-//    this.write = function write_serial(data, write_cb) { return m_sport.write.apply(m_sport, arguments); }; //.bind(this);
-//    this.drain = function drain_serial(drain_cb) { return m_sport.drain.apply(m_sport, arguments); }; //.bind(this);
-//    this.write = m_sport.write.bind(m_sport);
-//    this.drain = m_sport.drain.bind(m_sport);
-//    this.open = m_sport.open.bind(m_sport);
-//    this.self_emit = function self_emit(evt, data) { /*debugger;*/ return m_sport.emit.apply(m_sport, arguments); }
-//    if (openImmediately !== false) //setTimeout(function delayed_open()
-//    {
-//        var elap = new Elapsed();
-//        m_sport.open(function sport_opened(err)
-//        {
-//            logger(10, "open %s took %s, err? %s".yellow, this.name || this.device, elap.scaled(), err || '(no error)');
-//        }.bind(this));
-//    }; //.bind(this), 16); //open after evt handlers are in place
-//    if (openImmediately !== false) m_sport.open(); //open after evt handlers are in place
-
-//collect input into inbuf for protocol handlers:
-//    MySerialPort.all.push(this); //allows easier enum over all instances
-//generic    process.nextTick(function inbuf_piped() { /*debugger;*/ logger(80, "TICK pipe sport"); /*if (!++this.inbuf.piped) this.inbuf.piped = 1*/; m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
-}
-//inherits(MySerialPort, serial.SerialPort);
-//Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
-//inherits(MySerialPort, PortBase);
-inherits(MySerialPort, Duplex);
-//MySerialPort.all = [];
-
-
-//TODO: ethernet? (E1.31, etc)
-
-
-const OtherPort = module.exports.OtherPort =
-function OtherPort(args)
-{
-    if (!(this instanceof OtherPort)) return makenew(OtherPort, arguments);
-//    PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
-    Duplex.call(this); //base class
-}
-inherits(OtherPort, Duplex);
-
-
-//TODO
-//    OtherPort.all.push(this); //allows easier enum over all instances
-}
-//inherits(OtherPort, PortBase);
-//OtherPort.all = [];
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////
-/// Mixin classes to simulate multiple inheritance:
-//
-
 
 //port base class:
 //only used to hold port and model collections currently
 //also defines an I/O buffer (stream)
-//Port (physical device) base class for defining output buffer and attaching models
 const PortBase = module.exports /*.Ports*/ =
 function PortBase(args)
 {
@@ -211,31 +67,6 @@ function PortBase(args)
 //inherits(PortBase, streamBuffers.WritableStreamBuffer);
 //module.exports.ChannelPools = ChannelPools;
 PortBase.all = [];
-
-
-/*not needed
-//duck type a wrapper object in lieu of inheritance:
-PortBase.prototype.ducktype =
-function ducktype(port, desc)
-{
-//set up pass-thru methods so this object can be used as a stream:
-    ['on', 'once', 'open', 'emit', 'write', 'drain', 'close'].forEach(function passthru_each(method)
-    {
-//        if ((method == 'open') || (method == 'close') || (method == 'write'))
-//        {
-//            this[method] = function() { logger("%s requested", method); m_sport[method].apply(m_sport, arguments); };
-//            return;
-//        }
-        this[method] = port[method].bind(port);
-    }.bind(this));
-//collect input into inbuf for protocol handlers:
-//    MySerialPort.all.push(this); //allows easier enum over all instances
-    process.nextTick(function inbuf_piped() { /-*debugger;*-/ logger(80, "TICK pipe sport"); /-*if (!++this.inbuf.piped) this.inbuf.piped = 1*-/; port.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
-//monitor events on stream (mainly for debug):
-//stream.constructor.name + " port '" + (sthis.name || this.device) + "'"
-    if (desc && CFG.port_mon) stmon(port, desc, CFG.port === true); //debug, no functional purpose
-}
-*/
 
 
 //clear current port buffer:
@@ -276,9 +107,7 @@ function assign(model)
 
 
 //send current port contents immediately:
-//uses hardware port's write+drain methods
-//write + drain; caller controls timing between frames
-//CAUTION: conflicts with stream method
+//caller controls timing
 PortBase.prototype.flush =
 function flush(seqnum)
 {
@@ -319,7 +148,6 @@ function flush(seqnum)
     }
 //TODO: tag writes with seq# for easier tracking
 debugger;
-//write + drain:
     this.write(data, function write_done(err, results)
     {
 //debugger;
@@ -395,42 +223,109 @@ function render(frtime) //{frnext, buf}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
-/// Protocol handlers:
+/// Port definitions (physical devices):
 //
 
-//protocols:
+// Models are assigned to physical ports
+// Protocols are also assigned to ports
+
+const serial = require('serialport'); //https://github.com/voodootikigod/node-serialport
 const RenXt = require('my-plugins/hw/RenXt');
 
-//base hardware port types:
-//API is duplex stream, with .open, .on('data'), .write, .flush, .close methods and .inbuf and .outbuf properties
-//stream.constructor.name + " port '" + (sthis.name || this.device) + "'"
-//assign protocol handlers:
-//this is a wrapper around port instead of derivation
-//wires up API to pass duck typing
-//NOTE??: this must happen after models tick and before ports tick, so put it here
-function RenXtProtocol(port)
-{
-    if (!(this instanceof RenXtPort)) return makenew(RenXtPort, arguments);
-    this.port = port;
-//not needed;allow duck typing:
-//    ['on', 'once', 'open', 'emit', 'write', 'drain', 'close'].forEach(function passthru_each(method)
-//    {
-//        this[method] = port[method].bind(port);
-//    }.bind(this));
-}
-//stream.constructor.name + " port '" + (sthis.name || this.device) + "'"
 
-
-process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
+//show list of available ports (async):
+serial.list(function serial_enum(err, ports)
 {
-    logger(80, "TICK add proto");
-    PortBase.all.forEach(function port_each(port)
+    if (err) logger("serial port enum ERR: %j".red, err);
+    else logger("found %d serial ports, USB are:".cyan, ports.length);
+    (ports || []).forEach(function port_each(port, inx)
     {
-        if (!port.device) return;
-//    chpool.port = new serial.SerialPort(chpool.opts.device, CFG.def_sport, false); //false => don't open immediately (default = true)
-        RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
+//        if (port.comName.match(/ttyUSB|ttyS[0-5]$/))
+        if (port.comName.match(/ttyUSB/)) logger("  serial[%s/%s]: '%s' '%s' '%s'".cyan, inx, ports.length, port.comName, port.manufacturer, port.pnpId);
     });
 });
+
+
+//supported serial port bit configs:
+//add more as desired
+const CONFIG =
+{
+    '8N1': {dataBits: 8, parity: 'none', stopBits: 1},
+    '8N1.5': {dataBits: 8, parity: 'none', stopBits: 1.5}, //NOTE: might report error but seems to work anyway
+    '8N2': {dataBits: 8, parity: 'none', stopBits: 2},
+};
+function config(baud, bits, fps)
+{
+    var cfg = CONFIG[bits];
+    if (!cfg) throw "Unhandled serial config: '" + bits + "'";
+    cfg.baudrate = baud;
+    cfg.buffersize = CFG.buffersize || Math.floor(baud / (1 + cfg.dataBits + cfg.stopBits + 1) / fps); //number of bytes that can be transferred each frame
+//    cfg.buffersize = 4096; //NOTE: ignore FPS restrictions to simplify special cases such as RenXt enum
+    if (typeof CFG.sport_hupcl != 'undefined') cfg.hupcl = CFG.sport_hupcl;
+//    cfg..disconnectedCallback = TODO?
+}
+
+
+//simplified wrapper for SerialPort (sets default params):
+//NOTE: use containment rather than inheritance to avoid method name conflicts
+const MySerialPort = module.exports.SerialPort =
+function MySerialPort(spath, options, openImmediately, callback)
+{
+    if (!(this instanceof MySerialPort)) return makenew(MySerialPort, arguments);
+    if (typeof CFG.sport_immed != 'undefined') openImmediately = CFG.sport_immed; //give caller time to change port
+//    serial.SerialPort.apply(this, arguments);
+//    serial.SerialPort.call(this, spath, options || CFG.def_sport, false); //openImmediately || false, callback); //false => don't open immediately (default = true)
+    logger(100, "open serial port %s immed? %s".blue, spath, openImmediately);
+    var m_sport = new serial.SerialPort(spath, options || config(CFG.def_sport.baud, CFG.def_sport.bits, CFG.def_sport.fps), openImmediately, callback); //false => don't open immediately (nextTick, default = true)
+    PortBase.apply(this, arguments); //base class (was multiple inheritance, now just single)
+    this.device = m_sport.path;
+    this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
+
+//status tracking (for debug):
+//NOTE: this needs emitter.setMaxListeners(> 4) on close
+    m_sport.setMaxListeners(5); //avoid mem leak warnings
+//NOTE: sport.on('data') { inbuf.write(data) } === sport.pipe(inbuf)
+//    m_sport.on("open", function open_cb() { logger(10, 'opened %s'.green, this.name || this.device); }.bind(this));
+//.flush(cb(err)) data received but not read
+//debugger;
+//    m_sport.on('data', function data_cb(data) { this.inbuf.write(data); logger(10, 'data received on \'%s\' len %d: "%j"'.blue, this.name || this.device, data.length, data); }.bind(this)); //unprintable(.toString('utf8'))
+//    m_sport.on('error', function error_cb(err) { debugger; logger(10, "ERR on %s: ".red, this.name || this.device, err || '(error)'); }.bind(this));
+//    m_sport.on('close', function close_cb() { logger(10, "closed %s".cyan, this.name || this.device); }.bind(this));
+//    m_sport.on('disconnect', function discon_cb(err) { logger(10, "disconnected %s: %s".red, this.name || this.device, err || '(error)'); }.bind(this));
+    if (CFG.port_mon) stmon(m_sport, "serial port '" + (this.name || this.device) + "'", CFG.port_mon === true); //debug, no functional purpose
+
+//    this.write = function write_serial(data, write_cb) { return m_sport.write.apply(m_sport, arguments); }; //.bind(this);
+//    this.drain = function drain_serial(drain_cb) { return m_sport.drain.apply(m_sport, arguments); }; //.bind(this);
+//    this.write = m_sport.write.bind(m_sport);
+//    this.drain = m_sport.drain.bind(m_sport);
+//    this.open = m_sport.open.bind(m_sport);
+//    this.self_emit = function self_emit(evt, data) { /*debugger;*/ return m_sport.emit.apply(m_sport, arguments); }
+    ['on', 'once', 'open', 'emit', 'write', 'drain', 'close'].forEach(function passthru_each(method)
+    {
+        if ((method == 'open') || (method == 'close') || (method == 'write'))
+        {
+            this[method] = function() { logger("%s requested", method); m_sport[method].apply(m_sport, arguments); };
+            return;
+        }
+        this[method] = m_sport[method].bind(m_sport);
+    }.bind(this));
+//    if (openImmediately !== false) //setTimeout(function delayed_open()
+//    {
+//        var elap = new Elapsed();
+//        m_sport.open(function sport_opened(err)
+//        {
+//            logger(10, "open %s took %s, err? %s".yellow, this.name || this.device, elap.scaled(), err || '(no error)');
+//        }.bind(this));
+//    }; //.bind(this), 16); //open after evt handlers are in place
+//    if (openImmediately !== false) m_sport.open(); //open after evt handlers are in place
+
+//    MySerialPort.all.push(this); //allows easier enum over all instances
+    process.nextTick(function inbuf_piped() { /*debugger;*/ logger(80, "TICK pipe sport"); /*if (!++this.inbuf.piped) this.inbuf.piped = 1*/; m_sport.pipe(this.inbuf); }.bind(this)); //give caller a chance to intercept before connecting pipes
+}
+//inherits(MySerialPort, serial.SerialPort);
+//Object.assign(MySerialPort.prototype, PortBase.prototype); //multiple inheritance
+inherits(MySerialPort, PortBase);
+//MySerialPort.all = [];
 
 
 function FakeSerialPort(spath, options, openImmediately, callback)
@@ -441,7 +336,6 @@ function FakeSerialPort(spath, options, openImmediately, callback)
     MySerialPort.apply(this, arguments); //args); //base class
     this.open = function open_fake() { this.emit('open'); } //NOTE: need to override this to prevent real port from being opened
     this.close = function close_fake() { debugger; this.emit('close'); }
-//simulate write + drain:
     this.write = function write_fake(data, write_cb)
     {
 //??        function write_delayed() { cb(null, "ok"); } //use values current at time of call, not later
@@ -480,17 +374,16 @@ debugger;
 inherits(FakeSerialPort, MySerialPort);
 
 
-
-//    this.inbuf = fs.createWriteStream(path.basename(this.name || this.device) + '-out.log'); //, "port '" + this.name + "' input");
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-////
-/// Port definitions (physical devices):
-//
-
-// Models are assigned to physical ports
-// Protocols are also assigned to ports
-
-var models = require('my-projects/models/my-models').models; //kludge: models must tick before ports, so load them first
+const OtherPort = module.exports.OtherPort =
+function OtherPort(args)
+{
+    if (!(this instanceof OtherPort)) return makenew(OtherPort, arguments);
+    PortBase.apply(this, arguments);
+//TODO
+//    OtherPort.all.push(this); //allows easier enum over all instances
+}
+inherits(OtherPort, PortBase);
+//OtherPort.all = [];
 
 
 //attach a name to port for easier recognition:
@@ -503,11 +396,26 @@ function named(obj, name)
 }
 
 
+var models = require('my-projects/models/my-models').models; //kludge: models must tick before ports, so load them first
+
+//assign protocol handlers:
+//NOTE: this must happen after models tick and before ports tick, so put it here
+process.nextTick(function() //kludge: nodelists aren't generated until next processor tick, so code below must be delayed
+{
+    logger(80, "TICK add proto");
+    PortBase.all.forEach(function port_each(port)
+    {
+        if (!port.device) return;
+//    chpool.port = new serial.SerialPort(chpool.opts.device, CFG.def_sport, false); //false => don't open immediately (default = true)
+        RenXt.AddProtocol(port); //protocol handler; implements outflush to send output buffer to hardware
+    });
+});
+
 //define all hardware ports used by models:
 var yport = named(new FakeSerialPort('/dev/ttyUSB3'), 'FTDI-Y');
 var gport = named(new FakeSerialPort('/dev/ttyUSB1'), 'FTDI-G');
 var bport = named(new FakeSerialPort('/dev/ttyUSB2'), 'FTDI-B');
-var wport = new RenXtPort(named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-W'));
+var wport = named(new MySerialPort('/dev/ttyUSB0'), 'FTDI-W');
 var noport = named(new PortBase(), 'none');
 
 //wport.open();

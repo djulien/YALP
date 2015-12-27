@@ -946,7 +946,7 @@ Model2D.prototype.bytesPerNode_GRB = 3;
 //{
 //    var abgr = (pxofs !== null)? pxbuf.readUInt32LE(pxofs): 0; //ABGR
 //    var grb = ((abgr & 0xFFFF) << 8) | ((abgr & 0xFF0000) >>> 16); // ABGR -> GRB
-//    this.port.outbuf.writeUInt24BE(grb, outofs);
+//    this.port.outbuf.writeUInt24BE(grb, outofs, val);
 ////    rgba_split.writeUInt24BE( = new Buffer([255, 255, 255, 255]);
 ////    this.outbuf.writeUInt24BE((pxofs !== null)? pxbuf.readUInt32BE(pxofs) >>> 8: 0); //RGB, drop A
 ////    rgba_split[1-0] = (pxofs !== null)? pxbuf[pxofs + 0]: 0; //R; R<->G on some WS281X strips
@@ -1196,7 +1196,7 @@ function extensions()
 {
     buffer.INSPECT_MAX_BYTES = 800;
     Buffer.prototype.readUInt24BE = function readUInt24BE(ofs) { return int24.readUInt24BE(this, ofs) >>> 0; };
-    Buffer.prototype.writeUInt24BE = function writeUInt24BE(val, ofs) { return int24.writeUInt24BE(this, val >>> 0, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
+    Buffer.prototype.writeUInt24BE = function writeUInt24BE(val, ofs) { return int24.writeUInt24BE(this, ofs, val >>> 0); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
 
     ['readUInt32BE', 'readUInt32LE'].forEach(function extensions_each(ignored, inx, both)
     {

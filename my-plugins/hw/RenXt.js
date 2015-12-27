@@ -346,7 +346,7 @@ function AddProtocol(port)
         }.bind(port),
         size: function size() { return port.encbuf.wrlen; },
 //        readUInt24BE: function readUInt24BE(ofs) { return int24.readUInt24BE(this, ofs) >>> 0; },
-//        writeUInt24BE: function writeUInt24BE(val, ofs) { return int24.writeUInt24BE(this, val >>> 0, ofs); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
+//        writeUInt24BE: function writeUInt24BE(val, ofs) { return int24.writeUInt24BE(this, ofs, val >>> 0); }; //NOTE: falafel/acorn needs ";" here to prevent the following array lit from being undefined; TODO: fix falafel/acorn
     };
 
     port.iostats = //send to analysis stream rather than accumulating in memory
@@ -1020,7 +1020,7 @@ var Transform = stream.Transform || require('readable-stream').Transform;
 //RenXt stream to transform serial loopback data to parsed pkts:
 //this analyzes serial loopback data for comm or firmware errors
 //runs async behind actual port I/O
-//const RenXtLoopback = module.exports.RenXtLoopback =
+const LoopbackStream = module.exports.RenXtLoopback =
 function LoopbackStream(opts)
 {
 //debugger;
@@ -1042,7 +1042,7 @@ function LoopbackStream(opts)
     this.elapsed = new Elapsed();
     this.fifo = new RenXtBuffer(4096); //TODO: replace with stream-buffer?
 //    this.fifo.fr_count = 0;
-    this.fifo.src = "loopbk";
+    this.fifo.src = opts.tag || "loopbk";
 //    this.fifo = new streamBuffer.WritableStreamBuffer(); //default size 8K; should be enough, but is growable anyway
 //    this.fifo.buffer.fill = function filler(val) { if (this.size()) this.peek().fill(val); } //"this" == streamBuffer
 //    Object.defineProperty(this.fifo.buffer, 'length', { get() { return this.size(); }});
@@ -1092,7 +1092,7 @@ function xform(chunk, encoding, done, eof)
         parsed.src = this.fifo.src; //show where it came from
         if (!++this.fifo.fr_count /*isNaN*/) this.fifo.fr_count = 1;
         parsed.pktnum = this.fifo.fr_count;
-        parsed.elaped = this.elapsed.now; //mainly for debug
+        parsed.elapsed = this.elapsed.now; //mainly for debug
         var opc = parsed.lit? parsed.lit[0]: null;
         if (opc) parsed.opc = OpcodeNames(opc) || ('#' + hex(opc, 2)); //mainly for debug
         parsed.litlen = (parsed.lit || []).length; //mainly for debug
@@ -1110,7 +1110,7 @@ LoopbackStream.prototype._flush =
 function flusher(done)
 {
     logger(10, "renxt loopback flush".cyan);
-    this.xform(null, null, done);
+    this._transform(null, null, done);
 }
 
 
@@ -1353,6 +1353,7 @@ var Struct = require('struct'); //https://github.com/xdenser/node-struct
 
 
 //TODO: derive from stream buffer?
+const RenXtBuffer = module.exports.RenXtBuffer =
 function RenXtBuffer(opts)
 {
     if (!(this instanceof RenXtBuffer)) return makenew(RenXtBuffer, arguments); //{port, buflen}

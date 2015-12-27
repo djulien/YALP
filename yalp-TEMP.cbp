@@ -105,6 +105,8 @@
 		<Unit filename="my-plugins/streamers/YalpStream.js" />
 		<Unit filename="my-plugins/streamers/fxstream.js" />
 		<Unit filename="my-plugins/streamers/iomon.js" />
+		<Unit filename="my-plugins/streamers/logger.js" />
+		<Unit filename="my-plugins/streamers/mru-file.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />
@@ -126,7 +128,7 @@
 		<Unit filename="my-plugins/utils/glob-unique.js" />
 		<Unit filename="my-plugins/utils/ipc.js" />
 		<Unit filename="my-plugins/utils/json-bool-fixup.js" />
-		<Unit filename="my-plugins/utils/logger.js" />
+		<Unit filename="my-plugins/utils/logger-bk.js" />
 		<Unit filename="my-plugins/utils/make-global.js" />
 		<Unit filename="my-plugins/utils/makenew.js" />
 		<Unit filename="my-plugins/utils/mem-scale.js" />
@@ -222,9 +224,11 @@
 		<Unit filename="tests/color-test.js" />
 		<Unit filename="tests/createjs.html" />
 		<Unit filename="tests/djtest.js" />
+		<Unit filename="tests/duck-type.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/funcgen.js" />
+		<Unit filename="tests/http-stream.js" />
 		<Unit filename="tests/index.js" />
 		<Unit filename="tests/inh-test.js" />
 		<Unit filename="tests/ipc-cmd.js" />
@@ -239,6 +243,7 @@
 		<Unit filename="tests/ipc-trace.js" />
 		<Unit filename="tests/json-reviver.js" />
 		<Unit filename="tests/json-streams.js" />
+		<Unit filename="tests/logtest.js" />
 		<Unit filename="tests/mail.js" />
 		<Unit filename="tests/more-tests.js" />
 		<Unit filename="tests/multi-class.js" />

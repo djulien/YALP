@@ -70,7 +70,7 @@ function playback(infile)
 //NO    data.end(); //close pipe after data all read??
 }
 ////setTimeout(function() { playback('./Amaz.json'); }, 1000);
-//playback('./Amaz.json');
+playback('./Amaz.json');
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +149,80 @@ debugger;
 //analyze('./ttyUSB3-out.log');
 
 
+function analyze2(infile)
+{
+    var data = fs.createReadStream(path.resolve(/*__dirname*/ process.cwd(), infile));
+
+    var parser = new stream.Writable();
+    parser.objectMode = true;
+    console.log("hwm", parser.highWaterMark);
+    parser._write = function (chunk, encoding, done)
+    {
+debugger;
+        if (!++this.lines)
+        {
+            this.lines = 1;
+            this.max_fifo = this.total_fifo = 0;
+            this.num_pkt_in = this.num_pkt_out = this.num_pkt_unkn = 0;
+            this.num_raw = this.total_rawlen = this.max_rawlen = 0;
+//            this.num_out = this.total_outlen = 0;
+//            this.num_loopbk = this.total_loopbklen = 0;
+            this.fifo = {length: 0};
+            this.pkts = {length: 0};
+//            this.num_wrerr = this.num_drerr = this.num_drokay = 0;
+        }
+        if (chunk === null) { done(); return; }
+        if (!chunk || !chunk.length) { console.log("no chunk @line %s".red, this.lines); done(); return; }
+        if (Buffer.isBuffer(chunk)) chunk = JSON.parse(chunk, bufferJSON.reviver);
+        console.log("read line ", this.lines, chunk.src);
+        if (chunk.src == 'out')
+        {
+            if ((chunk.adrs < 1) || (chunk.adrs >= 0x7d)) console.log("bad adrs out: %s, pkt %s, line %d".red, chunk.adrs, chunk.pktnum, this.lines);
+            ++this.num_pkt_out;
+            ++this.num_raw;
+            this.total_rawlen += (chunk.lit || []).length;
+            this.max_rawlen = Math.max(this.max_rawlen, (chunk.lit || []).length);
+            chunk.line = this.lines;
+            if (!++this.pkts[chunk.pktnum]) { this.pkts[chunk.pktnum] = 1; ++this.pkts.length; }
+            if (this.fifo[chunk.pktnum]) throw "dupl pkt# " + chunk.pktnum + " @line " + this.lines;
+            this.fifo[chunk.pktnum] = chunk; //.push(chunk);
+            this.total_fifo += ++this.fifo.length;
+            if (this.fifo.length > this.max_fifo) this.max_fifo = this.fifo.length;
+        }
+        else if (chunk.src == 'in')
+        {
+            if ((chunk.adrs < 0x81) || (chunk.adrs >= 0xfd)) console.log("bad adrs in: %s, pkt %s, line %d".red, chunk.adrs, chunk.pktnum, this.lines);
+            ++this.num_pkt_in;
+            chunk.line = this.lines;
+            if (!++this.pkts[chunk.pktnum]) { this.pkts[chunk.pktnum] = 1; ++this.pkts.length; }
+            var buf = '', other = this.fifo[chunk.pktnum]; //[0];
+            if (!other) throw "pkt# " + chunk.pktnum + " @line " + this.line + " not found";
+            for (var i in chunk)
+            {
+                if ((i == 'src') || (i == 'elapsed') || (i == 'line')) continue;
+                if (chunk[i] == other[i]) continue;
+                if ((i == 'adrs') && ((chunk.adrs ^ other.adrs) == 0x80)) continue;
+                buf += ', ' + i + ' = ' + chunk[i] + ' vs. ' + other[i] + ' (line#s ' + other.line + ', ' + chunk.line + ')';
+            }
+            if (!buf) { delete this.fifo[chunk.pktnum]; this.total_fifo += --this.fifo.length; done(); return; }
+            console.log("mismatch: " + buf.substr(2));
+        }
+        else __this.num_pkt_unkn; //throw "unrecog entry on line " + this.lines + ": " + chunk;
+        done();
+    };
+    parser.on('finish', function()
+    {
+        console.log("%s lines found", this.lines);
+        console.log("#raw: %s, total len: %s, avg len %s, max len %s", this.num_raw, this.total_rawlen, this.num_raw? Math.round(this.total_rawlen / this.num_raw): 0, this.max_rawlen);
+        console.log("#out: %s, #in %s, #unkn %s, #uniq pkt#s %s, max fifo %s, avg fifo %s", this.num_pkt_out, this.num_pkt_in, this.num_pkt_unkn, this.pkts.length, this.max_fifo, Math.round(this.total_fifo / (this.num_pkt_in + this.num_pkt_out)));
+//        console.log("#wrerr: %s, #drerr: %s, #drokay: %s", this.num_wrerr, this.num_drerr, this.num_drokay);
+    }.bind(parser));
+    data.pipe(split()).pipe(parser); //NOTE: need split() to go from text to object stream
+//NO    data.end(); //close pipe after data all read??
+}
+//analyze2('./out.log');
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////
 /// port test:
@@ -162,8 +236,8 @@ function port_test()
     var timer = setInterval(function()
     {
         send();
-        setTimeout(function() { models.ic1.port.close(); }, 2000);
-        clearInterval(timer);
+//        setTimeout(function() { models.ic1.port.close(); }, 2000);
+//        clearInterval(timer);
     }, 1000); //kludge: serial port needs ~ .6 - .7 sec to open
 
     function send()
@@ -206,7 +280,7 @@ test_strip
     .playback({persist: true, loop: 2});
 */
 }
-port_test();
+//port_test();
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
