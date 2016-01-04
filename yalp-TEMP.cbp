@@ -55,6 +55,7 @@
 		<Unit filename="bin/ui.js" />
 		<Unit filename="docs/dj-pinotes.txt" />
 		<Unit filename="docs/dj-yalpnotes.txt" />
+		<Unit filename="docs/webrtc.txt" />
 		<Unit filename="graphics/yalp-icon8.PNG" />
 		<Unit filename="graphics/yalp-icon8.bmp" />
 		<Unit filename="index.js" />
@@ -106,7 +107,7 @@
 		<Unit filename="my-plugins/streamers/fxstream.js" />
 		<Unit filename="my-plugins/streamers/iomon.js" />
 		<Unit filename="my-plugins/streamers/logger.js" />
-		<Unit filename="my-plugins/streamers/mru-file.js" />
+		<Unit filename="my-plugins/streamers/mrufile.js" />
 		<Unit filename="my-plugins/streamers/my-player.js" />
 		<Unit filename="my-plugins/streamers/outhw.js" />
 		<Unit filename="my-plugins/streamers/seqdata-bk.js" />

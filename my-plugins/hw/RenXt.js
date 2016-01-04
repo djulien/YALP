@@ -750,10 +750,138 @@ function encode_series(first) //_smart(model) //, nodes)
 }
 
 
+//var argb_splitter = new Buffer(4);
+
 function encode_parallel(first) //, nodes)
 {
+    var nodegrp = [];
+    var monochrome = new Buffer(3 * 4); //store R, G, B as monochrome color elements so they can be reused more (parallel only)
+//    for (var i = 0; i < this.raw_nodes.length; i += 4)
+    for (var n = 0; n < 4 * Math.ceil(this.raw_nodes.length / 4); ++n)
+    {
+//        var color = this.raw_nodes.readUInt32BE(i); //& 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //ABGR, drop A
+        var color = (n < this.raw_nodes.length)? this.raw_nodes[n]: 0; //& 0xFFFFFF; //>>> 8; //ABGR, drop A
+        argb_splitter.writeUInt32BE(color, 0); //ABGR, drop A
+//(n < this.raw_nodes.length)? : 0 //subscript error ignored
+        monochrome[4 * 0 + (n & 3)] = argb_splitter[3]; //this.raw_nodes[(n & 3) + 1]; //drop A, split up RGB
+        monochrome[4 * 1 + (n & 3)] = argb_splitter[2]; //this.raw_nodes[(n & 3) + 2];
+        monochrome[4 * 2 + (n & 3)] = argb_splitter[1]; //this.raw_nodes[(n & 3) + 3];
+        if ((n & 3) != 3) continue; //get remaining nodes in group
+
+    var counts = {}, index = {length: 0};
+    if (nodes.data) nodes = nodes.data;
+    if (nodes.readUInt32BE) //buffer
+        for (var i = 0; i < nodes.length; i += 4)
+        {
+            var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //ABGR, drop A
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
+        }
+    else //array
+        for (var i = 0; i < nodes.length; ++i)
+        {
+            var color = nodes[i] & 0xFFFFFF; //ABGR, drop A
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
+        }
+    var palette = Object.keys(counts);
+    palette.sort(function pal_sort(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
+    palette.inspect = buf_inspector_uint32ary.bind(palette);
+    logger(100, (desc || '') + " myhist palette", palette);
+    return {colors: palette, counts: counts, index: index};
+
+
+                para_raw.occur(keys[3], rgb, n); //for debug only
+                if ((n & 3) != 3) continue; //get remaining nodes in group
+
+
+        this->nodeinx.resize(nodech * (this->desc.numnodes + (this->isparapal? padlen(this->desc.numnodes, 4): 0))); //reduce memory allocation overhead; don't leave partial node group at end (parallel palette only)
+
+    var myhist = histogram(this.raw_nodes, "raw RGB"); //{colors[], counts{}, index{}}
+    var counts = {}, index = {length: 0};
+    if (nodes.data) nodes = nodes.data;
+    if (nodes.readUInt32BE) //buffer
+        for (var i = 0; i < nodes.length; i += 4)
+        {
+            var color = nodes.readUInt32BE(i) & 0xFFFFFF; //nodes[i] & 0x00FFFFFF; //>>> 8; //ABGR, drop A
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
+/*
+            var inx = keys[color];
+            if (typeof inx == 'undefined') { inx = keys[color] = counts.length; counts.push(0); }
+            ++counts[inx];
+            this.raw_nodes.writeUInt32BE(inx);
+*/
+        }
+    else //array
+        for (var i = 0; i < nodes.length; ++i)
+        {
+            var color = nodes[i] & 0xFFFFFF; //ABGR, drop A
+            if (!++counts[color] /*isNaN*/) { counts[color] = 1; index[color] = index.length++; }
+        }
+    var palette = Object.keys(counts);
+    palette.sort(function pal_sort(lhs, rhs) { return (counts[rhs] - counts[lhs]) || (rhs - lhs); }); //descending order
+    palette.inspect = buf_inspector_uint32ary.bind(palette);
+//    var buf = '';
+//    palette.forEach(function pal_enum(color) { buf += ', #' + hex(color, 6) + ' * ' + counts[color]; });
+//    console.log((desc || '') + " palette %d ents:", palette.length, buf.substr(2));
+    logger(100, (desc || '') + " myhist palette", palette);
+    return {colors: palette, counts: counts, index: index};
+
+
+
+    var myhist = histogram(this.raw_nodes, "raw RGB"); //{colors[], counts{}, index{}}
+//    var quant = new RgbQuant({colors: 16, boxSize: [4, 4], boxPxls: 1}); //need new object each time?
+//    boxSize: [4, 4], boxPxls: 1,
+//TODO: dither?
+//    dithXXXX: true, //maybe try dithKern, dithSerp, etc
+//    colorDist: ??, //select color distance eqn?
+    if (myhist.colors.length > 16) //reduce palette size
+    {
+        var quant = new RgbQuant({ colors: 16, method: 1, initColors: 0}); //4 bpp, 1D (no sub-boxes)
+//NO: node.js buf len broken
+        this.raw_nodes.forEach(function swapBG_each(color, inx, all) { all[inx] = ARGB2ABGR(color >>> 0); }); //kludge: RgbQuant wants nodes in ABGR format
+        quant.sample(this.raw_nodes); //analyze histogram; wants ABGR
+//    quant.colorStats1D(buf32) //wants ARGB, .length
+
+//TODO: eliminate redundant histogram
+//TODO: share palette across frames to reduce frame-to-frame color variations
+        var quant_pal = uint8ary_to_uint32ary(quant.palette()); //build palette; ABGR entries
+        quant_pal.inspect = buf_inspector_uint32ary.bind(quant_pal);
+        logger(100, "quant pal RGBA %s", typeof quant_pal, quant_pal.inspect());
+//    console.log("palbuf %s %j", typeof palbuf, palbuf);
+//then generate reduced palette:
+        var indexed_nodes = quant.reduce(this.raw_nodes, 2); //reduce colors in image; retType 2 = Indexed array
+        indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
+        logger(100, "reduced %s", typeof indexed_nodes, indexed_nodes.inspect());
+        indexed_nodes.forEach(function swapBG_each(colorinx, nodeinx, all) { all[nodeinx] = ARGB2ABGR(quant.idxi32[colorinx] >>> 0); }); //kludge: unindex colors before my histogram
+        logger(100, "reduced + restored nodes %s", typeof indexed_nodes, indexed_nodes.inspect());
+        myhist = histogram(indexed_nodes, "my reduced"); //{colors[], counts{}, index{}}
+//        myhist.colors.forEach(function unindex_each(quant_inx, list_inx, all) { all[list_inx] = quant_pal[quant_inx]; }); //kludge: reload palette with un-quant colors
+        indexed_nodes.forEach(function index_each(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
+    }
+    else
+    {
+        var indexed_nodes = [];
+        this.raw_nodes.forEach(function index_each(color, nodeinx) { indexed_nodes[nodeinx] = myhist.index[color & 0xFFFFFF]; });
+    }
+    indexed_nodes.inspect = buf_inspector_uint32ary.bind(indexed_nodes);
+    logger(100, "indexed, reduced nodes", indexed_nodes);
+//    myhist.colors_rgb = []; //quant shim
+//    myhist.colors.forEach(function swap_each(color, inx, all) { myhist.colors_rgb[inx] = ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF); }); //put in RGB order
+//    myhist.colors_rgb.inspect = buf_inspector_uint32ary.bind(myhist.colors_rgb);
+//    console.log("final RGB palette", myhist.colors_rgb);
+/* TODO: SetAll(non-0) if #pal ents == 1
+    if ((myhist.colors.length < 16) && !myhist.counts[0]) //add black to improve changes of palette reuse in next frame
+    {
+        myhist.counts[0] = 1;
+        myhist.index[0] = myhist.colors.count;
+        myhist.colors.push(0);
+    }
+*/
+
+
     encode_adrs.apply(this, arguments); //send config, select adrs, etc.
 //nodetype: RenXt.WS281X(RenXt.PARALLEL)
+
+        if (isparapal) palette.occur(keys[0], 0, 0); //always include a null palette entry at start to allow self-referencing indir entty
     this.port.encbuf
 //        .SelectAdrs(this.adrs)
         .emit_buf(new Buffer("TODO: PARALLEL"))
@@ -832,6 +960,18 @@ function encode_chplex(first)
         .NodeFlush(this.wait_states) //flush changes; must be last opcode for this processor
         .EndOfOpcode(); //mark end of last block
 }
+
+
+/*
+function enum_nodes(nodes, cb)
+{
+    if (nodes.data) nodes = nodes.data;
+    if (nodes.readUInt32BE)
+        for (var i = 0; i < nodes.length; i += 4) cb(nodes.readUInt32BE(i)); //, i / 4);
+    else
+        for (var i = 0; i < nodes.length; ++i) cb(nodes[i]); //, i);
+}
+*/
 
 
 //first analyze nodes:

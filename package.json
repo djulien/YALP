@@ -184,6 +184,7 @@
     "trivial-port": "^0.3.2",
     "tty.js": "^0.2.15",
     "typedarray-to-buffer": "^3.0.4",
+    "video.js": "^5.4.4",
     "wormhole": "^3.0.0",
     "xml-stream": "^0.4.5",
     "xmldoc": "^0.3.2"
@@ -191,7 +192,8 @@
   "comment-devDependencies": "none, since this is an IDE-like app",
   "comment2-devDependencies": "actually, put RPi-specific deps (mostly GPIO) into dev so they can be excluded from generic dev machine",
   "devDependencies": {
-    "onoff": "^1.0.2"
+    "onoff": "^1.0.2",
+    "video.js": "^5.4.4"
   },
   "xdependencies": {
     "autostrip-json-comments": "0.0.4",
