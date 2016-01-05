@@ -151,6 +151,7 @@
     "node-hook": "^0.2.0",
     "node-ipc": "^3.0.0",
     "node-mpg123-util": "git+https://github.com/djulien/node-mpg123-util.git",
+    "node-static": "^0.7.7",
     "nodemailer": "^1.5.0",
     "object-sizeof": "^1.0.6",
     "objectstream": "0.0.4",

@@ -58,6 +58,7 @@
 		<Unit filename="docs/webrtc.txt" />
 		<Unit filename="graphics/yalp-icon8.PNG" />
 		<Unit filename="graphics/yalp-icon8.bmp" />
+		<Unit filename="http.js" />
 		<Unit filename="index.js" />
 		<Unit filename="my-plugins/adapters/vixen2.js" />
 		<Unit filename="my-plugins/adapters/xlights3-bk.js" />
@@ -204,6 +205,7 @@
 		<Unit filename="public/editor-1.html" />
 		<Unit filename="public/favicon.ico" />
 		<Unit filename="public/fx-editor.html" />
+		<Unit filename="public/index-bk.html" />
 		<Unit filename="public/index.html" />
 		<Unit filename="public/js/repl-2.js" />
 		<Unit filename="public/js/repl.js" />
