@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<!--
+YALP: Yet Another Lightshow Player
+JavaScript not the right tool for the job?
+Check these out:
+- http://www.html5rocks.com/en/tutorials/webgl/million_letters/
+- http://www.npmjs.com/package/serialport or serialport2
+possible futures:
+- effects rendering; extension: cloud-based for high performance of complex effects
+- actual output; output plug-ins
+- sequence editing
+- monitoring
+- I/O over sockets; goes way beyond E1.31 - can have muli-drop displays, remote preview, interaction, etc
+-->
+<html lang="en">
+    <head>
+        <!-- meta charset="utf-8" / -->
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <xmeta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+        <title>YALP! - Yet Another Lightshow Player</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" comment="what does?" />
+        <xlink href="lib/font-awesome-4.3.0/css/font-awesome.min.css" rel="stylesheet" comment="icons" />
+        <xlink href="lib/w2ui/w2ui-1.4.2.css" rel="stylesheet" type="text/css" comment="this one first" />
+        <link href="./css/yalp.css" rel="stylesheet" type="text/css" comment="main styles/theme" xcomment="this one last (overwrites others)" />
+        <xscript type="text/javascript">
+<!--            window.requireNode = window.require; window.require = undefined; //kludge; rename node-webkit's require() to avoid conflict with require.js -->
+        </xscript>
+        <xscript src="lib/require/require-2.1.17.js" xsrc="./js/yalp.js" data-main="js/main" type="text/javascript"></xscript>
+        <xscript src="node_modules/jquery/dist/jquery.js" type="text/javascript" comment="kludge: make global to avoid dependency problems"></xscript>
+        <xscript src="./bundles/shared.js" type="text/javascript" xid="main" comment="shared modules"></xscript>
+        <xscript src="./bundles/yalp.js" type="text/javascript" xid="main" comment="loader for top-level plug-ins"></xscript>
+        <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui loader; auto-generated (browserify)"></script>
+        <script src="http://code.jquery.com/jquery-latest.min.js"></script>
+        <script src="/socket.io/socket.io.js" xsrc="./js/socket.io.js" type="text/javascript" charset="utf-8"></script>
+        <script src="./js/ace.js" type="text/javascript" charset="utf-8"></script>
+        <script src="./js/ext-statusbar.js"></script>
+        <xscript src="./js/show_own_source.js"></xscript>
+        <script type="text/javascript" charset="utf-8">
+//            alert("doc href " + document.location.href);
+//TODO: browserify this
+//            var ESCAPEs = {'<': '&lt;', '&': '&amp;', '>': '&gt;'}; //, '\n': '<br/>\n'};
+            function transcript(str, style)
+            {
+                console.log(style, str);
+//                $('#terminal').append('<p>' + $('<div/>').text(str).html() + '</p>');
+                $('<p>')
+                    .text(str) //.replace(/[<&>]/g, function(special) { return ESCAPEs[special] || special; })) //replace not needed with white-space:pre
+                    .addClass(style) //css({class: style})
+                    .appendTo('#tty-log');
+//                $(window).scrollTop($('body').height() - $(window).height() + 80);
+//                $('body').scrollTo('#cmdline'); //http://lions-mark.com/jquery/scrollTo/
+            }
+//      var host = document.location.href.replace(/
+//            var socket = io.connect(window.location.origin, {'connect timeout': 25000});
+            var socket = io.connect(); //"http://localhost:2015"); //.connect('localhost', {path: '/xyz'}); //'/js/socket.io.js'}); //'localhost', {port: 2016}); //default is host that server this page
+//            socket.on('connect', function(data)
+//            {
+//                socket.emit('join', 'Hello World from client');
+//            });
+            if (false) socket.disconnect(); //avoid retries while connection not needed
+            socket.on('tty', function(data)
+            {
+                transcript(data.text, data.style || '');
+            });
+//alert("here1");
+            $( document ).ready(function()
+            {
+//      $(function(){
+                $('form').submit(function(e)
+                {
+//        e.preventDefault(); // this will prevent from submitting the form.
+                    var cmdline = $('#cmdline');
+                    transcript(cmdline.val(), 'stdin');
+                    socket.emit('tty', {text: cmdline.val()}); //send(input.val()); //send = pt-to-pt, emit = broadcast
+                    cmdline.val('');
+//                    alert("sent " + input.val());
+                    return false; //prevent form from submitting
+                });
+                $('#cmdline').focus();
+                console.log( "dom ready!" );
+            });
+console.log("this message should be present if javascript compiled okay");
+<!-- from https://github.com/ajaxorg/ace-builds/blob/master/editor.html -->
+            var editor = ace.edit("editor");
+            editor.setTheme("ace/theme/twilight");
+//    editor.setTheme("ace/theme/dawn");
+            var StatusBar = ace.require("./statusbar").StatusBar;
+            var statusBar = new StatusBar(editor, document.getElementById("statusBar")); // create a simple selection status indicator
+            editor.session.setMode("ace/mode/javascript");
+//    editor.session.setMode("ace/mode/html");
+        </script>
+    </head>
+    <body>
+<!--    Hello from YALP! <hr/> -->
+        <div id="tty-log"></div>
+        <form>
+            &gt; <input id="cmdline" type="text" size="10" />
+        </form>
+        <pre id="editor">//code here
+function foo(items)
+{
+    var i;
+    for (i = 0; i &lt; items.length; i++)
+        alert("Ace Rocks " + items[i]);
+}
+</pre>
+        <div id="statusBar">ace rocks!</div>
+        <xdiv id="x-background" style="z-index: 0;" comment="bottom-most"></xdiv>
+        <xdiv id="x-canvas3D" style="z-index: 1;" comment="middle layer"></xdiv>
+        <xdiv id="x-layout" style="z-index: 99;" comment="top-most">
+            <div class="fatal">
+                <noscript>
+                    <h1>ERROR: YALP needs JavaScript.</h1>
+                    <p>This app requires JavaScript to be enabled in your browser.</p>
+                    <p>Here are some things to try:</p>
+                    <ul>
+                        <li><a href="http://enable-javascript.com/">Instructions to enable JavaScript</a>.</li>
+                        <li>Ensure that you have a <a href="http://outdatedbrowser.com/en">recent browser version</a>.</li>
+                        <li>Turn off or disable any NoScript extensions that you might have.</li>
+                    </ul>
+                </noscript>
+            </div>
+        </xdiv>
+    </body>
+</html>

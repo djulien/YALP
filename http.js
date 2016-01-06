@@ -1,16 +1,29 @@
 'use strict';
 
+//const supervisor = require('supervisor/lib/supervisor');
+//console.log("req main", require.main.filename);
+
 //TODO: use https://github.com/pillarjs/send?
 
 //below is based on https://github.com/cloudhead/node-static
 
-//const fs = require("fs");
+const fs = require("fs");
+
+fs.watch(__dirname, { persistent: true, recursive: true }, function unreliable(event, filename)
+{
+//event is either 'rename' or 'change'
+//The recursive option is only supported on OS X and Windows.
+//persistent indicates whether the process should continue to run as long as files are being watched.
+    console.log("WATCH: ", event, filename);
+//  if ( newStat.mtime.getTime() !== oldStat.mtime.getTime() )
+});
+
 //const url = require("url");
 //const path = require("path");
 const http = require('http');
 const staticc = require('node-static');
 
-const PORT = parseInt(process.argv[2]) || 2015;
+const PORT = parseInt(process.argv[2]) || 2016-1;
 const cwd = process.cwd(); //save initial value in case it changes
 
 var file = new staticc.Server('./public');
