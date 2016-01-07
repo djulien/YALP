@@ -1,7 +1,9 @@
 'use strict';
 
+const clock = require('my-plugins/utils/clock');
+
 //const supervisor = require('supervisor/lib/supervisor');
-//console.log("req main", require.main.filename);
+console.log("req main", clock.Now.asTimeString(), require.main.filename, process.argv);
 
 //TODO: use https://github.com/pillarjs/send?
 
@@ -18,20 +20,66 @@ fs.watch(__dirname, { persistent: true, recursive: true }, function unreliable(e
 //  if ( newStat.mtime.getTime() !== oldStat.mtime.getTime() )
 });
 
-//const url = require("url");
+
+//NOTE: supervisor is already watching for file changes, so we don't need watchify here
+console.log("browserify ...");
+const browserify = require('browserify');
+//var b = browserify();
+var b = browserify(
+{
+    cache: {}, //true, // equivalent to "public, max-age=60"
+    packageCache: {},
+    precompile: true,
+//                minify: true,
+//                gzip: true,
+    debug: true,
+});
+b.add('./public/js/yalpui.js');
+var bundled = fs.createWriteStream('./public/js/yalpui-bundled.js');
+b.bundle().pipe(bundled);
+console.log("... browserify");
+
+
+const url = require("url");
 //const path = require("path");
 const http = require('http');
+//const inherit = require('inherit');
+//const makenew = require('my-plugins/utils/makenew');
 const staticc = require('node-static');
 
-const PORT = parseInt(process.argv[2]) || 2016-1;
+//function my_http(args)
+//{
+//    if (!(this instanceof my_http)) return makenew(my_http, arguments);
+//    http.apply(this, arguments); //base class
+//}
+
+const PORT = parseInt(process.argv[2]) || 2016;
 const cwd = process.cwd(); //save initial value in case it changes
 
 var file = new staticc.Server('./public');
-http.createServer(function (request, response)
+var svr = http.createServer(function http_req(request, response)
 {
-    request.addListener('end', function() { file.serve(request, response); }).resume();
+    var uri = url.parse(request.url).pathname;
+    console.log('http req for ' + request.url + ", is reload " + (svr.my_reload.url || '-') + "? " + ((svr.my_reload && (svr.my_reload.url == request.url))? "Y": "N"));
+    request.addListener('end', function on_reqend()
+    {
+        if (svr.my_reload && (svr.my_reload.url == request.url))
+        {
+            response.type = function resp_type(mime_type) { return response.writeHead(200, {"Content-Type": mime_type}); };
+            response.send = function resp_send(str) { return response.end(str); };
+            svr.my_reload.cb(request, response);
+        }
+//    res.type('text/javascript')
+//    res.send(clientCode)
+        else file.serve(request, response);
+    }).resume();
 }).listen(PORT);
 console.log("Server listening on: http://localhost:%s/\nCTRL + C to shutdown", PORT);
+
+const reload = require('reload'); //https://github.com/jprichardson/reload
+var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
+reload(svr, app); //, [reloadDelay], [wait])
+console.log("reload listener");
 
 //eof
 /*

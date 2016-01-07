@@ -396,6 +396,9 @@ async code patterns/mechanisms:
 interactive art:
  http://palebluepixel.org/projects/kimotion/
 
+don't use express views:
+ https://strongloop.com/strongblog/bypassing-express-view-rendering-for-speed-and-modularity/
+
 perf:
  http://www.html5rocks.com/en/tutorials/speed/v8/
  https://developers.google.com/speed/pagespeed/

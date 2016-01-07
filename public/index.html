@@ -23,12 +23,13 @@ For more info about YALP, see http://
         <xscript src="./bundles/yalp.js" type="text/javascript" xid="main" comment="loader for top-level plug-ins"></xscript>
         <script src="http://code.jquery.com/jquery-latest.min.js" comment="TODO: drop this?"></script>
         <xscript src="/socket.io/socket.io.js" xsrc="./js/socket.io.js" type="text/javascript" charset="utf-8"></xscript>
-        <script src="./js/uiloader.js" type="text/javascript" xid="main" comment="ui loader; auto-generated (browserify)"></script>
+        <script src="/reload/reload.js"></script>
+        <script src="/js/yalpui-bundled.js" type="text/javascript" xid="main" comment="ui loader; auto-generated (browserify)"></script>
         <script type="text/javascript" charset="utf-8">
             if (document.location.href.match(/file:\/\//i)) //need to load from web server to avoid cors errors
             {
                 var redir = document.location.href;
-                redir = "http://localhost:2015" + redir.replace(/^.*\//, "/"); //CAUTION: assumes server root is YALP folder
+                redir = "http://localhost:2016" + redir.replace(/^.*\//, "/"); //CAUTION: assumes server root is YALP folder
                 console.log("redir to " + redir + " for cors");
                 document.location.replace(redir); //http://stackoverflow.com/questions/503093/how-can-i-make-a-redirect-page-using-jquery
             }

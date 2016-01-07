@@ -116,6 +116,7 @@
 		<Unit filename="my-plugins/streamers/stmon.js" />
 		<Unit filename="my-plugins/streamers/uint32bebuf.js" />
 		<Unit filename="my-plugins/streamers/vix2json.js" />
+		<Unit filename="my-plugins/ui/test.js" />
 		<Unit filename="my-plugins/utils/YalpRef.js" />
 		<Unit filename="my-plugins/utils/buf-diff.js" />
 		<Unit filename="my-plugins/utils/caller.js" />
@@ -210,6 +211,7 @@
 		<Unit filename="public/js/repl-2.js" />
 		<Unit filename="public/js/repl.js" />
 		<Unit filename="public/js/socket.io.js" />
+		<Unit filename="public/js/yalpui.js" />
 		<Unit filename="public/pixel-test.html" />
 		<Unit filename="public/socket.html" />
 		<Unit filename="scripts/imhere.js" />
