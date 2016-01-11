@@ -17,6 +17,7 @@ const inherits = require('inherits');
 const stream = require('stream');
 //var Readable = stream.Readable || require('readable-stream').Readable; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
 const Duplex = stream.Duplex || require('readable-stream').Duplex; //http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
+//const cluster = require('cluster');
 
 const cwd = process.cwd(); //save it in case cwd changes
 var latest;
@@ -64,6 +65,8 @@ inherits(Logger, Duplex);
 
 
 Logger.prototype.log =
+Logger.prototype.warn =
+Logger.prototype.error =
 function msg(detail, fmt, args)
 {
 //    if (!arguments.length) //allow clean exit
@@ -78,7 +81,7 @@ function msg(detail, fmt, args)
     if (detail > /*module.exports.*/ this.detail) return;
     var numvals = (fmt.match(/%[^%]/g) || []).length;
     if (args.length > 2) fmt = sprintf.apply(null, args.slice(1)); //null, args.slice(1)); //Array.prototype.slice.call(arguments, 1));
-    for (var i = numvals + 2; i < args.length; ++i)
+    for (var i = numvals + 2; i < args.length; ++i) //include trailing (unformatted) values like console.log does
         fmt += args[i];
 //    else if (!args.length) fmt = sprintf("%s '%s' is ready after %s", chkprop.substr(2), this.name, this.elapsed.scaled());
     ++/*module.exports.*/ this.depth_adjust; //show my caller, not me
@@ -86,6 +89,7 @@ function msg(detail, fmt, args)
 //    fmt += "caller(" + svdepth + "): " + caller(0);
 //    debugger;
     var stamp = '+' + ((this.elapsed.now + .5) / 1000).toString().slice(0, -1); // /*logfile*/ seqnum? '+' + this.elapsed.now / 1000: '=' + clock.Now.asDateTimeString();
+    if (process.send) return process.send({log: fmt, level: detail}); //cluster.isMaster) //send to parent to log
 
 /*
     if (!logfile)
@@ -113,7 +117,7 @@ function msg(detail, fmt, args)
     var ColorCodes = /\x1b\[\d+m/g;
     if (!this.seqnum && this.elapsed.now) //show real start time
     {
-        var fmt0 = sprintf("[%d =%s] STARTED >> '%s'".blue, -1, clock.Now.asDateTimeString(clock.Now() - this.elapsed.now, false), this.filename); //adjust clock back to actual start time
+        var fmt0 = sprintf("[%d =%s] pid %s STARTED >> '%s'".blue, -1, clock.Now.asDateTimeString(clock.Now() - this.elapsed.now, false), process.pid, this.filename); //adjust clock back to actual start time
         if (this.want_console) console.log(fmt0);
         this.push(fmt0.replace(ColorCodes, '') + '\n');
     }

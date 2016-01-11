@@ -58,7 +58,6 @@
 		<Unit filename="docs/webrtc.txt" />
 		<Unit filename="graphics/yalp-icon8.PNG" />
 		<Unit filename="graphics/yalp-icon8.bmp" />
-		<Unit filename="http.js" />
 		<Unit filename="index.js" />
 		<Unit filename="my-plugins/adapters/vixen2.js" />
 		<Unit filename="my-plugins/adapters/xlights3-bk.js" />
@@ -85,6 +84,7 @@
 		<Unit filename="my-plugins/my-extensions/line-numbers-bk.js" />
 		<Unit filename="my-plugins/my-extensions/line-stamps.js" />
 		<Unit filename="my-plugins/my-extensions/loader-logging.js" />
+		<Unit filename="my-plugins/my-extensions/multi-path.js" />
 		<Unit filename="my-plugins/my-extensions/no-try.js" />
 		<Unit filename="my-plugins/my-extensions/object-enum.js" />
 		<Unit filename="my-plugins/my-extensions/unhandled.js" />
@@ -267,6 +267,7 @@
 		<Unit filename="tests/vix2test.js" />
 		<Unit filename="tests/yalpstream.js" />
 		<Unit filename="tests/yalpstream2.js" />
+		<Unit filename="yalp-bk.js" />
 		<Unit filename="yalp.js" />
 		<Extensions>
 			<envvars />
