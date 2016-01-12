@@ -39,8 +39,9 @@ require('../../node_modules/reload/lib/sockjs-0.3-min.js');
 function reconnect(want_page)
 {
     if (want_page === true) elapsed.started = elapsed.now; //reset delay timer
-    var retry = setTimeout(function openwait() { reconnect(); }, (elapsed.now < 1000)? 1000: (elapsed.now < 10000)? 10000: 100000);
-    console.log("trying to open socket; will retry again in %s msec", retry);
+    var delay = (elapsed.now < 6000)? 1000: (elapsed.now < 60000)? 10000: 60000;
+    var retry = setTimeout(function openwait() { reconnect(); }, delay);
+    console.log("trying to open socket '%s'; will retry again in %s sec", window.location.origin + '/reload', delay / 1000);
     new SockJS(window.location.origin + '/reload') //'http://mydomain.com/my_prefix');
         .onopen = function onopen()
         {

@@ -8,93 +8,67 @@ const cfg = require('./package.json').yalp || {};
 const cluster = require('cluster'); //overkill; can't get supervisor to work consistently, so use cluster instead
 //const logger = require('my-plugins/utils/logger');
 const logger = require('my-plugins/streamers/logger');
+var path = require('my-plugins/my-extensions/multi-path');
 logger.detail = 99;
 logger.pipe(process.stdout);
 
+var served = {};
 const CWD = process.cwd(); //_dirname; //save initial value in case it changes
 const PORT = parseInt(process.argv[2]) || cfg.port || 2016;
 
-logger.log("start");
 
-//cluster example at http://www.sitepoint.com/how-to-create-a-node-js-cluster-for-speeding-up-your-apps/
-if (cluster.isMaster)
+function startui(port)
 {
-    var fs = require("fs");
-    var launch = require('open');
-    var watch = require('node-watch');
-    var browserify = require('browserify');
-    var path = require('my-plugins/my-extensions/multi-path');
-
-//    const supervisor = require('supervisor/lib/supervisor');
-    logger.log("start: %s, pid %s, args %j".green, path.relative(__dirname, require.main.filename), process.pid, process.argv);
-//    process.on('beforeExit', function onbefexit() { logger.log("before exit\n"); });
-    process.on('exit', function onexit() { logger.warn("exit".red); });
-
-    const numwk = 1; //require('os').cpus().length; //only need 1 worker for self reload (for now)
-    for (var i = 0; i < numwk; ++i) cluster.fork();
-//    var buf = ''; for (var i in cluster.workers) buf += ', ' + i; logger.log(buf);
-    console.log("master: set up %s workers: %j".blue, numwk, cluster.workers);
-    cluster.on('online', function online(worker) { logger.log("worker %s is online".blue, worker.process.pid); });
-    cluster.on('exit', function onexit(worker, code, signal)
+//logger.log("host = " + host, path.sep);
+    var uri = 'http://' + "localhost" + ':' + port + '/'; //path.sep + 'YALP.html');
+    if (cfg.ui !== 'false') launch_shim(uri, cfg.ui, function launch_cb(err)
     {
-        logger.warn("worker '%s' died with code %s, signal %s".red, worker.process.pid, code, signal);
-//        logger.log('Starting a new worker');
-        cluster.fork(); //maintain worker count
+        if (err) throw err;
+        else logger.log("browser '%s' opened".cyan, cfg.ui);
     });
-    for (var id in cluster.workers)
+    function launch_shim(uri, browser, callback)
     {
-        cluster.workers[id].on('message', function onmsg(data) //collect child logging into one log
-        {
-            if (data.log) logger.log(data.level, data.log);
-            else logger.log("unrecog msg: %j".red, data);
-        });
+        return browser? launch(uri, browser, callback): launch(uri, callback);
     }
-
-//with only 1 worker for restarting, we can watch in master process:
-    my_watch('.', false); //this one can't be recursive; want to exclude node_modules and other subfolders
-    my_watch(['./public', './my-plugins', './my-projects'], true); //changing files of interest will typically be in these subfolders
-    bundler();
-    startui(PORT);
-}
-else
-{
-    var url = require("url");
-//const path = require("path");
-    var http = require('http');
-//const inherit = require('inherit');
-//const makenew = require('my-plugins/utils/makenew');
-    var staticc = require('node-static');
-    var reload = require('reload'); //https://github.com/jprichardson/reload
-    var toobusy = function() { return false; } //require('toobusy'); //TODO: not compat with Node 4.x / NaN 2.x
-
-//    var app = require('express')();
-//    app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
-//    var server = app.listen(8000, function() {
-//        logger.log('Process ' + process.pid + ' is listening to all incoming requests');
-//    });
-
-    process.send({log: "worker " + process.pid + " started", level: 1});
-    process.on('message', function onmsg(msg)
-    {
-//        logger.log(msg);
-        if (msg.type === 'shutdown') process.exit(0);
-        else logger.warn("unrecognized msg: '%j'".red, msg.type || msg);
-    });
-    server(PORT);
 }
 
 
-function my_watch(dirname, want_recursive)
+//function my_http(args)
+//{
+//    if (!(this instanceof my_http)) return makenew(my_http, arguments);
+//    http.apply(this, arguments); //base class
+//}
+function server(port) //, startui)
 {
-    logger.log("watching './%j' rec? %s ...".blue, path.relative(__dirname, dirname), !!want_recursive); //, path.relative(__dirname, trigger));
-    watch(dirname, { recursive: want_recursive, followSymLinks: false }, function(filename)
+    var file = new staticc.Server('./public');
+    var svr = http.createServer(function http_req(req, resp)
     {
-        filename = path.resolve(__dirname, filename);
-//        if (filename == trigger) return;
-        logger.warn("'%s' changed".cyan, path.relative(__dirname, filename));
-//        touch(trigger, {force: true});
-        restartWorkers();
-    });
+//set up express-compatible functions:
+        resp.type = function resp_type(mime_type) { return resp.writeHead(200, {"Content-Type": mime_type}); };
+        resp.send = function resp_send(code, msg)
+        {
+            resp.statusCode = (arguments.length > 1)? code: 200;
+            return resp.end((arguments > 1)? msg: code);
+        };
+
+        var uri = url.parse(req.url).pathname;
+        logger.log("http req for '%s', is reload %s? %s".blue, req.url, (svr.my_reload || {}).url || '-', ((svr.my_reload || {}).url == req.url)? "Y": "N");
+        if (toobusy()) resp.send(503, "Server too busy; try again later.");
+        else req.addListener('end', function on_reqend()
+        {
+            var filename = path.resolve('./public', uri);
+            if (!++served[filename]) { served[filename] = 1; process.send({served: filename}); }
+            if ((svr.my_reload || {}).url == req.url) svr.my_reload.cb(req, resp);
+//    res.type('text/javascript')
+//    res.send(clientCode)
+            else file.serve(req, resp);
+        }).resume();
+    }).listen(port);
+    logger.log("server pid %s listening on: http://localhost:%s/\nCTRL+C to shut down".green, process.pid, port);
+
+    var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
+//    reload(svr, app); //, [reloadDelay], [wait]); //tell browser to reload if it was connected to me
+//logger.log("reload listener");
 }
 
 
@@ -152,61 +126,23 @@ var outpipe = require('watchify/node_modules/outpipe');
             })
             .pipe(outStream);
         outStream.on('error', function (err) { logger.error(err); });
-        outStream.on('close', function () { logger.warn("close: %s bytes to '%s' ok? %s (%s msec)".cyan, bw.bytes, outfile, ok, bw.time); });
+        outStream.on('close', function () { logger.warn("bundle close: %s bytes to '%s' ok? %s (%s msec)".cyan, bw.bytes, outfile, ok, bw.time); });
     }
 }
 
 
-//function my_http(args)
-//{
-//    if (!(this instanceof my_http)) return makenew(my_http, arguments);
-//    http.apply(this, arguments); //base class
-//}
-function server(port, startui)
+function my_watch(dirname, want_recursive)
 {
-    var file = new staticc.Server('./public');
-    var svr = http.createServer(function http_req(req, resp)
+    ++logger.depth_adjust; //show caller, not me
+    logger.log("watching './%j' rec? %s ...".blue, path.relative(__dirname, dirname), !!want_recursive); //, path.relative(__dirname, trigger));
+    watch(dirname, { recursive: want_recursive, followSymLinks: false }, function(filename)
     {
-//set up express-compatible functions:
-        resp.type = function resp_type(mime_type) { return resp.writeHead(200, {"Content-Type": mime_type}); };
-        resp.send = function resp_send(code, msg)
-        {
-            resp.statusCode = (arguments.length > 1)? code: 200;
-            return resp.end((arguments > 1)? msg: code);
-        };
-
-        var uri = url.parse(req.url).pathname;
-        logger.log("http req for '%s', is reload %s? %s".blue, req.url, svr.my_reload.url || '-', (svr.my_reload && (svr.my_reload.url == req.url))? "Y": "N");
-        if (toobusy()) resp.send(503, "Server too busy; try again later.");
-        else req.addListener('end', function on_reqend()
-        {
-            if (svr.my_reload && (svr.my_reload.url == req.url)) svr.my_reload.cb(req, resp);
-//    res.type('text/javascript')
-//    res.send(clientCode)
-            else file.serve(req, resp);
-        }).resume();
-    }).listen(port);
-    logger.log("server pid %s listening on: http://localhost:%s/\nCTRL+C to shut down".green, process.pid, port);
-
-    var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
-    reload(svr, app); //, [reloadDelay], [wait]); //tell browser to reload if it was connected to me
-//logger.log("reload listener");
-}
-
-
-function startui(port)
-{
-//logger.log("host = " + host, path.sep);
-    var uri = 'http://' + "localhost" + ':' + port + '/'; //path.sep + 'YALP.html');
-    if (cfg.ui !== 'false') launch_shim(uri, cfg.ui, function launch_cb(err)
-    {
-        if (err) throw err;
-        else logger.log("browser '%s' opened".cyan, cfg.ui);
+        filename = path.resolve(__dirname, filename);
+//        if (filename == trigger) return;
+        logger.warn("watched: '%s' changed, served? %s".cyan, path.relative(__dirname, filename), !!served[filename]);
+//        touch(trigger, {force: true});
+        if (served[filename]) restartWorkers();
     });
-    function launch_shim(uri, browser, callback)
-    {
-        return browser? launch(uri, browser, callback): launch(uri, callback);
-    }
 }
 
 
@@ -225,6 +161,77 @@ function restartWorkers()
         }
     }, 1000);
 };
+
+
+logger.log("start");
+
+//cluster example at http://www.sitepoint.com/how-to-create-a-node-js-cluster-for-speeding-up-your-apps/
+if (cluster.isMaster)
+{
+    var fs = require("fs");
+    var launch = require('open');
+    var watch = require('node-watch');
+    var browserify = require('browserify');
+
+//    const supervisor = require('supervisor/lib/supervisor');
+    logger.log("start: %s, pid %s, args %j".green, path.relative(__dirname, require.main.filename), process.pid, process.argv);
+//    process.on('beforeExit', function onbefexit() { logger.log("before exit\n"); });
+    process.on('exit', function onexit() { logger.warn("exit".red); });
+
+    const numwk = 1; //require('os').cpus().length; //only need 1 worker for self reload (for now)
+    for (var i = 0; i < numwk; ++i) cluster.fork();
+//    var buf = ''; for (var i in cluster.workers) buf += ', ' + i; logger.log(buf);
+    console.log("master: set up %s workers: %j".blue, numwk, cluster.workers);
+    cluster.on('online', function online(worker) { logger.depth_adjust += 1; logger.log("worker %s is online".blue, worker.process.pid); });
+    cluster.on('exit', function onexit(worker, code, signal)
+    {
+        logger.warn("worker '%s' died with code %s, signal %s".red, worker.process.pid, code, signal);
+//        logger.log('Starting a new worker');
+        cluster.fork(); //maintain worker count
+    });
+    for (var id in cluster.workers)
+    {
+        cluster.workers[id].on('message', function onmsg(data) //collect child logging into one log
+        {
+            logger.depth_adjust += 1;
+            if (data.log) logger.log(data.level, data.log);
+            else if (data.served) served[data.served] = true;
+            else logger.log("unrecog msg: %j".red, data);
+        });
+    }
+
+//with only 1 worker for restarting, we can watch in master process:
+    my_watch('.', false); //this one can't be recursive; want to exclude node_modules and other subfolders
+    my_watch(['./public', './my-plugins', './my-projects'], true); //changing files of interest will typically be in these subfolders
+    bundler();
+    startui(PORT);
+}
+else
+{
+    var url = require("url");
+//const path = require("path");
+    var http = require('http');
+//const inherit = require('inherit');
+//const makenew = require('my-plugins/utils/makenew');
+    var staticc = require('node-static');
+//    var reload = require('reload'); //https://github.com/jprichardson/reload
+    var toobusy = function() { return false; } //require('toobusy'); //TODO: not compat with Node 4.x / NaN 2.x
+
+//    var app = require('express')();
+//    app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
+//    var server = app.listen(8000, function() {
+//        logger.log('Process ' + process.pid + ' is listening to all incoming requests');
+//    });
+
+    process.send({log: "worker " + process.pid + " started", level: 1});
+    process.on('message', function onmsg(msg)
+    {
+//        logger.log(msg);
+        if (msg.type === 'shutdown') process.exit(0);
+        else logger.warn("unrecognized msg: '%j'".red, msg.type || msg);
+    });
+    server(PORT);
+}
 
 
 //eof
