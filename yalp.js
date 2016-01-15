@@ -40,8 +40,19 @@ function startui(port)
 //}
 function server(port) //, startui)
 {
+//    var reloader = sockjs.createServer({ sockjs_url: 'http://localhost:' + port + '/js/sockjs.min.js' }); //TODO: map this?
+//    reloader.on('connection', function(conn)
+    var echo = sockjs.createServer({ sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.0.1/sockjs.min.js' });
+    echo.on('connection', function(conn)
+    {
+        conn.on('data', function(message) { console.log("sockjs data: %j".cyan, message); conn.write(message); });
+        conn.on('close', function() { console.log("sockjs close".cyan); });
+    });
+
     var file = new staticc.Server('./public');
     var svr = http.createServer(function http_req(req, resp)
+//    server.addListener('request', function(req, res) { static_directory.serve(req, res); });
+//    server.addListener('upgrade', function(req,res){ res.end(); });
     {
 //set up express-compatible functions:
         resp.type = function resp_type(mime_type) { return resp.writeHead(200, {"Content-Type": mime_type}); };
@@ -63,7 +74,10 @@ function server(port) //, startui)
 //    res.send(clientCode)
             else file.serve(req, resp);
         }).resume();
-    }).listen(port);
+    }); //.listen(port);
+    echo.installHandlers(svr, {prefix:'/echo'});
+    svr.listen(port);
+//    reloader.installHandlers(svr, {prefix:'/echo'});
     logger.log("server pid %s listening on: http://localhost:%s/\nCTRL+C to shut down".green, process.pid, port);
 
     var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
@@ -74,29 +88,11 @@ function server(port) //, startui)
 
 function bundler()
 {
-//NOTE: supervisor is already watching for file changes, so we don't need watchify here
-//logger.log("browserify ...");
-//var b = browserify();
-/*
-    var b = browserify(
-    {
-        cache: {}, //true, // equivalent to "public, max-age=60"
-        packageCache: {},
-        precompile: true,
-//                minify: true,
-//                gzip: true,
-        debug: true,
-    });
-    b.add('./public/js/yalpui.js');
-    var bundled = fs.createWriteStream(path.join(__dirname, './public/js/yalpui-bundled.js'));
-    b.bundle().pipe(bundled);
-var watcher = watchify(b);
-watcher.bundle().on('data', function() {}); //CAUTION: needed in order to enable update events
-*/
+//NOTE: supervisor is already watching for file changes, so we don't really need watchify here; OTOH it handles caching so might as well use it
 //logger.log("... browserify");
 
-var fromArgs = require('watchify/bin/args');
-var outpipe = require('watchify/node_modules/outpipe');
+    var fromArgs = require('watchify/bin/args');
+    var outpipe = require('watchify/node_modules/outpipe');
 
 //this is basically what the watchify cli does:
 //see watchify/bin/cmd.js
@@ -112,8 +108,8 @@ var outpipe = require('watchify/node_modules/outpipe');
 
     function bundle(ids) //array of bundle ids that changed
     {
-        logger.log("bundle: update ids %j".yellow, ids);
         var ok = true;
+        logger.log("bundle: update ids %j".yellow, ids);
 //    var outfile = rel2abs("./bundles/uiloader.js");
         var outfile = bw.argv.o || bw.argv.outfile;
         var outStream = (process.platform === 'win32')? fs.createWriteStream(outfile): outpipe(outfile);
@@ -122,7 +118,7 @@ var outpipe = require('watchify/node_modules/outpipe');
             {
                 logger.error(String(err).red);
                 ok = false;
-                outStream.end('logger.error('+JSON.stringify(String(err))+');');
+                outStream.end('logger.error('+JSON.stringify(String(err))+');'); //show error in output file (will cause syntax error)
             })
             .pipe(outStream);
         outStream.on('error', function (err) { logger.error(err); });
@@ -139,7 +135,7 @@ function my_watch(dirname, want_recursive)
     {
         filename = path.resolve(__dirname, filename);
 //        if (filename == trigger) return;
-        logger.warn("watched: '%s' changed, served? %s".cyan, path.relative(__dirname, filename), !!served[filename]);
+        logger.warn("watched: '%s', served? %s".cyan, path.relative(__dirname, filename), !!served[filename]);
 //        touch(trigger, {force: true});
         if (served[filename]) restartWorkers();
     });
@@ -164,6 +160,8 @@ function restartWorkers()
 
 
 logger.log("start");
+
+//NOTE: require vars are global scope below, but only initialized if needed for master vs. worker
 
 //cluster example at http://www.sitepoint.com/how-to-create-a-node-js-cluster-for-speeding-up-your-apps/
 if (cluster.isMaster)
@@ -214,6 +212,7 @@ else
 //const inherit = require('inherit');
 //const makenew = require('my-plugins/utils/makenew');
     var staticc = require('node-static');
+    var sockjs = require('sockjs'); //https://github.com/sockjs/sockjs-node
 //    var reload = require('reload'); //https://github.com/jprichardson/reload
     var toobusy = function() { return false; } //require('toobusy'); //TODO: not compat with Node 4.x / NaN 2.x
 
