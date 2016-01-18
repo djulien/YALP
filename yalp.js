@@ -8,7 +8,8 @@ const cfg = require('./package.json').yalp || {};
 const cluster = require('cluster'); //overkill; can't get supervisor to work consistently, so use cluster instead
 //const logger = require('my-plugins/utils/logger');
 const logger = require('my-plugins/streamers/logger');
-var path = require('my-plugins/my-extensions/multi-path');
+const CircularJSON = require('circular-json');
+const path = require('my-plugins/my-extensions/multi-path');
 logger.detail = 99;
 logger.pipe(process.stdout);
 
@@ -42,17 +43,22 @@ function server(port) //, startui)
 {
 //    var reloader = sockjs.createServer({ sockjs_url: 'http://localhost:' + port + '/js/sockjs.min.js' }); //TODO: map this?
 //    reloader.on('connection', function(conn)
-    var echo = sockjs.createServer({ sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.0.1/sockjs.min.js' });
-    echo.on('connection', function(conn)
+    var reload = sockjs.createServer({ sockjs_url: 'http://cdn.jsdelivr.net/sockjs/1.0.1/sockjs.min.js' }); //TODO: is url needed?  docs says it is for fall-back only
+    reload.on('connection', function(conn)
     {
-        conn.on('data', function(message) { console.log("sockjs data: %j".cyan, message); conn.write(message); });
-        conn.on('close', function() { console.log("sockjs close".cyan); });
+        logger.log("socket open".cyan);
+        conn.write("welcome from yalp svr"); //debug
+        conn.on('data', function(msg) { logger.log("socket data: %j".cyan, msg); }); //conn.write(msg); });
+        conn.on('close', function() { logger.log("socket close".cyan); });
     });
 
-    var file = new staticc.Server('./public');
-    var svr = http.createServer(function http_req(req, resp)
-//    server.addListener('request', function(req, res) { static_directory.serve(req, res); });
-//    server.addListener('upgrade', function(req,res){ res.end(); });
+    var pub_folder = new staticc.Server('./public');
+    var svr = http.createServer(); //function http_req(req, resp);
+//    svr.addListener('request', function(req, res) { try { logger.log("req %s %s", req.method, req.url); /*CircularJSON.stringify(req))*/; pub_folder.serve(req, res); } catch (exc) { logger.log("exc: ", exc); }});
+//    svr.addListener('request', function(req, res) { console.log("req %s %s", 'req.method', 'req.url'); pub_folder.serve(req, res); });
+    svr.addListener('upgrade', function(req,res){ res.end(); });
+    ['abort', 'connect', 'continue', 'response', 'socket', 'upgrade', 'request'].forEach(function enum_evts(evt) { svr.addListener(evt, function() { logger.log("socket evt: %s".blue, evt); }); });
+/*
     {
 //set up express-compatible functions:
         resp.type = function resp_type(mime_type) { return resp.writeHead(200, {"Content-Type": mime_type}); };
@@ -63,24 +69,24 @@ function server(port) //, startui)
         };
 
         var uri = url.parse(req.url).pathname;
-        logger.log("http req for '%s', is reload %s? %s".blue, req.url, (svr.my_reload || {}).url || '-', ((svr.my_reload || {}).url == req.url)? "Y": "N");
+        logger.log("http req for '%s'".blue, req.url); //, is reload %s? %s".blue, req.url, (svr.my_reload || {}).url || '-', ((svr.my_reload || {}).url == req.url)? "Y": "N");
         if (toobusy()) resp.send(503, "Server too busy; try again later.");
         else req.addListener('end', function on_reqend()
         {
             var filename = path.resolve('./public', uri);
             if (!++served[filename]) { served[filename] = 1; process.send({served: filename}); }
-            if ((svr.my_reload || {}).url == req.url) svr.my_reload.cb(req, resp);
+//            if ((svr.my_reload || {}).url == req.url) svr.my_reload.cb(req, resp);
 //    res.type('text/javascript')
 //    res.send(clientCode)
             else file.serve(req, resp);
         }).resume();
     }); //.listen(port);
-    echo.installHandlers(svr, {prefix:'/echo'});
-    svr.listen(port);
-//    reloader.installHandlers(svr, {prefix:'/echo'});
+*/
+    reload.installHandlers(svr, {prefix:'/reload'});
+    svr.listen(port, '0.0.0.0');
     logger.log("server pid %s listening on: http://localhost:%s/\nCTRL+C to shut down".green, process.pid, port);
 
-    var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
+//    var app = { get: function(url, cb) { svr.my_reload = {url: url, cb: cb} }}; //simulate express for reload
 //    reload(svr, app); //, [reloadDelay], [wait]); //tell browser to reload if it was connected to me
 //logger.log("reload listener");
 }
@@ -130,7 +136,7 @@ function bundler()
 function my_watch(dirname, want_recursive)
 {
     ++logger.depth_adjust; //show caller, not me
-    logger.log("watching './%j' rec? %s ...".blue, path.relative(__dirname, dirname), !!want_recursive); //, path.relative(__dirname, trigger));
+    logger.log("watching './%j' recurs? %s ...".blue, path.relative(__dirname, dirname), !!want_recursive); //, path.relative(__dirname, trigger));
     watch(dirname, { recursive: want_recursive, followSymLinks: false }, function(filename)
     {
         filename = path.resolve(__dirname, filename);
@@ -178,8 +184,8 @@ if (cluster.isMaster)
 
     const numwk = 1; //require('os').cpus().length; //only need 1 worker for self reload (for now)
     for (var i = 0; i < numwk; ++i) cluster.fork();
-//    var buf = ''; for (var i in cluster.workers) buf += ', ' + i; logger.log(buf);
-    console.log("master: set up %s workers: %j".blue, numwk, cluster.workers);
+//    var buf = ''; for (var i in cluster.workers) buf += ', ' + cluster.workers[i].pid; //logger.log(buf);
+    logger.log("master: set up %s workers: %s".blue, numwk, cluster.workers.length); //keys()); //buf.substr(2)); //CircularJSON.stringify(cluster.workers));
     cluster.on('online', function online(worker) { logger.depth_adjust += 1; logger.log("worker %s is online".blue, worker.process.pid); });
     cluster.on('exit', function onexit(worker, code, signal)
     {
