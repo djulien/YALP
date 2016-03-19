@@ -1,8 +1,8 @@
 
-var USERNAME = '****';
-var PASSWORD = '****';
-var SENDER = '****';
-var RECIPIENT = '****';
+var USERNAME = 'djpi2b@gmail.com';
+var PASSWORD = 'djpwd2B!';
+var SENDER = 'djpi2b@gmail.com';
+var RECIPIENT = '7144540929@vtext.com';
 
 //http://javascript.tutorialhorizon.com/2015/07/02/send-email-node-js-express/
 //https://github.com/andris9/nodemailer-smtp-transport#usage

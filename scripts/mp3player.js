@@ -6,8 +6,8 @@ var path = require('path');
 var fs = require('fs');
 var relpath = require('my-plugins/utils/relpath');
 
-//example1();
-example2();
+example1();
+//example2();
 //example3();
 
 
