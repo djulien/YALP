@@ -47,13 +47,13 @@ function reconnect(want_page)
     sock.onopen = function onopen()
     {
         if (retry) clearTimeout(retry); retry = null; //don't need to retry again
-        console.log('opened: protocol', sock.protocol);
+        console.log("opened: protocol '%s'", sock.protocol);
         if (want_page !== false) window.location.reload(); //reload entire page after server restarts
     }
     sock.onmessage = function onmsg(msg)
     {
         console.log('message', msg.data || msg);
-        if (msg.reload) loadjs(msg.script); //reload single file
+        if (msg.reload) loadjs(msg.reload); //reload single file
     }
     sock.onclose = function onclose() //server shut down or restarted
     {
@@ -64,6 +64,7 @@ function reconnect(want_page)
 }
 $(document).ready(function()
 {
+    console.log("dom ready; reload ...2");
     reconnect(false); //CAUTION: don't try to connect before dom ready (in case iframe fallback is used?)
 });
 //sock.send('test');

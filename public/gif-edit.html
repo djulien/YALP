@@ -1,0 +1,64 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0px;
+        padding: 0px;
+        background-color: #555;
+      }
+    </style>
+    <script>
+      Object.defineProperty(document, 'onload', //shim
+      { set: function(newval)
+        {
+          console.log("set evt");
+//see http://stackoverflow.com/questions/15580084/javascript-like-document-ready-for-modern-html5-browsers
+          window.addEventListener('load' /*'DOMContentLoaded'*/, function() { newval(); });
+        }
+      });
+      document.onload = function()
+      {
+        console.log("on load");
+        var canvas = document.getElementById('myCanvas');
+        var ctx = canvas.getContext('2d');
+        ctx.grid = function(img, color)
+        {
+          ctx.save();
+          ctx.strokeStyle = color; //"rgb(200, 100, 50)";
+          console.log("grid (0 + %d, 0 + %d)..(%d, %d) by (%d, %d)", img.x, img.y, img.w, img.h, img.dx, img.dy); //this.canvas.width, dx);
+          for (var x = 0; x <= img.w; x += img.dx)
+          {
+            ctx.moveTo(x + img.x, 0 + img.y);
+            ctx.lineTo(x + img.x, this.canvas.height + img.y);
+          }
+          for (var y = 0; y <= img.h; y += img.dy)
+          {
+            ctx.moveTo(0 + img.x, y + img.y);
+            ctx.lineTo(this.canvas.width + img.x, y + img.y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.imageSmoothingEnabled = false; //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
+        var imageObj = new Image();
+        imageObj.onload = function()
+        {
+	  var dest = {x: 10, y: 10, w: 100, h: 100}, scale = 20;
+          dest.w = this.width * scale; dest.dx = scale;
+          dest.h = this.height * scale; dest.dy = scale;
+//see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+          ctx.drawImage(imageObj, dest.x, dest.y, dest.w, dest.h); //origin = top left
+          console.log("img %d x %d => %d x %d", this.width, this.height, dest.w, dest.h);
+          ctx.grid(dest, '#aaa');
+        };
+//        imageObj.src = 'http://www.html5canvastutorials.com/demos/assets/darth-vader.jpg';
+        imageObj.src = 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png';
+//        imageObj.src = 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-Piskel.gif';
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="1000" height="600"></canvas>
+  </body>
+</html>  

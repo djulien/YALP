@@ -3,19 +3,93 @@
 
 require('colors');
 const cfg = require('./package.json').yalp || {};
+const path = require('my-plugins/my-extensions/multi-path');
 //const touch = require('touch');
 //var trigger = path.join(__dirname, "trigger.js"); //use a trigger file for more flexible watch include/exclude
 const cluster = require('cluster'); //overkill; can't get supervisor to work consistently, so use cluster instead
 //const logger = require('my-plugins/utils/logger');
 const logger = require('my-plugins/streamers/logger');
-const CircularJSON = require('circular-json');
-const path = require('my-plugins/my-extensions/multi-path');
 logger.detail = 99;
 logger.pipe(process.stdout);
 
-var served = {};
 const CWD = process.cwd(); //_dirname; //save initial value in case it changes
 const PORT = parseInt(process.argv[2]) || cfg.port || 2016;
+
+
+logger.log("start");
+
+//NOTE: require vars are global scope below, but only initialized if needed for master vs. worker
+
+//cluster example at http://www.sitepoint.com/how-to-create-a-node-js-cluster-for-speeding-up-your-apps/
+if (cluster.isMaster)
+{
+//    const supervisor = require('supervisor/lib/supervisor');
+    logger.log("start: %s, pid %s, args %j".green, path.relative(__dirname, require.main.filename), process.pid, process.argv);
+//    process.on('beforeExit', function onbefexit() { logger.log("before exit\n"); });
+    process.on('exit', function onexit() { logger.warn("exit".red); });
+
+    const numwk = 1; //require('os').cpus().length; //only need 1 worker for self reload (for now)
+    for (var i = 0; i < numwk; ++i) cluster.fork();
+//    var buf = ''; for (var i in cluster.workers) buf += ', ' + cluster.workers[i].pid; //logger.log(buf);
+    logger.log("master: set up %s workers: %s".blue, numwk, cluster.workers.length); //keys()); //buf.substr(2)); //CircularJSON.stringify(cluster.workers));
+    cluster.on('online', function online(worker) { logger.depth_adjust += 1; logger.log("worker %s is online".blue, worker.process.pid); });
+    cluster.on('exit', function onexit(worker, code, signal)
+    {
+        logger.warn("worker '%s' died with code %s, signal %s".red, worker.process.pid, code, signal);
+//        logger.log('Starting a new worker');
+        cluster.fork(); //maintain worker count
+    });
+//    for (var id in cluster.workers)
+//    {
+//        cluster.workers[id].on('message', function onmsg(data) //collect child logging into one log
+//        {
+//            logger.depth_adjust += 1;
+//            if (data.log) logger.log(data.level, data.log);
+//            else if (data.served) served[data.served] = true;
+//            else logger.log("unrecog msg: %j".red, data);
+//        });
+//    }
+else
+{
+    var url = require("url");
+//const path = require("path");
+    var http = require('http');
+//const inherit = require('inherit');
+//const makenew = require('my-plugins/utils/makenew');
+    var staticc = require('node-static');
+    var sockjs = require('sockjs'); //https://github.com/sockjs/sockjs-node
+//    var reload = require('reload'); //https://github.com/jprichardson/reload
+    var toobusy = function() { return false; } //require('toobusy'); //TODO: not compat with Node 4.x / NaN 2.x
+    const CircularJSON = require('circular-json');
+
+    var fs = require("fs");
+    var launch = require('open');
+    var watch = require('node-watch');
+    var browserify = require('browserify');
+
+    var served = {};
+//TODO: if > 1 worker, move this to master process:
+    my_watch('.', false); //this one can't be recursive; want to exclude node_modules and other subfolders
+    my_watch(['./public', './my-plugins', './my-projects'], true); //changing files of interest will typically be in these subfolders
+    bundler();
+    startui(PORT);
+
+//    var app = require('express')();
+//    app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
+//    var server = app.listen(8000, function() {
+//        logger.log('Process ' + process.pid + ' is listening to all incoming requests');
+//    });
+
+//    process.send({log: "worker " + process.pid + " started", level: 1});
+    logger.log("worker '%s' started".green, process.pid);
+    process.on('message', function onmsg(msg)
+    {
+//        logger.log(msg);
+        if (msg.type === 'shutdown') process.exit(0);
+        else logger.warn("unrecognized msg: '%j'".red, msg.type || msg);
+    });
+    server(PORT);
+}
 
 
 function startui(port)
@@ -55,7 +129,15 @@ function server(port) //, startui)
     var pub_folder = new staticc.Server('./public');
     var svr = http.createServer(); //function http_req(req, resp);
 //    svr.addListener('request', function(req, res) { try { logger.log("req %s %s", req.method, req.url); /*CircularJSON.stringify(req))*/; pub_folder.serve(req, res); } catch (exc) { logger.log("exc: ", exc); }});
-//    svr.addListener('request', function(req, res) { console.log("req %s %s", 'req.method', 'req.url'); pub_folder.serve(req, res); });
+    svr.addListener('request', function(req, res)
+    {
+        console.log("req %s %s", req.method || '?METHOD?', req.url || '?URL?');
+        var uri = url.parse(req.url).pathname;
+        var filename = path.resolve('./public', uri);
+        if (!++served[filename]) served[filename] = 1; //process.send({served: filename}); }
+        pub_folder.serve(req, res);
+    });
+// /js/yalpui-bundled.js vs. public/js/yalpui-bundled.js
     svr.addListener('upgrade', function(req,res){ res.end(); });
     ['abort', 'connect', 'continue', 'response', 'socket', 'upgrade', 'request'].forEach(function enum_evts(evt) { svr.addListener(evt, function() { logger.log("socket evt: %s".blue, evt); }); });
 /*
@@ -143,7 +225,8 @@ function my_watch(dirname, want_recursive)
 //        if (filename == trigger) return;
         logger.warn("watched: '%s', served? %s".cyan, path.relative(__dirname, filename), !!served[filename]);
 //        touch(trigger, {force: true});
-        if (served[filename]) restartWorkers();
+        if (!served[filename]) return;
+//        restartWorkers();
     });
 }
 
@@ -163,80 +246,6 @@ function restartWorkers()
         }
     }, 1000);
 };
-
-
-logger.log("start");
-
-//NOTE: require vars are global scope below, but only initialized if needed for master vs. worker
-
-//cluster example at http://www.sitepoint.com/how-to-create-a-node-js-cluster-for-speeding-up-your-apps/
-if (cluster.isMaster)
-{
-    var fs = require("fs");
-    var launch = require('open');
-    var watch = require('node-watch');
-    var browserify = require('browserify');
-
-//    const supervisor = require('supervisor/lib/supervisor');
-    logger.log("start: %s, pid %s, args %j".green, path.relative(__dirname, require.main.filename), process.pid, process.argv);
-//    process.on('beforeExit', function onbefexit() { logger.log("before exit\n"); });
-    process.on('exit', function onexit() { logger.warn("exit".red); });
-
-    const numwk = 1; //require('os').cpus().length; //only need 1 worker for self reload (for now)
-    for (var i = 0; i < numwk; ++i) cluster.fork();
-//    var buf = ''; for (var i in cluster.workers) buf += ', ' + cluster.workers[i].pid; //logger.log(buf);
-    logger.log("master: set up %s workers: %s".blue, numwk, cluster.workers.length); //keys()); //buf.substr(2)); //CircularJSON.stringify(cluster.workers));
-    cluster.on('online', function online(worker) { logger.depth_adjust += 1; logger.log("worker %s is online".blue, worker.process.pid); });
-    cluster.on('exit', function onexit(worker, code, signal)
-    {
-        logger.warn("worker '%s' died with code %s, signal %s".red, worker.process.pid, code, signal);
-//        logger.log('Starting a new worker');
-        cluster.fork(); //maintain worker count
-    });
-    for (var id in cluster.workers)
-    {
-        cluster.workers[id].on('message', function onmsg(data) //collect child logging into one log
-        {
-            logger.depth_adjust += 1;
-            if (data.log) logger.log(data.level, data.log);
-            else if (data.served) served[data.served] = true;
-            else logger.log("unrecog msg: %j".red, data);
-        });
-    }
-
-//with only 1 worker for restarting, we can watch in master process:
-    my_watch('.', false); //this one can't be recursive; want to exclude node_modules and other subfolders
-    my_watch(['./public', './my-plugins', './my-projects'], true); //changing files of interest will typically be in these subfolders
-    bundler();
-    startui(PORT);
-}
-else
-{
-    var url = require("url");
-//const path = require("path");
-    var http = require('http');
-//const inherit = require('inherit');
-//const makenew = require('my-plugins/utils/makenew');
-    var staticc = require('node-static');
-    var sockjs = require('sockjs'); //https://github.com/sockjs/sockjs-node
-//    var reload = require('reload'); //https://github.com/jprichardson/reload
-    var toobusy = function() { return false; } //require('toobusy'); //TODO: not compat with Node 4.x / NaN 2.x
-
-//    var app = require('express')();
-//    app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
-//    var server = app.listen(8000, function() {
-//        logger.log('Process ' + process.pid + ' is listening to all incoming requests');
-//    });
-
-    process.send({log: "worker " + process.pid + " started", level: 1});
-    process.on('message', function onmsg(msg)
-    {
-//        logger.log(msg);
-        if (msg.type === 'shutdown') process.exit(0);
-        else logger.warn("unrecognized msg: '%j'".red, msg.type || msg);
-    });
-    server(PORT);
-}
 
 
 //eof

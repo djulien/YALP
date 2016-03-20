@@ -133,6 +133,7 @@
     "express": "^4.13.3",
     "falafel": "^1.2.0",
     "fs-ext": "git+https://github.com/baudehlo/node-fs-ext.git",
+    "gify-parse": "^1.0.5",
     "glob": "^5.0.14",
     "heapdump": "^0.3.7",
     "human-format": "^0.5.0",

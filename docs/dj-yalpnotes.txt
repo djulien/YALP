@@ -213,6 +213,18 @@ list ports:
  sudo usermod -a -G groupName userName   + re-login
  groups <username>    or  id
 
+WS281X notes:
+https://learn.adafruit.com/adafruit-neopixel-uberguide/best-practices
+ cap (1000 µF, 6.3V or higher) across the + and – terminals
+ 300 to 500 Ohm resistor before data input to first NeoPixel, must be at the NeoPixel end
+ connect ground first, then +5V, then data. Disconnect in the reverse order.
+ Pixels powered by 5v require a 5V data signal. If using a 3.3V microcontroller you must use a logic level shifter such as a 74AHCT125 or 74HCT245. (If you are powering your NeoPixels with 3.7v like from a LiPoly, a 3.3v data signal is OK)
+http://spritesmods.com/?art=imx233-ws2811
+http://wp.josh.com/2014/05/13/ws2812-neopixels-are-not-so-finicky-once-you-get-to-know-them/
+
+Light-painting
+ https://learn.adafruit.com/light-painting-with-raspberry-pi/overview
+
 modeller/ide:
 **http://paperjs.org/examples/hit-testing/
 

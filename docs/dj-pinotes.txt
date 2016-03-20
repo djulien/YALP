@@ -163,6 +163,7 @@ TBD: disable unneeded services?
 TBD: keep some files like xinitrc on the boot-partition so that it can easily be edited on a non-Linux machine
 
 6. NODEJS:
+sudo apt-get install git
 https://github.com/fivdi/onoff/wiki/Node.js-v4-and-native-addons
 native mode GPIO node.js modules said it needs gcc 4.8, so need to install that as well
 ** do this before nodejs to avoid compiler errors?
@@ -347,6 +348,11 @@ https://github.com/WiringPi/WiringPi/tree/master/gpio
 https://github.com/jperkin/node-rpio
 http://elinux.org/RPi_BCM2835_GPIOs
 http://www.siongboon.com/projects/2013-07-08_raspberry_pi/index.html
+
+https://www.npmjs.com/package/rpio
+ npm install rpio
+interesting WS281X timing info:
+ http://wp.josh.com/2014/05/13/ws2812-neopixels-are-not-so-finicky-once-you-get-to-know-them/
 
 https://github.com/fivdi/onoff/wiki/Node.js-v4-and-native-addons
 https://learn.adafruit.com/node-embedded-development/installing-node-dot-js
@@ -560,6 +566,15 @@ sudo nano etc/resolv.conf
  enter the IP address of the router or your ISPs DNS servers.
 sync
 boot PI
+
+SPI WS281X timing problem:
+https://www.raspberrypi.org/forums/viewtopic.php?p=603506#p603506
+
+PiFM:
+https://github.com/rm-hull/pifm
+
+pigpio:
+https://github.com/fivdi/pigpio
 
 ==============================================================================
 HEADLESS:

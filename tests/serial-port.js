@@ -615,7 +615,7 @@ function test2(port)
 //                console.log(ctlr);
                 var ramscale = (ctlr.ram <= 256)? 1: (ctlr.ram <= 512)? 2: 4, ramdesc = ('   ' + ((ctlr.ram < 1000)? ctlr.ram: Math.round(ctlr.ram, 1024) + 'K')).substr(-3);
                 var devdesc = ('      ' + (device_codes[ctlr.uctlr_type] || "UNKN")).substr(-6); //truncate if too long
-                console.log(sprintf("0x%.2x%7s %d.%.2d %x+%x %s %3dk %2dM %s %5d%9d %3d %x:%x %s\n", /*i,*/ ctlr.address, devdesc, ctlr.fwver / 0x10, ctlr.fwver % 0x10, Math.min(ctlr.pins >> 8, 15), ctlr.pins & 0xff, ramdesc, Math.floor(ctlr.max_baud / 1000), Math.floor(ctlr.clock / 1000000), NodeTypes[ctlr.node_type & 0xF], ctlr.num_nodes, ctlr.iochars, ctlr.ioerrs, ctlr.protoerrs / 0x10, ctlr.protoerrs % 0x10, ctlr.name));
+                console.log(sprintf("0x%.2x%7s %d.%.2d %x+%x %s %3.0fk %2.0fM %s %5d%9d %3d %x:%x %s\n", /*i,*/ ctlr.address, devdesc, ctlr.fwver / 0x10, ctlr.fwver % 0x10, Math.min(ctlr.pins >> 8, 15), ctlr.pins & 0xff, ramdesc, Math.floor(ctlr.max_baud / 1000), Math.floor(ctlr.clock / 1000000), NodeTypes[ctlr.node_type & 0xF], ctlr.num_nodes, ctlr.iochars, ctlr.ioerrs, ctlr.protoerrs / 0x10, ctlr.protoerrs % 0x10, ctlr.name));
             });
 
 //            clearTimeout(timer);
