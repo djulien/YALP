@@ -1,5 +1,39 @@
 'use strict';
 
+//const NUMLEDS = 256, NUMNULL = 1; //gift
+const NUMLEDS = 768, NUMNULL = 1; //gdoor
+
+/* XPM */
+var Easter_Rainbow_Cross24x16_xpm =
+[
+"24 16 9 1",
+" 	c None",
+".	c #E100FB",
+"+	c #000000",
+"@	c #FF0000",
+"#	c #FF7000",
+"$	c #FBFF00",
+"%	c #00FF13",
+"&	c #00FFFF",
+"*	c #3C00FF",
+"          ....          ",
+"        ...+....        ",
+"      ...@@+@@@...      ",
+"    ...@@@@+@@@@@...    ",
+"   ..@@@@##+###@@@@..   ",
+"  ..@@@+++++++++#@@@..  ",
+" ..@@@###$$+$$$###@@@.. ",
+" .@@@###$$$+$$$$###@@@. ",
+"..@@###$$%%+%%%$$###@@..",
+".@@###$$%%%+%%%%$$###@@.",
+".@@##$$%%%&+&&%%%$$##@@.",
+"@@###$%%%&&+&&&%%%$###@@",
+"@###$$%%&&&+*&&&%%$$###@",
+"@##$$%%&&&*+**&&&%%$$##@",
+"@##$$%%&&**+***&&%%$$##@",
+"@##$$%%&&******&&%%$$##@",
+];
+
 //example from https://github.com/jperkin/node-rpio
 //https://mikaelleven.wordpress.com/2015/12/10/troubleshooting-spi-on-raspberry-pi-nodejs/
 //for explanation of 3x bit rate with NRZ, see https://github.com/jgarff/rpi_ws281x
@@ -7,11 +41,23 @@
 chkroot();
 var rpio = require('rpio');
 init();
+console.log("sleep 10 sec ...");
 rpio.msleep(10 * 1000);
 //test1();
 //test2();
 //scope_test();
-test3();
+//test3();
+var img = xpm(Easter_Rainbow_Cross24x16_xpm);
+img.xy = xy_gdoor;
+for (;;)
+{
+	rpio.setall(0);
+	for (var ofs = -12; ofs < 48-12; ++ofs)
+	{
+		image(img, ofs);
+		rpio.msleep(500);
+	}
+}
 
 
 function chkroot()
@@ -26,6 +72,90 @@ function chkroot()
 	process.exit(1);
 }
 
+
+function xpm(data)
+{
+	var ofs = 0;
+	var colors = {}, pixels = [];
+	var parts = data[ofs++].match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/);
+	if (!parts || (parts.length != 4+1)) throw "bad xpm line 1: " + data[--ofs];
+	var w = parseInt(parts[1]), h = parseInt(parts[2]), numcolors = parseInt(parts[3]), huh = parseInt(parts[4]);
+	console.log("w %d, h %d, #c %d, ?? %d", w, h, numcolors, huh);
+	for (var i = 0; i < numcolors; ++i)
+	{
+		parts = data[ofs++].match(/^(.)\s+c\s+([^ ]+)\s*$/);
+		if (!parts || (parts.length != 2+1)) throw "bad xpm color[" + i + "]: " + data[--ofs];
+		colors[parts[1].charCodeAt(0)] = (parts[2][0] == '#')? parseInt(parts[2].substr(1), 16): parts[2];
+	}
+	console.log("got %d colors:", numcolors, colors);
+	for (var y = 0; y < h; ++y, ++ofs)
+	{
+		var row = pixels[y] = [];
+		if (data[ofs].length != w) throw "bad xpm: row " + y + " has len " + data[ofs].length;
+		for (var x = 0; x < w; ++x)
+		{
+			if (!(data[ofs].charCodeAt(x) in colors)) throw "bad xpm: unknown color code '" + data[ofs][x] + "' ofs " + x + " row " + y;
+			row.push(colors[data[ofs].charCodeAt(x)]);
+		}
+	}
+	if (ofs < data.length) throw "bad xpm: junk at end";
+	return pixels;
+}
+
+
+function xy_gift(x, y)
+{
+	var which = 256 - 32 * (x >> 1);
+	if (x & 1) which += -17 - y;
+	else which += y - 16;
+//	console.log("(%d, %d) => '%d", x, y, which);
+	return which;
+}
+
+function xy_gdoor(x, y)
+{
+	var which;
+	if (x < 24) //left
+	{
+		which = 768 - 48 * (y >> 1);
+		if (y & 1) which += -24-1 - x;
+		else which += x - 24;
+	}
+	else //right
+	{
+		which = 384 - 48 * (y >> 1);
+		if (y & 1) which += -48 + x - 24;
+		else which += 24-1 - x;
+	}
+//	console.log("(%d, %d) => '%d", x, y, which);
+	return which;
+}
+
+function image_test(img, xofs)
+{
+	console.error("show image %d x %d ...", img[0].length, img.length);
+	rpio.setall(0);
+	for (var y = 0; y < 16; ++y)
+		for (var x = 0; x < 48; ++x)
+		{
+			rpio.setled(img.xy(x, y), [0xff0000, 0x00ff00, 0x0000ff][xofs % 3]);
+			rpio.flush();
+			rpio.msleep(50);
+		}
+}
+
+function image(img, xofs)
+{
+	console.error("show image %d x %d  at '%d...", img[0].length, img.length, xofs);
+	for (var y = 0; y < img.length; ++y)
+		for (var x = 0; x < img[y].length; ++x)
+		{
+			if ((x == 0) && (x + xofs > 0)) rpio.setled(img.xy(x + xofs - 1, y), 0);
+			if ((x + xofs >= 0) && (x + xofs < 48)) rpio.setled(img.xy(x + xofs, y), img[y][x]);
+//			if ((x == img[y].length - 1) && (x + xofs < 47)) rpio.setled(img.xy(x + xofs + 1, y), 0);
+		}
+	rpio.flush();
+}
 
 function scope_test()
 {
@@ -245,7 +375,8 @@ function nodes2bytes(nodes)
 
 function init()
 {
-	const NUMLEDS = 250+ 6, NUMNULL = 1;
+	console.log("init ...");
+//	const NUMLEDS = 250+ 6, NUMNULL = 1;
 	const LEADER = 0 +150; //15; //kludge: need to delay start
 	const TRAILER = 0 +150; //150;
 //	rpio.init({gpiomem: false}); //use /dev/mem for SPI
@@ -259,7 +390,9 @@ function init()
 	console.log("buf len %d = %d + %d + %d", rpio.txbuf.length, usec2bytes(LEADER), nodes2bytes(NUMLEDS + NUMNULL), usec2bytes(TRAILER));
 	rpio.setall = function(color)
 	{
+		console.log("set all ...");
 		for (var i = 0; i < NUMLEDS; ++i) this.setled(i, color);
+		console.log("... set all");
 	}
 	rpio.setled = function(which, color)
 	{
@@ -340,6 +473,7 @@ function init()
 			if (this.txbuf[i]) console.error("bad trailer:", i, this.txbuf[i]);
 		this.spiWrite(this.txbuf, this.txbuf.length);
 	}
+	console.log("... init");
 }
 
 function init_fake()
