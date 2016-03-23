@@ -1,3 +1,4 @@
+// #!/usr/local/bin/node --expose-gc
 'use strict';
 
 //example from https://github.com/jperkin/node-rpio
@@ -16,6 +17,7 @@ test3();
 
 function chkroot()
 {
+	if (!global.gc) console.error("run with --expose-gc");
 //	if (process.getuid) console.log(`Current uid: ${process.getuid()}`);
 //	else console.log("can't check uid");
 	var uid = parseInt("0" + process.env.SUDO_UID);
@@ -338,6 +340,7 @@ function init()
 //		console.log("flush:", buf.substr(2), this.txbuf.slice(usec2bytes(LEADER)));
 		for (var i = usec2bytes(LEADER) + nodes2bytes(NUMLEDS + NUMNULL); i < this.txbuf.length; ++i)
 			if (this.txbuf[i]) console.error("bad trailer:", i, this.txbuf[i]);
+		global.gc();
 		this.spiWrite(this.txbuf, this.txbuf.length);
 	}
 }
