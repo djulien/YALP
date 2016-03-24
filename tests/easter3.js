@@ -1,10 +1,11 @@
+//#!/usr/local/bin/node --expose-gc
 'use strict';
 
 //const NUMLEDS = 256, NUMNULL = 1; //gift
-//const NUMLEDS = 768, NUMNULL = 1; //gdoor
-const NUMLEDS = 80, NUMNULL = 1; //gdoor
-//const SPI_CLOCK = 1 * (104 - 20)
-const SPI_CLOCK = 104 - 10; //1 * (104 - 20)
+const NUMLEDS = 768, NUMNULL = 1; //gdoor
+//const NUMLEDS = 80, NUMNULL = 1; //gdoor
+const SPI_CLOCK = 1 * (104 - 20)
+//const SPI_CLOCK = 104 - 10; //1 * (104 - 20)
 
 const PINK = 0x008844;
 const PURPLE = 0x003366; //0x004488;
@@ -71,6 +72,36 @@ var Easter_Rainbow48x16_xpm =
 "++@@##$$%%%&&&********************&&&%%%$$##@@++",
 ];
 
+var Easter_Rainbow48x16_xpm =
+[
+"48 16 9 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FF7000",
+"#	c #FBFF00",
+"$	c #00FF13",
+"%	c #00FFFF",
+"&	c #3C00FF",
+"*	c #E100FB",
+"..................++++++++++++..................",
+"..............+++++++++..+++++++++..............",
+"...........+++++++@@@@@..@@@@@+++++++...........",
+".........+++++@@@@@@@@@..@@@@@@@@@+++++.........",
+".......++++@@@@@@@#####..#####@@@@@@@++++.......",
+"......+++@@@@######..........######@@@@+++......",
+".....++@@@@#######$..........$#######@@@@++.....",
+"....++@@@#####$$$$$$$$$..$$$$$$$$$#####@@@++....",
+"...++@@#####$$$$$$$%%%%..%%%%$$$$$$$#####@@++...",
+"..++@@####$$$$$%%%%%%%%..%%%%%%%%$$$$$####@@++..",
+"..+@@####$$$$%%%%%%&&&&..&&&&%%%%%%$$$$####@@+..",
+".++@@###$$$%%%%%&&&&&&&..&&&&&&&%%%%%$$$###@@++.",
+".+@@###$$$%%%%&&&&&&***..***&&&&&&%%%%$$$###@@+.",
+"++@@##$$$%%%&&&&&******..******&&&&&%%%$$$##@@++",
+"++@@##$$%%%&&&&********..********&&&&%%%$$##@@++",
+"++@@##$$%%%&&&********************&&&%%%$$##@@++",
+];
+
 var Happy =
 [
 "48 16 3 1",
@@ -97,7 +128,9 @@ var Happy =
 var Cross =
 [
 "48 16 3 1",
-" 	c None",
+" 	c None", //transparency
+//" 	c #000000",
+".	c #888888",
 "#	c #00FF22",
 "                                                ",
 "                                                ",
@@ -132,8 +165,24 @@ rpio.msleep(10 * 1000);
 //test3();
 if (false) { solid(); process.exit(0); }
 var img = xpm(Easter_Rainbow48x16_xpm);
+var img2 = xpm(Cross);
 img.xy = xy_gdoor;
-image(img, 0);
+img2.xy = xy_gdoor;
+for (;;)
+{
+for (var fade = 0; fade < 20; ++fade)
+{
+	var used = process.memoryUsage().heapUsed;
+	console.error("show image %d x %d  fade %d, heap %d ...", img[0].length, img.length, fade, used);
+	rpio.setall(0);
+	if (fade < 16) image(img, 15 - fade);
+	if (fade >= 14) image(img2, 3 * (fade - 14));
+	rpio.flush();
+	rpio.msleep(500);
+}
+rpio.msleep(3000);
+}
+//image(img, 0);
 process.exit(0);
 
 for (;;)
@@ -158,6 +207,7 @@ function solid()
 
 function chkroot()
 {
+	if (!global.gc) console.error("not running with gc exposed");
 //	if (process.getuid) console.log(`Current uid: ${process.getuid()}`);
 //	else console.log("can't check uid");
 	var uid = parseInt("0" + process.env.SUDO_UID);
@@ -241,7 +291,39 @@ function image_test(img, xofs)
 		}
 }
 
-function image(img, xofs)
+function dim(color, fade)
+{
+	var r = (color >>> 16) & 0xff;
+	var g = (color >>> 8) & 0xff;
+	var b = (color >>> 0) & 0xff;
+	r *= fade;
+	g *= fade;
+	b *= fade;
+	r = Math.round(r) & 0xe0;
+	g = Math.round(g) & 0xe0;
+	b = Math.round(b) & 0xe0;
+//	color = (r << 16) | (g << 8) | b;
+//	return color;
+	return {r: r, g: g, b: b};
+}
+
+function image(img, fade)
+{
+	fade /= 15;
+//	console.error("show image %d x %d  at '%d...", img[0].length, img.length, fade);
+	for (var y = 0; y < img.length; ++y)
+		for (var x = 0; x < img[y].length; ++x)
+		{
+			var color = img[y][x]; //img.xy(x, y);
+			if (typeof color != 'number') continue; //assume transparent
+			color = dim(color, fade);
+			color = (color.r << 16) | (color.g << 8) | color.b;
+//			console.log("(%d, %d) 0x%s * %d => 0x%s", x, y, img[y][x].toString(16), fade * 15, color.toString(16));
+			rpio.setled(img.xy(x, y), color);
+		}
+}
+
+function image_ofs(img, xofs)
 {
 	console.error("show image %d x %d  at '%d...", img[0].length, img.length, xofs);
 	for (var y = 0; y < img.length; ++y)
