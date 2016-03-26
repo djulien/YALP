@@ -2,6 +2,7 @@
 //var cfg = global.CFG;
 var cfg = require('my-plugins/cmdline').email; //process command line options and config settings
 /*var sprintf =*/ require('sprintf.js'); //.sprintf;
+//console.log("cfg", cfg);
 
 //http://javascript.tutorialhorizon.com/2015/07/02/send-email-node-js-express/
 //https://github.com/andris9/nodemailer-smtp-transport#usage
@@ -10,6 +11,9 @@ var nodemailer = require('nodemailer');
 var colors = require('colors');
 
 module.exports = cfg? emailer: function(ignored) {}; //commonjs
+//var thing = {email: cfg || {}};
+//console.log("opts", thing);
+//require('credentials')(thing);
 
 
 //var router = express.Router();
@@ -31,6 +35,7 @@ if (cfg)
             console.log("email log: %s msg %s".blue, data.type, data.message);
         });
 }
+else console.error("no email configured");
 
 
 function emailer(title, body)

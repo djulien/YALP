@@ -19,9 +19,10 @@
     },
     "faultmon": "false",
     "filemon": "false",
-    "xemail": {
+    "email": {
       "from": "sender-email-address",
       "to": "destination-email-address (can be a comma-separated list)",
+      "debug": "true",
       "transport": {
         "comment": "this info is passed directly to nodemailer",
         "eg-port": "995",
@@ -29,6 +30,10 @@
         "eg-secure": "true",
         "eg-authMethod": "LOGIN",
         "service": "Gmail",
+        "x-port": "587",
+        "x-host": "smtp.gmail.com",
+        "x-secure": "true",
+        "x-authMethod": "LOGIN",
         "debug": "true",
         "auth": {
           "user": "your email userid here",

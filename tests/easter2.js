@@ -6,8 +6,9 @@ const NUMLEDS = 80, NUMNULL = 1; //gdoor
 //const SPI_CLOCK = 1 * (104 - 20)
 const SPI_CLOCK = 104 - 10; //1 * (104 - 20)
 
+const RED = 0x008800;
 const PINK = 0x008844;
-const PURPLE = 0x003366; //0x004488;
+const PURPLE = 0x002255; //0x004488;
 
 /* XPM */
 var Easter_Rainbow_Cross24x16_xpm =
@@ -73,8 +74,8 @@ for (;;)
 function solid()
 {
 	rpio.setall(0);
-	for (var i = 0; i < 80; ++i) rpio.setled(i, PURPLE);
-//	for (var i = 0; i < 80; ++i) rpio.setled(i, PINK);
+	for (var i = 0; i < 37; ++i) rpio.setled(i, PINK);
+	for (var i = 37; i < 80; ++i) rpio.setled(i, PURPLE);
 	rpio.flush();
 	rpio.msleep(10);
 }

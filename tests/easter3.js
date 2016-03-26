@@ -165,13 +165,15 @@ rpio.msleep(10 * 1000);
 //test3();
 if (false) { solid(); process.exit(0); }
 var img = xpm(Easter_Rainbow48x16_xpm);
-var img2 = xpm(Cross);
 img.xy = xy_gdoor;
+//image(img, 15); rpio.flush(); process.exit();
+var img2 = xpm(Cross);
 img2.xy = xy_gdoor;
 for (;;)
 {
 for (var fade = 0; fade < 20; ++fade)
 {
+	global.gc();
 	var used = process.memoryUsage().heapUsed;
 	console.error("show image %d x %d  fade %d, heap %d ...", img[0].length, img.length, fade, used);
 	rpio.setall(0);
