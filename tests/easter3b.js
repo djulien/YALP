@@ -226,24 +226,25 @@ function prep(img, val)
 {
     global.gc();
     var used = process.memoryUsage().heapUsed;
-    console.error("show image %d x %d  fade %d, heap %d ...", img[0].length, img.length, val, used);
+    console.error("show image %d x %d  %s, heap %d ...", img[0].length, img.length, val, used);
 }
 
 for (;;)
 {
+	if (false)
     for (var hop = 0; hop < hops.length; hop += 2)
     {
-        prep(bunny, hop);
+        prep(bunny, "hop " + hop);
         rpio.setall(0);
-        image(bunny, 255, hops[hop], hops[hop + 1]);
+        image(bunny, 255, hops[hop], 15 - hops[hop + 1]);
         rpio.flush();
         rpio.msleep(100);
     }
     for (var fade = 0; fade < 80; ++fade)
     {
-        prep(img, fade);
+        prep(img, "fade " + fade);
         rpio.setall(0);
-        if (fade < 64) image(img, 255 - (fade << 4));
+        if (fade < 64) image(img, 255 - (fade * 4));
         if (fade >= 56) image(img2, 8 * (fade - 56));
         rpio.flush();
         rpio.msleep(250);
@@ -371,6 +372,7 @@ function dim(color, fade)
 	r *= fade;
 	g *= fade;
 	b *= fade;
+	if ((r >= 256) || (g >= 256) || (b >= 256)) throw "ovfl " + r + ", " + g + ", " + b + " with fade " + fade * 255;
 	r = Math.round(r) & 0xe0;
 	g = Math.round(g) & 0xe0;
 	b = Math.round(b) & 0xe0;
@@ -389,13 +391,13 @@ function image(img, fade, atx, aty)
 		for (var x = 0; x < img[y].length; ++x)
 		{
             if (y + aty >= img.length) continue;
-            if (x + atx >= img[y].length) continue;
+            if (x + atx >= img[0].length) continue;
 			var color = img[y + aty][x + atx]; //img.xy(x, y);
 			if (typeof color != 'number') continue; //assume transparent
 			color = dim(color, fade);
 			color = (color.r << 16) | (color.g << 8) | color.b;
 //			console.log("(%d+%d, %d+%d) 0x%s * %d => 0x%s", x, atx, y, aty, img[y + aty][x + atx].toString(16), fade * 255, color.toString(16));
-			rpio.setled(img.xy(x + atx, y + aty), color);
+			if (color) rpio.setled(img.xy(x + atx, y + aty), color);
 		}
 }
 
@@ -645,9 +647,9 @@ function init()
 	console.log("buf len %d = %d + %d + %d", rpio.txbuf.length, usec2bytes(LEADER), nodes2bytes(NUMLEDS + NUMNULL), usec2bytes(TRAILER));
 	rpio.setall = function(color)
 	{
-		console.log("set all ...");
+//		console.log("set all ...");
 		for (var i = 0; i < NUMLEDS; ++i) this.setled(i, color);
-		console.log("... set all");
+//		console.log("... set all");
 	}
 	rpio.setled = function(which, color)
 	{
