@@ -2,19 +2,305 @@
 <html>
   <head>
     <style>
-      body {
+      body
+      {
         margin: 0px;
         padding: 0px;
         background-color: #555;
       }
+      #tooltip
+      {
+        position: absolute;
+        bottom: 32px;
+        left: 4px;
+        color: #fff;
+      }
+      #myGrid
+      {
+        z-index: 99;
+      }
     </style>
+    <xscript src="../tests/e4hw.js" type="text/javascript" charset="utf-8"></xscript>
+    <xscript src="../tests/easter4.js" type="text/javascript" charset="utf-8"></xscript>
     <script>
+        function elapsat() { return '@' + elapsed(); }
+        function elapsed()
+        {
+            if (typeof elapsed.started == 'undefined') elapsed.started = Date.now();
+            return Date.now() - elapsed.started;
+        }
+
+function readFile(filepath){
+  return function(callback){
+    fs.readFile(filepath, callback);
+  }
+}
+
+//        function* delay() { yield; }
+        var dom_loaded = false;
+        window.addEventListener('load', function(evt) { console.log("DOM loaded", elapsat()); dom_loaded = true; });
+        function wait4dom()
+        {
+//            run(function* inner() { yield [window.addEventListener, 'load']; }); //, function() { newval(); });
+            return /*yield*/ function(cb) //caller will pause until DOM loaded
+            {
+                console.log("wait for DOM load ...", dom_loaded, elapsat());
+                if (dom_loaded)
+                {
+                    console.log("... DOM loaded", elapsat());
+                    cb();
+                }
+                else window.addEventListener('load', function(evt) { cb(); });
+            }
+        }
+
+        function wait4img(img, path)
+        {
+            return /*yield*/ function(cb) //caller will pause until image loaded
+            {
+                console.log("wait for img load ...", elapsat());
+                img.onload = function(evt)
+                {
+                    console.log("... img loaded", elapsat());
+                    cb();
+                };
+                img.src = path;
+            }
+        }
+
+//        function ex_wait(msec)
+//        {
+//            return function (callback) { setTimeout(callback, ms); };
+//        }
+        function wait(msec)
+        {
+            var wakeat = Date.now() + msec;
+            return /*yield*/ function wake(cb) //caller pause until time elapsed
+            {
+                var premature = wakeat - Date.now();
+                if (premature <= 0)
+                {
+                    console.log("... waited " + msec + " msec, overdue ", -premature, elapsat());
+                    cb();
+                }
+                else setTimeout(wake, premature, cb);
+            }
+            console.log("wait " + msec + " msec ...", elapsat());
+            wake();
+//            run(function* inner() { yield [setTimeout, msec]; });
+//            run(delay); //suspends until timeout is over
+        }
+
+        function mouse(canvas)
+        {
+            var trail = '';
+            var tooltip = document.getElementById('tooltip');
+            canvas.addEventListener('mousedown', function(evt)
+            {
+                var x = Math.floor((evt.pageX - 10) / 20), y = Math.floor((evt.pageY - 10) / 20);
+                if ((x < 0) || (x >= 48) || (y < 0) || (y >= 16)) return;
+                var buf = '(' + x + ', ' + y + ')';
+                trail += ', ' + x + ',' + y;
+                console.log("MOUSE", evt, buf);
+                tooltip.innerHTML = trail.substr(2);
+            }, false);
+        }
+
+        function* main()
+        {try{
+            console.log("start", elapsat());
+            yield wait4dom();
+            var canvas = document.getElementById('myCanvas');
+            var ctx = canvas.getContext('2d');
+            grid(ctx, {x: 10, y: 10, w: 1000, h: 600, dx: 20, dy: 20}, '#aaa');
+//            var img = new Image();
+//            yield wait4img(img, 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png');
+//            drawimg(img, ctx);
+            Rainbow48x16_xpm.draw(ctx, {x: 10, y: 10, w: 100, h: 100, scale: 20});
+            mouse(canvas);
+            for (var i = 0; i < 10; ++i)
+            {
+                yield wait(500);
+                console.log("i = " + i);
+            }
+            console.log("done", elapsat());
+        }catch(exc){ console.error(exc.message); }}
+
+/*
+        function drawimg(img, ctx)
+        {
+            var dest = {x: 10, y: 10, w: 100, h: 100}, scale = 20;
+            dest.w = img.width * scale; dest.dx = scale;
+            dest.h = img.height * scale; dest.dy = scale;
+//see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+            ctx.imageSmoothingEnabled = false; //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
+            ctx.drawImage(img, dest.x, dest.y, dest.w, dest.h); //origin = top left
+            console.log("img %d x %d => %d x %d", img.width, img.height, dest.w, dest.h);
+//            grid(ctx, dest, '#aaa');
+        }
+*/
+
+        function grid(ctx, img, color)
+        {
+          ctx.save();
+          ctx.strokeStyle = color; //"rgb(200, 100, 50)";
+          console.log("grid (0 + %d, 0 + %d)..(%d, %d) by (%d, %d)", img.x, img.y, img.w, img.h, img.dx, img.dy); //this.canvas.width, dx);
+          for (var x = 0; x <= img.w; x += img.dx)
+          {
+            ctx.moveTo(x + img.x, 0 + img.y);
+            ctx.lineTo(x + img.x, ctx.canvas.height + img.y);
+          }
+          for (var y = 0; y <= img.h; y += img.dy)
+          {
+            ctx.moveTo(0 + img.x, y + img.y);
+            ctx.lineTo(ctx.canvas.width + img.x, y + img.y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+//http://tobyho.com/2013/06/16/what-are-generators/
+        var fido = 0;
+        function run(genfun)
+        {
+            var gen = genfun();
+            // This is the async loop pattern
+            function next(err, answer)
+            {
+                if (++fido > 20) { console.error("INF LOOP"); return; }
+                if (err) return gen.throw(err);
+                var res = gen.next(answer);
+                if (!res.done) res.value(next);
+      // if we are not at the end
+      // we have an async request to
+      // fulfill, we do this by calling
+      // `value` as a function
+      // and passing it a callback
+      // that receives err, answer
+      // for which we'll just use `next()`
+            }
+            next();
+        }
+        run(main);
+
+        if (false)
+        for (var it = main(), state = it.next(), max = 0; !state.done && (++max < 20); state.value(it.next)) //iterate thru generator
+        {
+            console.log("state", state, elapsat());
+            if (typeof state.value !== 'function') throw "yielded !function: " + typeof state.value;
+        }
+//        function run(gen, args)
+//        {
+//            for (var msg of gen()) //.apply(null, arguments)) //iterate thru generator
+//                console.log("dispatched", msg);
+//        }
+//        run(main);
+//        main();
+//        var it = main();
+//        var msg = it.next();
+
+var Rainbow48x16_xpm = new xpm(
+[
+"48 16 9 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FF7000",
+"#	c #FBFF00",
+"$	c #00FF13",
+"%	c #00FFFF",
+"&	c #3C00FF",
+"*	c #E100FB",
+"..................++++++++++++..................",
+"..............++++++++++++++++++++..............",
+"...........+++++++@@@@@@@@@@@@+++++++...........",
+".........+++++@@@@@@@@@@@@@@@@@@@@+++++.........",
+".......++++@@@@@@@############@@@@@@@++++.......",
+"......+++@@@@######################@@@@+++......",
+".....++@@@@#######$$$$$$$$$$$$#######@@@@++.....",
+"....++@@@#####$$$$$$$$$$$$$$$$$$$$#####@@@++....",
+"...++@@#####$$$$$$$%%%%%%%%%%$$$$$$$#####@@++...",
+"..++@@####$$$$$%%%%%%%%%%%%%%%%%%$$$$$####@@++..",
+"..+@@####$$$$%%%%%%&&&&&&&&&&%%%%%%$$$$####@@+..",
+".++@@###$$$%%%%%&&&&&&&&&&&&&&&&%%%%%$$$###@@++.",
+".+@@###$$$%%%%&&&&&&********&&&&&&%%%%$$$###@@+.",
+"++@@##$$$%%%&&&&&**************&&&&&%%%$$$##@@++",
+"++@@##$$%%%&&&&******************&&&&%%%$$##@@++",
+"++@@##$$%%%&&&********************&&&%%%$$##@@++",
+]);
+
+function xpm(data)
+{
+    if (!(this instanceof xpm)) return new xpm.apply(xpm, [null].concat(Array.from(arguments)))();
+    var ofs = 0;
+    this.colors = {};
+    this.pixels = [];
+    Object.addProperties(this,
+    {
+        'width': get() { return this.pixels[0].length; },
+        'height': get() { return this.pixels.length; },
+    });
+    var parts = data[ofs++].match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/);
+    if (!parts || (parts.length != 4+1)) throw "bad xpm line 1: " + data[--ofs];
+    var w = parseInt(parts[1]), h = parseInt(parts[2]), numcolors = parseInt(parts[3]), chpp = parseInt(parts[4]);
+    console.log("w %d, h %d, #c %d, chpp %d", w, h, numcolors, chpp);
+    if (chpp != 1) throw "xpm not implemented: " + chpp + " char/pixel";
+    for (var i = 0; i < numcolors; ++i)
+    {
+        parts = data[ofs++].match(/^(.)\s+c\s+([^ ]+)\s*$/);
+        if (!parts || (parts.length != 2+1)) throw "xpm bad color[" + i + "]: " + data[--ofs];
+        this.colors[parts[1].charCodeAt(0)] = (parts[2][0] == '#')? parseInt(parts[2].substr(1), 16): parts[2];
+    }
+    console.log("got %d colors:", numcolors, this.colors);
+    for (var y = 0; y < h; ++y, ++ofs)
+    {
+        var row = this.pixels[y] = [];
+        if (data[ofs].length != w) throw "xpm bad row[" + y + "]: len " + data[ofs].length;
+        for (var x = 0; x < w; ++x)
+        {
+            if (!(data[ofs].charCodeAt(x) in this.colors)) throw "xpm: unknown color code '" + data[ofs][x] + "' ofs " + x + " row " + y;
+            row.push(data[ofs].charCodeAt(x));
+//            row.push(this.colors[data[ofs].charCodeAt(x)]);
+//2x			row.push(colors[data[ofs].charCodeAt(x)]);
+        }
+    }
+    if (ofs < data.length) throw "xpm: junk at end " + (data.length - ofs);
+//    return this.pixels;
+}
+
+xpm.prototype.setpal = function setpal(newpal)
+{
+    if (newpal.length != this.colors.length) throw "xpm setpal: wrong #colors (got " + newpal.length + ", expected " + this.colors.length + ")";
+    this.colors = newpal;
+}
+
+xpm.prototype.draw = function draw(ctx, dest)
+{
+    if (!dest) dest = {}; //dest = {x: 10, y: 10, w: 100, h: 100, scale: 20};
+    var dx = dest.scale || 10, w = this.width * dx;
+    var dy = dest.scale || 10, h = this.height * dy;
+//see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+    ctx.imageSmoothingEnabled = false; //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
+//    ctx.drawImage(img, dest.x || 10, dest.y || 10, w, h); //origin = top left
+    var img = ctx.getImageData(dest.x || 0, dest.y || 0, w, h);
+    var buf = new ArrayBuffer(imageData.data.length);
+    var data = new Uint32Array(buf);
+    for (var y = 0; y < this.height; ++y)
+        for (var x = 0; x < this.width; ++x)
+        {
+            img.data[4 * x + //RGBA
+    ctx.putImageData(img, dest.x || 0, dest.y || 0); //, w, h);
+    console.log("img %d x %d => %d x %d", this.width, this.height, w, h);
+//            grid(ctx, dest, '#aaa');
+}
+
+/*
       Object.defineProperty(document, 'onload', //shim
       { set: function(newval)
         {
           console.log("set evt");
 //see http://stackoverflow.com/questions/15580084/javascript-like-document-ready-for-modern-html5-browsers
-          window.addEventListener('load' /*'DOMContentLoaded'*/, function() { newval(); });
+          window.addEventListener('load' /-*'DOMContentLoaded'*-/, function() { newval(); });
         }
       });
       document.onload = function()
@@ -53,12 +339,16 @@
           ctx.grid(dest, '#aaa');
         };
 //        imageObj.src = 'http://www.html5canvastutorials.com/demos/assets/darth-vader.jpg';
-        imageObj.src = 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png';
+        if (false) imageObj.src = 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png';
 //        imageObj.src = 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-Piskel.gif';
+        seq(imageObj);
       }
+*/
     </script>
   </head>
   <body>
-    <canvas id="myCanvas" width="1000" height="600"></canvas>
+    <canvas id="myCanvas" width="1000" height="600">CANVAS NOT SUPPORTED?</canvas>
+    <canvas id="myGrid" width="1000" height="600">CANVAS NOT SUPPORTED?</canvas>
+    <div id="tooltip"></div>
   </body>
-</html>  
+</html>

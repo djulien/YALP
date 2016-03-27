@@ -206,6 +206,7 @@
 		<Unit filename="public/editor-1.html" />
 		<Unit filename="public/favicon.ico" />
 		<Unit filename="public/fx-editor.html" />
+		<Unit filename="public/gif-edit.html" />
 		<Unit filename="public/index-bk.html" />
 		<Unit filename="public/index.html" />
 		<Unit filename="public/js/repl-2.js" />
@@ -230,9 +231,16 @@
 		<Unit filename="tests/createjs.html" />
 		<Unit filename="tests/djtest.js" />
 		<Unit filename="tests/duck-type.js" />
+		<Unit filename="tests/e4hw.js" />
+		<Unit filename="tests/easter-test.js" />
+		<Unit filename="tests/easter2.js" />
+		<Unit filename="tests/easter3.js" />
+		<Unit filename="tests/easter3b.js" />
+		<Unit filename="tests/easter4.js" />
 		<Unit filename="tests/email-bk.js" />
 		<Unit filename="tests/email.js" />
 		<Unit filename="tests/funcgen.js" />
+		<Unit filename="tests/gpio-test.js" />
 		<Unit filename="tests/http-stream.js" />
 		<Unit filename="tests/index.js" />
 		<Unit filename="tests/inh-test.js" />
@@ -253,6 +261,7 @@
 		<Unit filename="tests/more-tests.js" />
 		<Unit filename="tests/multi-class.js" />
 		<Unit filename="tests/namespace.js" />
+		<Unit filename="tests/nasa.js" />
 		<Unit filename="tests/pi-led.js" />
 		<Unit filename="tests/playback-test.js" />
 		<Unit filename="tests/playback.js" />
