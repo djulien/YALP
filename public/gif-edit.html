@@ -19,9 +19,16 @@
       {
         z-index: 99;
       }
+      #myCanvas
+      {
+        z-index: 0;
+      }
     </style>
     <xscript src="../tests/e4hw.js" type="text/javascript" charset="utf-8"></xscript>
     <xscript src="../tests/easter4.js" type="text/javascript" charset="utf-8"></xscript>
+    <script>
+        var module = {exports: {}};
+    </script>
     <script src="../node_modules/pnglib/lib/pnglib.js" type="text/javascript" charset="utf-8"></script>
     <script>
         var pnglib = module.exports; //require('pnglib');
@@ -118,11 +125,15 @@ function readFile(filepath){
 //            var img = new Image();
 //            yield wait4img(img, 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png');
 //            drawimg(img, ctx);
-            Rainbow48x16_xpm.draw(ctx, {x: 10, y: 10, /*w: 100, h: 100,*/ scale: 20});
-            mouse(canvas);
-            return;
-            for (var i = 0; i < 10; ++i)
+            function img(which)
             {
+                var img = (which & 1)? Rainbow48x16_xpm: He_Is_Risen48x16_xpm;
+                img.draw(ctx, {x: 10, y: 10, /*w: 100, h: 100,*/ scale: 20, clear: true}, true);
+            }
+            mouse(canvas);
+            for (var i = 0; i <= 10; ++i)
+            {
+                img(i);
                 yield wait(500);
 //                ctx.fillStyle = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff', '#fff'][i % 7];
 //                ctx.fillRect(100 + i * 5, 100 + i * 5, 20, 20); //CAUTION: graphics context is top-to-bottom; trying to turn it right side up here
@@ -187,54 +198,59 @@ function xpm(data)
     console.log("xpm got %d colors:", numcolors, this.palette, '{' + buf.substr(2) + '}');
     Object.defineProperties(this,
     {
-        width: { get() { return this.image.width; }, enumerable: true, }, //pixels[0].length; }, enumerable: true, },
-        height: { get() { return this.image.height; }, enumerable: true, }, //pixels.length; }, enumerable: true, },
+        width: { get() { return w; }, enumerable: true, }, //pixels[0].length; }, enumerable: true, },
+        height: { get() { return h; }, enumerable: true, }, //pixels.length; }, enumerable: true, },
     });
-    this.image = new Image(w, h);
+//    this.image = new Image(w, h);
 //    var img = this.image.getImageData(0, 0, w, h); //kludge: this is needed in order to force image.data to be created
-    var newdata = new Uint32Array(w * h); //img.data);
-console.log("img data len", /*img.data.length,*/ newdata.length, this.image.width, this.image.height);
+//    this.abgr = new Uint32Array(w * h); //img.data);
+//console.log("img data len", /*img.data.length,*/ this.abgr.length, this.width, this.height);
     this.colorinx = [];
     for (var y = 0; y < h; ++y, ++ofs)
     {
         if (data[ofs].length != w) throw "xpm bad row[" + y + "]: len " + data[ofs].length;
 //        var row = this.pixels[y] = [];
-        this.colorinx.push(data[ofs]); //save color inx so palette can be changed independently
+//        this.colorinx.push(data[ofs]); //save color inx so palette can be changed independently
+        var row = this.colorinx[y] = [];
         for (var x = 0; x < w; ++x)
         {
             if (!(data[ofs].charCodeAt(x) in this.palette)) throw "xpm: unknown color code '" + data[ofs][x] + "' @(" + x + ", " + y + ")";
-            newdata[y * w + x] = this.palette[this.colorinx[y][x]]; //actual color; ABGR expected; use A for transparency
-//            row.push(data[ofs].charCodeAt(x)); //indexed colors
+//            this.abgr[y * w + x] = this.palette[this.colorinx[y][x]]; //actual color; ABGR expected; use A for transparency
+            row.push(data[ofs].charCodeAt(x)); //indexed colors
 //            row.push(this.colors[data[ofs].charCodeAt(x)]); //actual color
 //2x			row.push(colors[data[ofs].charCodeAt(x)]);
         }
     }
 //    img.data.set(newdata); //putImageData(img, 0, 0, w, h); //new Uint8ClampedArray(buf);
-    setimgdata(this.image, newdata)
+//    setimgdata(this.image, newdata)
     if (ofs < data.length) throw "xpm: junk at end " + (data.length - ofs);
 //    return this.pixels;
 }
 
 //bmp: http://mrcoles.com/media/js/bitmap.js
-function setimgdata(img, data)
+xpm.prototype.imgdata = function imgdata()
 {
-/*
-    img.ready = false;
-    img.onload = function() { img.ready = true; }
-//  context.drawImage(this, 0, 0, canvas.width, canvas.height);
-    img.src = "data:image/gif;base64,R0lGODlhDwAPAKECAAAAzMzM/////wAAACwAAAAADwAPAAACIISPeQHsrZ5ModrLlN48CXF8m2iQ3YmmKqVlRtW4MLwWACH+H09wdGltaXplZCBieSBVbGVhZCBTbWFydFNhdmVyIQAAOw==";
-*/
-    var png = new pnglib(this.width, this.height, 24);
+    var png = new pnglib(this.width, this.height, 8);
     var bkg = png.color(0, 0, 0, 0);  //first color = bkg RGBA
-    for (var y = 0; y < this.image.height; ++y)
-        for (var x = 0; x < this.image.width; ++x)
+    for (var y = 0; y < this.height; ++y)
+        for (var x = 0; x < this.width; ++x)
         {
-            var color = this.palette[this.colorinx[y * this.image.width + x]];
+            var color = this.palette[this.colorinx[y][x]]; // * this.width + x]];
+//            console.log("(" + x + ", " + y + ") isa " + typeof color);
             if (typeof color != 'number') color = bkg;
             else color = png.color((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff, color >> 24);
             png.buffer[png.index(x, y)] = color;
         }
-    img.src = "data:image/png;base64,'+p.getBase64()+'">');
+//    var svload = img.onload;
+//    img.onload = function()
+//    {
+//        context.drawImage(this, 0, 0, canvas.width, canvas.height);
+//        img.onload = svload;
+//    }
+//  context.drawImage(this, 0, 0, canvas.width, canvas.height);
+//    img.src = "data:image/gif;base64,R0lGODlhDwAPAKECAAAAzMzM/////wAAACwAAAAADwAPAAACIISPeQHsrZ5ModrLlN48CXF8m2iQ3YmmKqVlRtW4MLwWACH+H09wdGltaXplZCBieSBVbGVhZCBTbWFydFNhdmVyIQAAOw==";
+    return "data:image/png;base64," + png.getBase64();
+}
 
 //xpm ARGB => image data ABGR
 xpm.prototype.argb2abgr = function argb2abgr(argb)
@@ -275,12 +291,13 @@ xpm.prototype.setpal = function setpal(newpal)
         if (!(c in this.palette)) throw "xpm: unknown color code '" + c + "' = " + newpal[c];
         this.palette[c] = this.getcolor(newpal[c]);
     }
+    this.img = null; //need to regenerate image data
 //redraw image with new colors:
-    var newdata = new Uint32Array(this.width * this.height); //img.data);
-    for (var y = 0; y < this.height; ++y)
-        for (var x = 0; x < this.width; ++x)
-            newdata[y * this.width + x] = this.palette[this.colorinx[y][x]]; //actual color; ABGR expected; use A for transparency
-    this.image.data.set(newdata); //putImageData(img, 0, 0, w, h); //new Uint8ClampedArray(buf);
+//    this.abgr = new Uint32Array(this.width * this.height); //img.data);
+//    for (var y = 0; y < this.height; ++y)
+//        for (var x = 0; x < this.width; ++x)
+//            newdata[y * this.width + x] = this.palette[this.colorinx[y][x]]; //actual color; ABGR expected; use A for transparency
+//    this.image.data.set(newdata); //putImageData(img, 0, 0, w, h); //new Uint8ClampedArray(buf);
     return this; //fluent
 }
 
@@ -289,18 +306,45 @@ xpm.prototype.getcolor = function getcolor(color)
     if (typeof color == 'number') return color >>> 0;
     color += ''; //convert to string
     if (!color.match(/^(none|#[0-9a-f]{6})$/i)) throw "xpm bad color: " + color;
-    return (color[0] == '#')? this.argb2abgr(/*this.swab*/(parseInt(color.substr(1), 16)) | 0xff000000): 0; //alpha 0 => transparent (none)
+//    return (color[0] == '#')? /*this.argb2abgr*/(/*this.swab*/(parseInt(color.substr(1), 16)) | 0xff000000): 0; //alpha 0 => transparent (none)
+    return (color[0] == '#')? (parseInt(color.substr(1), 16) >>> 0) | 0xff000000: 0; //alpha 0 => transparent (none)
 }
 
-xpm.prototype.draw = function draw(ctx, dest)
+xpm.prototype.draw = function draw(ctx, dest, force)
 {
     if (!dest) dest = {}; //dest = {x: 10, y: 10, w: 100, h: 100, scale: 20};
     var fade = (dest.fade || 255) / 255; //TODO
-    var dx = dest.scale || 10, w = this.width * dx;
-    var dy = dest.scale || 10, h = this.height * dy;
+    var dx = dest.scale || 10, w = this.width * dx, x = dest.x || 10;
+    var dy = dest.scale || 10, h = this.height * dy, y = dest.y || 10;
 //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
     ctx.imageSmoothingEnabled = false; //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
-    ctx.drawImage(this.image, dest.x || 10, dest.y || 10, w, h); //origin = top left
+//    ctx.drawImage(this.image, dest.x || 10, dest.y || 10, w, h); //origin = top left
+    if (!this.img) //gen img data
+    {
+        force = true;
+        this.img = new Image(this.width, this.height);
+        this.img.onload = function() //finish async
+        {
+            console.log("async img draw", this.img.width, this.img.height);
+            ctx.drawImage(this.img, x, y, w, h); //this.width, this.height);
+        }.bind(this);
+        console.log("set up async draw");
+    }
+    if (force)
+    {
+        if (dest.clear) ctx.clearRect(x, y, w, h);
+        this.img.src = this.imgdata();
+        console.log("img src", this.img.src);
+    }
+//    else { console.log("sync draw"); ctx.drawImage(this.img, dest.x || 10, dest.y || 10, w, h); } //this.width, this.height);
+//    var svload = img.onload;
+//    img.onload = function()
+//    {
+//        context.drawImage(this, 0, 0, canvas.width, canvas.height);
+//        img.onload = svload;
+//    }
+//  context.drawImage(this, 0, 0, canvas.width, canvas.height);
+
 /*
 //    ctx.drawImage(img, dest.x || 10, dest.y || 10, w, h); //origin = top left
     var img = ctx.getImageData(dest.x || 0, dest.y || 0, w, h);
@@ -347,6 +391,38 @@ var Rainbow48x16_xpm = new xpm(
 "++@@##$$$%%%&&&&&******..******&&&&&%%%$$$##@@++",
 "++@@##$$%%%&&&&********..********&&&&%%%$$##@@++",
 "++@@##$$%%%&&&********************&&&%%%$$##@@++",
+]);
+
+var He_Is_Risen48x16_xpm = new xpm(
+[
+"48 16 11 1",
+" 	c None",
+".	c #000000",
+"+	c #BD0000",
+"@	c #FFFFFF",
+"#	c #C25500",
+"$	c #BABD00",
+"%	c #00BD0E",
+"&	c #080808",
+"*	c #00BFBF",
+"=	c #2D00BF",
+"-	c #A900BD",
+"..................++++++++++++..................",
+".@.@.@@@......+++@++++++++++++++++........@.@@@.",
+".@.@.@.....++++++@############+++++++.....@.@...",
+".@@@.@@..+++++###@################+++++...@.@@@.",
+".@.@.@.++++#@@@@@@@@@@@$$$$$$$#######++++.@...@.",
+".@.@.@@@+####$$$$@$$$$$$$$$$$$$$$$$####+++@.@@@.",
+".....++#@@@@@@$$$@$%%%@@@@%%@@@@@@$@$####@+.....",
+".&..++##@$$$$$@%%@%%%@%%%%@%@%%%%%$@$$$##@++....",
+"...++##$@$$$%%@%%@%*@*******@%%%%%%@@$$$$@#++...",
+"..++##$$@$%%%%@**@***@******@****%%@%@$$$@##++..",
+"..+##$$$@@@@@@***@*===@@@===@@@@@**@%%@$$@$##+..",
+".++##$$$@%%@****=@=======@==@===***@*%%@$@$##++.",
+".+##$$$%@%**@*===@==------@-@=====*@**%%@@$$##+.",
+"++##$$%%@***=@===@--@----@--@--====@***%%@$$##++",
+"++##$$%%@**===@--@---@@@@---@@@@@@=@=***%@$$##++",
+"++##$$%%***===--------------------===***%%$$##++",
 ]);
 
 
