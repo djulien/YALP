@@ -34,10 +34,13 @@ function main()
 //	step(gen_test());
 //	return;
 
+//	console.log(process.argv[2], stamp());
 	switch (process.argv[2])
 	{
 		case 'r': create(); break;
 		case 'w': playback(); break;
+		case 'c': child(); break;
+		case 'rw': multi(); break;
 		default: console.log("huh? %s", process.argv[2]);
 	}
 }
@@ -81,6 +84,60 @@ function playback()
 //	sink.end("bye");
 	src.pipe(Object2Text())
 		.pipe(watch(process.stdout, "stdout")); //, {end: true}); //start flow, end writer when reader ends
+	src.pipe(sink);
+}
+
+
+function multi()
+{
+//	var src = rdstm();
+//	var sink = wrstm();
+//	src.pipe(sink);
+//	console.log("me %s", process.argv[0], process.argv[1]);
+debugger;
+	console.log("parent", stamp());
+	var slave = childproc.fork(process.argv[1], ["c"]);
+/*
+	var responses = {};
+	slave.on('message', function(msg)
+	{
+		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
+		console.log('PARENT got message:', msg, stamp());
+	});
+	for (var i = 0; i < 100; ++i)
+		slave.send({ hello: 'world' });
+	setTimeout(function()
+	{
+		for (var i in responses) console.log("parent", i, responses[i]);
+		slave.disconnect();
+	}, 5000);
+*/
+	var src = rdstm();
+	var sink = IpcStream();
+	src.pipe(sink);
+}
+
+
+function child()
+{
+debugger;
+	console.log("child", stamp());
+/*
+	var responses = {};
+	process.on('message', function(msg)
+	{
+		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
+		console.log('CHILD got message:', msg, stamp());
+	});
+	process.on('disconnect', function()
+	{
+		for (var i in responses) console.log("child", i, responses[i]);
+	});
+	for (var i = 0; i < 100; ++i)
+		process.send({ foo: 'bar' });
+*/
+	var src = IpcStream();
+	var sink = wrstm();
 	src.pipe(sink);
 }
 
@@ -191,7 +248,7 @@ debugger;
 	}), "writable");
 	ws.desc = "write stream"; //for easier debug
 	return ws;
-
+/*
 	return step(inner());
 //generator + yield allows async code to be written using sync style
 function* inner()
@@ -225,6 +282,7 @@ debugger;
 		return function(myit) { ws.myit = myit; return ws; };
 	}
 }
+*/
 }
 
 
