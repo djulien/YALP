@@ -259,6 +259,13 @@ NO     su pi -c 'node /home/pi/server.js < /dev/null > /var/log/nodejs.log &'
  or
   cat /sys/class/thermal/thermal_zone0/temp  / 1000
 
+8. AUTO-START:
+https://startingelectronics.org/articles/raspberry-PI/ten-things-raspberry-PI/
+in /etc/inittab:
+1:2345:respawn:/sbin/getty --autologin pi --noclear 38400 tty1
+at end of ~/.bashrc
+ add commands to run
+
 8A. AUDIO (limited api, tried this first):
 https://jwarren.co.uk/blog/audio-on-the-raspberry-pi-with-node-js/
 example mp3 player:
@@ -363,6 +370,9 @@ https://github.com/fivdi/onoff/wiki/Node.js-v4-and-native-addons
  https://www.kernel.org/doc/Documentation/gpio/sysfs.txt
  https://github.com/fivdi/epoll
  https://github.com/fivdi/onoff/wiki/Enabling-Pullup-and-Pulldown-Resistors-on-The-Raspberry-Pi
+
+Pi-to-Arduino SPI:
+ http://robotics.hobbizine.com/raspiduino.html
 
 -----
 level shifter:

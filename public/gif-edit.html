@@ -310,6 +310,9 @@ xpm.prototype.getcolor = function getcolor(color)
     return (color[0] == '#')? (parseInt(color.substr(1), 16) >>> 0) | 0xff000000: 0; //alpha 0 => transparent (none)
 }
 
+//other ways: http://stackoverflow.com/questions/7242006/html5-copy-a-canvas-to-image-and-back
+//or https://hacks.mozilla.org/2011/12/faster-canvas-pixel-manipulation-with-typed-arrays/
+//   http://jsfiddle.net/andrewjbaker/Fnx2w/
 xpm.prototype.draw = function draw(ctx, dest, force)
 {
     if (!dest) dest = {}; //dest = {x: 10, y: 10, w: 100, h: 100, scale: 20};
