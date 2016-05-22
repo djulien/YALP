@@ -34,8 +34,12 @@ function main()
 //	step(gen_test());
 //	return;
 
-//	create();
-	playback();
+	switch (process.argv[2])
+	{
+		case 'r': create(); break;
+		case 'w': playback(); break;
+		default: console.log("huh? %s", process.argv[2]);
+	}
 }
 
 
