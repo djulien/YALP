@@ -97,10 +97,12 @@ function multi()
 debugger;
 	console.log("parent", stamp());
 	var slave = childproc.fork(process.argv[1], ["c"]);
-/*
+
 	var responses = {};
 	slave.on('message', function(msg)
 	{
+		if (typeof msg !== 'object') msg = {data: msg};
+		msg.cpu = cpuid();
 		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
 		console.log('PARENT got message:', msg, stamp());
 	});
@@ -111,10 +113,10 @@ debugger;
 		for (var i in responses) console.log("parent", i, responses[i]);
 		slave.disconnect();
 	}, 5000);
-*/
-	var src = rdstm();
-	var sink = IpcStream();
-	src.pipe(sink);
+
+//	var src = rdstm();
+//	var sink = IpcStream();
+//	src.pipe(sink);
 }
 
 
@@ -122,10 +124,12 @@ function child()
 {
 debugger;
 	console.log("child", stamp());
-/*
+
 	var responses = {};
 	process.on('message', function(msg)
 	{
+		if (typeof msg !== 'object') msg = {data: msg};
+		msg.cpu = cpuid();
 		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
 		console.log('CHILD got message:', msg, stamp());
 	});
@@ -135,10 +139,10 @@ debugger;
 	});
 	for (var i = 0; i < 100; ++i)
 		process.send({ foo: 'bar' });
-*/
-	var src = IpcStream();
-	var sink = wrstm();
-	src.pipe(sink);
+
+//	var src = IpcStream();
+//	var sink = wrstm();
+//	src.pipe(sink);
 }
 
 
