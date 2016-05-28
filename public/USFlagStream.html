@@ -1,0 +1,237 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <style>
+      body { margin: 0px; padding: 0px; background-color: #555; }
+      #tooltip { position: absolute; bottom: 32px; left: 4px; color: #fff; }
+      #myGrid { z-index: 99; }
+      #myCanvas { z-index: 0; }
+    </style>
+    <script>
+//        var module = {exports: {}};
+    </script>
+    <script src="/bundle.js" comment="build: browserify main.js -o bundle.js"></script>
+    <script>
+//        var pnglib = module.exports; //require('pnglib');
+/*
+function readFile(filepath){
+  return function(callback){
+    fs.readFile(filepath, callback);
+  }
+}
+*/
+
+        function elapsat() { return '@' + elapsed(); }
+        function elapsed()
+        {
+            if (typeof elapsed.started == 'undefined') elapsed.started = Date.now();
+            return Date.now() - elapsed.started;
+        }
+
+//        function* delay() { yield; }
+        var dom_loaded = false;
+        window.addEventListener('load', function(evt) { console.log("DOM loaded", elapsat()); dom_loaded = true; });
+        function wait4dom()
+        {
+//            run(function* inner() { yield [window.addEventListener, 'load']; }); //, function() { newval(); });
+            return /*yield*/ function(cb) //caller will pause until DOM loaded
+            {
+                console.log("wait for DOM load ...", dom_loaded, elapsat());
+                if (dom_loaded)
+                {
+                    console.log("... DOM loaded", elapsat());
+                    cb();
+                }
+                else window.addEventListener('load', function(evt) { cb(); });
+            }
+        }
+
+        function wait4img(img, path)
+        {
+            return /*yield*/ function(cb) //caller will pause until image loaded
+            {
+                console.log("wait for img load ...", elapsat());
+                img.onload = function(evt)
+                {
+                    console.log("... img loaded", elapsat());
+                    cb();
+                };
+                img.src = path;
+            }
+        }
+
+        function wait(msec)
+        {
+            var wakeat = Date.now() + msec;
+            return /*yield*/ function wake(cb) //caller pause until time elapsed
+            {
+                var premature = wakeat - Date.now();
+                if (premature <= 0)
+                {
+                    console.log("... waited " + msec + " msec, overdue ", -premature, elapsat());
+                    cb();
+                }
+                else setTimeout(wake, premature, cb);
+            }
+            console.log("wait " + msec + " msec ...", elapsat());
+            wake();
+        }
+
+/*
+//other ways: http://stackoverflow.com/questions/7242006/html5-copy-a-canvas-to-image-and-back
+//or https://hacks.mozilla.org/2011/12/faster-canvas-pixel-manipulation-with-typed-arrays/
+//   http://jsfiddle.net/andrewjbaker/Fnx2w/
+function draw(ctx, dest, force)
+{
+    if (!dest) dest = {}; //dest = {x: 10, y: 10, w: 100, h: 100, scale: 20};
+    var fade = (dest.fade || 255) / 255; //TODO
+    var dx = dest.scale || 10, w = this.width * dx, x = dest.x || 10;
+    var dy = dest.scale || 10, h = this.height * dy, y = dest.y || 10;
+//see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage
+    ctx.imageSmoothingEnabled = false; //see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
+//    ctx.drawImage(this.image, dest.x || 10, dest.y || 10, w, h); //origin = top left
+    if (!this.img) //gen img data
+    {
+        force = true;
+        this.img = new Image(this.width, this.height);
+        this.img.onload = function() //finish async
+        {
+            console.log("async img draw", this.img.width, this.img.height);
+            ctx.drawImage(this.img, x, y, w, h); //this.width, this.height);
+        }.bind(this);
+        console.log("set up async draw");
+    }
+    if (force)
+    {
+        if (dest.clear) ctx.clearRect(x, y, w, h);
+        this.img.src = this.imgdata();
+        console.log("img src", this.img.src);
+    }
+    console.log("img %d x %d => %d x %d", this.width, this.height, w, h);
+//            grid(ctx, dest, '#aaa');
+    return this; //fluent
+}
+*/
+
+        function grid(ctx, img, color)
+        {
+          ctx.save();
+          ctx.strokeStyle = color; //"rgb(200, 100, 50)";
+          var w = img.w; //ctx.canvas.height;
+          var h = img.h; //ctx.canvas.width;
+          console.log("grid (0 + %d, 0 + %d)..(%d, %d) by (%d, %d)", img.x, img.y, img.w, img.h, img.dx, img.dy); //this.canvas.width, dx);
+          for (var x = 0; x <= img.w; x += img.dx)
+          {
+            ctx.moveTo(x + img.x, 0 + img.y);
+            ctx.lineTo(x + img.x, h + img.y);
+          }
+          for (var y = 0; y <= img.h; y += img.dy)
+          {
+            ctx.moveTo(0 + img.x, y + img.y);
+            ctx.lineTo(w + img.x, y + img.y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function mouse(canvas)
+        {
+            var trail = '';
+            var tooltip = document.getElementById('tooltip');
+            canvas.addEventListener('mousedown', function(evt)
+            {
+                var x = Math.floor((evt.pageX - 10) / 20), y = Math.floor((evt.pageY - 10) / 20);
+                if ((x < 0) || (x >= 48) || (y < 0) || (y >= 16)) return;
+                var buf = '(' + x + ', ' + y + ')';
+                trail += ', ' + x + ',' + y;
+                console.log("MOUSE", evt, buf);
+                tooltip.innerHTML = trail.substr(2);
+            }, false);
+        }
+
+//generator + yield allows synchronous coding style
+        function* main()
+        {//try{
+            console.log("start", elapsat());
+            yield wait4dom();
+            var canvas = document.getElementById('myCanvas');
+            mouse(canvas);
+
+            var ctx = canvas.getContext('2d');
+//            var img = new Image();
+//            yield wait4img(img, 'file:///home/dj/Documents/ESOL-fog/graphics/Easter/Easter-He-Is-Risen48x16.png');
+//            drawimg(img, ctx);
+            grid(ctx, {x: 10, y: 10, w: 48 * 20, h: 16 * 20, dx: 20, dy: 20}, '#aaa');
+
+	var src = fs.createReadStream('stream.txt');
+	src = src.pipe(Text2Object());
+//	const rl = readline.createInterface({input: src});
+//	rl.on('line', (line) => { console.log('Line from file:', line); });
+
+//	var ws = watch(new stream.Writable(
+	var ws = watch(new stream.Transform( //kludge: Writable uses Socket which rejects objects, so use inbound side of Transform instead
+	{
+		objectMode: true,
+//		readableObjectMode: true,
+		highWaterMark: 2, //read ahead max 2 frames
+		decodeStrings: true,
+//		write: function(chunk, enc, next_cb)
+		transform: function(chunk, enc, done_cb)
+		{
+			var delay = (chunk.delay || 0) - elapsed();
+			console.log("delay %d msec for:", delay, chunk, stamp());
+			if (delay > 0) setTimeout(function() { console.log("wr delayed", chunk.data, stamp()); done_cb(); }, delay); //done_cb(); //tell sender to write more data
+			else { console.log("wr immed", chunk.data || chunk.comment, stamp()); }
+		},
+	}), "writable");
+	ws.desc = "write stream"; //for easier debug
+	src.pipe(ws);
+
+/*
+            for (var i = 0; i <= 10; ++i)
+            {
+//                img(i);
+//            img.draw(ctx, {x: 10, y: 10, /-*w: 100, h: 100,*-/ scale: 20, clear: true}, true);
+                yield wait(500);
+//                ctx.fillStyle = ['#f00', '#0f0', '#00f', '#ff0', '#f0f', '#0ff', '#fff'][i % 7];
+//                ctx.fillRect(100 + i * 5, 100 + i * 5, 20, 20); //CAUTION: graphics context is top-to-bottom; trying to turn it right side up here
+                console.log("i = " + i);
+            }
+*/
+
+            console.log("done", elapsat());
+        }//catch(exc){ console.error(exc.message); }}
+
+
+//http://tobyho.com/2013/06/16/what-are-generators/
+        function run(genfun)
+        {
+            run.fido = 0;
+            var gen = genfun();
+            // This is the async loop pattern
+            function next(err, answer)
+            {
+                if (++run.fido > 20) { console.error("INF LOOP"); return; }
+                if (err) return gen.throw(err);
+                var res = gen.next(answer);
+                if (!res.done) res.value(next);
+      // if we are not at the end
+      // we have an async request to
+      // fulfill, we do this by calling
+      // `value` as a function
+      // and passing it a callback
+      // that receives err, answer
+      // for which we'll just use `next()`
+            }
+            next();
+        }
+
+        run(main);
+    </script>
+  </head>
+  <body>
+    <canvas id="myCanvas" width="1000" height="600">CANVAS NOT SUPPORTED?</canvas>
+    <canvas id="myGrid" width="1000" height="600">CANVAS NOT SUPPORTED?</canvas>
+    <div id="tooltip"></div>
+  </body>
+</html>

@@ -1,20 +1,19 @@
 'use strict';
 //cat /proc/interrupts   before and after to check irq occurrences
 
-const xpm = require('my-plugins/image/xpm');
-
 //const NUMLEDS = 256, NUMNULL = 1; //gift
 const NUMLEDS = 768, NUMNULL = 1; //gdoor
 
 /* XPM */
-/* XPM */
-const USflag = new xpm(
+const USflag24x13_xpm =
 [
-"24 13 4 2",
+"24 16 4 2",
 "  	c #000000",
-". 	c #F80000",
+". 	c #00F800",
 "# 	c #0000F8",
 "& 	c #F8F8F8",
+"                                                ",
+"                                                ",
 "# # # # # # # # # . . . . . . . . . . . . . . . ",
 "# & # & # & # & # & & & & & & & & & & & & & & & ",
 "# # & # & # & # # . . . . . . . . . . . . . . . ",
@@ -28,18 +27,8 @@ const USflag = new xpm(
 ". . . . . . . . . . . . . . . . . . . . . . . . ",
 "& & & & & & & & & & & & & & & & & & & & & & & & ",
 ". . . . . . . . . . . . . . . . . . . . . . . . ",
-]);
-
-USflag.resize(USflag.width, USflag.height + 2);
-USflag.scroll(0, +1);
-
-const USflag_up = USflag.clone(), USflag_down = USflag.clone();
-for (var x = 0; x < USflag.width; ++x)
-{
-    if (!(Math.floor(x / 4) & 1)) continue;
-    USflag_up.scroll1col(x, -1);
-    USflag_down.scroll1col(x, +1);
-}
+"                                                ",
+];
 
 //example from https://github.com/jperkin/node-rpio
 //https://mikaelleven.wordpress.com/2015/12/10/troubleshooting-spi-on-raspberry-pi-nodejs/
@@ -55,28 +44,21 @@ rpio.msleep(10 * 1000);
 //scope_test();
 //test3();
 //var img = xpm(Easter_Rainbow_Cross24x16_xpm);
-//var img = xpm(USflag24x13_xpm);
-//img.xy = xy_gdoor;
-USflag.xy = USflag_up.xy = USflag_down.xy = xy_gdoor;
-//console.log("ONE ONLY");
-for (;;)
-//for (var retry = 0; retry < 10; ++retry)
+var img = xpm(USflag24x13_xpm);
+img.xy = xy_gdoor;
+console.log("ONE ONLY");
+//for (;;)
+for (var retry = 0; retry < 10; ++retry)
 {
 	rpio.setall(0);
 	for (var ofs = -12; ofs < 48-12; ++ofs)
 	{
 ofs = 12; //24;
-		var img = USflag;
-		switch (ofs % 3)
-		{
-			case 1: img = USflag_up; break;
-			case 3: img = USflag_down; break;
-		}
 		image(img, ofs);
-//break;
+break;
 		rpio.msleep(500);
 	}
-//break;
+break;
 }
 
 
@@ -90,6 +72,38 @@ function chkroot()
 	if (uid) { console.log("sudo okay"); return; }
 	console.error("please run with 'sudo'??");
 	process.exit(1);
+}
+
+
+function xpm(data)
+{
+	var ofs = 0;
+	var colors = {}, pixels = [];
+	var parts = data[ofs++].match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/);
+	if (!parts || (parts.length != 4+1)) throw "bad xpm line 1: " + data[--ofs];
+	var w = parseInt(parts[1]), h = parseInt(parts[2]), numcolors = parseInt(parts[3]), chpp = parseInt(parts[4]);
+	console.log("w %d, h %d, #c %d, chpp %d", w, h, numcolors, chpp);
+	var parse = new RegExp("^(.{" + chpp + "})\\s+c\\s+([^ ]+)\s*$", 'i');
+	for (var i = 0; i < numcolors; ++i)
+	{
+		parts = data[ofs++].match(parse);
+		if (!parts || (parts.length != 2+1)) throw "bad xpm color[" + i + "]: " + data[--ofs];
+		colors[parts[1]] = (parts[2][0] == '#')? parseInt(parts[2].substr(1), 16): parts[2];
+	}
+	console.log("got %d colors:", numcolors, colors);
+	for (var y = 0; y < h; ++y, ++ofs)
+	{
+		var row = pixels[y] = [];
+		if (data[ofs].length != w * chpp) throw "bad xpm: row " + y + " has len " + data[ofs].length;
+		for (var x = 0; x < w; ++x)
+		{
+			var code = data[ofs].substr(chpp * x, chpp);
+			if (!(code in colors)) throw "bad xpm: unknown color code '" + code + "' ofs " + (chpp * x) + " row " + y;
+			row.push(colors[code]);
+		}
+	}
+	if (ofs < data.length) throw "bad xpm: junk at end";
+	return pixels;
 }
 
 
@@ -123,7 +137,7 @@ function xy_gdoor(x, y)
 
 function image_test(img, xofs)
 {
-	console.error("show image %d x %d ...", img.width, img.height);
+	console.error("show image %d x %d ...", img[0].length, img.length);
 	rpio.setall(0);
 	for (var y = 0; y < 16; ++y)
 		for (var x = 0; x < 48; ++x)
@@ -136,15 +150,12 @@ function image_test(img, xofs)
 
 function image(img, xofs)
 {
-	console.error("show image %d x %d  at '%d...", img.width, img.height);
-	for (var y = 0; y < img.height; ++y)
-		for (var x = 0; x < img.width; ++x)
+	console.error("show image %d x %d  at '%d...", img[0].length, img.length, xofs);
+	for (var y = 0; y < img.length; ++y)
+		for (var x = 0; x < img[y].length; ++x)
 		{
-	            var color = img.palette[img.colorinx[y][x]];
-	            if (typeof color != 'number') color = 0; //bkg
-//        	    else color = png.color((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff, 
 			if ((x == 0) && (x + xofs > 0)) rpio.setled(img.xy(x + xofs - 1, y), 0);
-			if ((x + xofs >= 0) && (x + xofs < 48)) rpio.setled(img.xy(x + xofs, y), color);
+			if ((x + xofs >= 0) && (x + xofs < 48)) rpio.setled(img.xy(x + xofs, y), img[y][x]);
 //			if ((x == img[y].length - 1) && (x + xofs < 47)) rpio.setled(img.xy(x + xofs + 1, y), 0);
 		}
 	rpio.flush();

@@ -10,6 +10,7 @@
 require('colors');
 //require('my-plugins/my-extensions/json-revival');
 const fs = require('fs');
+const http = require('http');
 //const JsonStreamer = require('stream-json/Streamer');
 //const through2 = require('through2');
 //const readline = require('readline');
@@ -38,11 +39,26 @@ function main()
 	switch (process.argv[2])
 	{
 		case 'r': create(); break;
+		case 'f': fileserve(); break;
 		case 'w': playback(); break;
+		case 'p': step(playback_sync()); break;
 		case 'c': child(); break;
 		case 'rw': multi(); break;
 		default: console.log("huh? %s", process.argv[2]);
 	}
+}
+
+
+function fileserve()
+{
+	var server = http.createServer(function (req, resp)
+	{
+		var src = fs.createReadStream('stream.txt');
+//		src = src.pipe(Text2Object());
+		src.pipe(resp);
+	});
+	server.listen(8000);
+	console.log("listening on port 8000".cyan);
 }
 
 
@@ -82,9 +98,119 @@ function playback()
 	var sink = wrstm();
 //	sink.write("hello");
 //	sink.end("bye");
+//	if (false)
 	src.pipe(Object2Text())
 		.pipe(watch(process.stdout, "stdout")); //, {end: true}); //start flow, end writer when reader ends
 	src.pipe(sink);
+}
+
+
+function* playback_sync()
+{
+	var src = fs.createReadStream('stream.txt');
+	src = src.pipe(Text2Object());
+//	const rl = readline.createInterface({input: src});
+//	rl.on('line', (line) => { console.log('Line from file:', line); });
+
+//	var ws = watch(new stream.Writable(
+	var ws = watch(new stream.Transform( //kludge: Writable uses Socket which rejects objects, so use inbound side of Transform instead
+	{
+		objectMode: true,
+//		readableObjectMode: true,
+		highWaterMark: 2, //read ahead max 2 frames
+		decodeStrings: true,
+//		write: function(chunk, enc, next_cb)
+		transform: function(chunk, enc, done_cb)
+		{
+			wait4data.done_cb = done_cb;
+			step(playback_sync.gen, chunk);
+		},
+		flush: function(done_cb)
+		{
+			wait4data.done_cb = done_cb;
+			step(playback_sync.gen, null);
+		},
+	}), "writable");
+	ws.desc = "write stream"; //for easier debug
+	src.pipe(ws);
+
+	console.log("start playback", stamp());
+	for (;;) //read all frames
+	{
+		var frame = yield wait4data(src);
+		if (!frame) break; //eof
+//		console.log("got frame", frame, stamp());
+//		var delay = 0;
+//		if (typeof frame.delay != 'undefined')
+//		{
+//??			if (chunk.delay === 0) epoch = Date.now(); //reset to account for startup latency
+//			delay = frame.delay - elapsed();
+//		}
+		var delay = (frame.delay || 0) - elapsed();
+		console.log("delay %d msec for:", delay, frame, stamp());
+//if (delay < 1) delay = 100;
+//		if (delay > 0) yield sleep(delay);
+		console.log("flush frame", frame.data || frame.comment, stamp());
+	}
+	console.log("eof", stamp());
+
+//dispatcher functions:
+	function sleep(msec)
+	{
+debugger;
+		if (msec < 1) return; //no need to sleep
+		console.log("sleep %d".blue, msec);
+		return function(myit) { setTimeout(function() { step(myit); }, msec); }
+	}
+	function wait4data(rs)
+	{
+debugger;
+		if (wait4data.done_cb) wait4data.done_cb(); //release previous buffer
+//		rs.once('readable', function() { step(playback_sync.gen, rs.read()); }); //"once" is more overhead for multiple events, but simpler cleanup
+		return function(myit, chunk) { playback_sync.gen = myit; return chunk; };
+	}
+}
+
+function* playback_sync_gets_stalled()
+{
+	var src = fs.createReadStream('stream.txt');
+	src = src.pipe(Text2Object());
+//	const rl = readline.createInterface({input: src});
+//	rl.on('line', (line) => { console.log('Line from file:', line); });
+
+	console.log("start playback", stamp());
+	for (;;) //read all frames
+	{
+		var frame = yield wait4data(src);
+		if (!frame) break; //eof
+//		console.log("got frame", frame, stamp());
+//		var delay = 0;
+//		if (typeof frame.delay != 'undefined')
+//		{
+//??			if (chunk.delay === 0) epoch = Date.now(); //reset to account for startup latency
+//			delay = frame.delay - elapsed();
+//		}
+		var delay = (frame.delay || 0) - elapsed();
+		console.log("delay %d msec for:", delay, frame, stamp());
+//if (delay < 1) delay = 100;
+		if (delay > 0) yield sleep(delay);
+		console.log("flush frame", frame.data || frame.comment, stamp());
+	}
+	console.log("eof", stamp());
+
+//dispatcher functions:
+	function sleep(msec)
+	{
+debugger;
+		if (msec < 1) return; //no need to sleep
+		return function(myit) { setTimeout(function() { step(myit); }, msec); }
+	}
+	function wait4data(rs)
+	{
+debugger;
+		rs.once('readable', function() { step(playback_sync.gen, rs.read()); }); //"once" is more overhead for multiple events, but simpler cleanup
+		return function(myit) { playback_sync.gen = myit; };
+	}
 }
 
 
@@ -411,6 +537,7 @@ debugger;
 //	gen.step = function(args) { args = Array.from(arguments); args.unshift(gen); return step.apply(args); } //allow next step to call this function using oo syntax
 //	return retval.done? retval.value: retval.value(gen);
 //	console.log("... step");
+	console.log("step got retval: done? %s, value %s, gen %s".blue, retval.done, retval.value, gen);
 	return (typeof retval.value == 'function')? retval.value(gen): retval.value;
 }
 
@@ -507,7 +634,7 @@ function* gen_test()
 }
 
 
-main(); //must be at eof to errors due to avoid hoisting
+main(); //must be at eof to avoid hoisting errors
 
 //http://stackoverflow.com/questions/17960452/how-can-i-get-a-list-of-callbacks-in-the-node-work-queue-or-why-wont-node-ex
 if (false)

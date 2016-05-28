@@ -4,7 +4,7 @@
 require('colors');
 const fs = require('fs');
 const path = require('path');
-const logger = require('my-plugins/utils/logger')();
+const logger = require('my-plugins/utils/logger-bk')();
 const unprintable = require('my-plugins/utils/unprintable');
 const isStream = require('is-stream');
 const stream = require('stream');
@@ -18,6 +18,7 @@ module.exports.echo = echo;
 module.exports.rdwr = rdwr;
 module.exports.stmon = stmon;
 module.exports.not_stmon = not_stmon;
+module.exports.watch = watch;
 
 
 //create a file reader stream with debug monitoring:
@@ -97,5 +98,23 @@ function fmt(desc, data, showbuf)
     logger("%s len %s%s".blue, desc, (typeof data.length != 'undefined')? data.length: '(none)', sbuf); //.inspect? sbuf.inspect(): sbuf);
     sbuf = null;
 }
+
+//watch for events on a stream:
+function watch(stm, desc)
+{
+	return stm
+//	var x; x
+	        .on('open', function() { console.log("opened %s".green, desc); })
+//CAUTION: leaves process stuck at end	        .on('readable', function(data) { console.log("readable %s".blue, desc); data = null; })
+//CAUTION: triggers classic mode	        .on('data', function (data) { console.log("data %s".cyan, desc); data = null; })
+	        .on('drain', function() { console.log("drained %s".green, desc); }) //writable only
+	        .on('pipe', function(src) { console.log("piped %s".cyan, desc); })
+	        .on('unpipe', function(src) { console.log("unpiped %s".cyan, desc); })
+	        .on('end', function() { console.log("end %s".green, desc); }) //readable only?
+	        .on('finish', function() { console.log("flushed %s".green, desc); }) // eof; writable only?
+	        .on('close', function() { console.log("closed %s".yellow, desc); })
+	        .on('error', function(err) { console.error("error %s: %j".red, desc, err.message || err); err = null; });
+}
+
 
 //eof
