@@ -1,4 +1,7 @@
-//from http://blog.carbonfive.com/2014/02/28/taking-advantage-of-multi-processor-environments-in-node-js/
+//examples:
+//http://blog.carbonfive.com/2014/02/28/taking-advantage-of-multi-processor-environments-in-node-js/
+//https://www.quora.com/Is-it-pointless-to-run-node-js-on-a-multi-core-cpu-because-node-js-is-single-threaded
+
 'use strict';
 
 const cluster = require('cluster');
@@ -10,11 +13,15 @@ console.log('Before the fork', cpuid());
 
 if (cluster.isMaster)
 {
-    console.log('I am the master, launching workers!', cpuid());
-    for (var i = 0; i < numCPUs; ++i) cluster.fork();
+	console.log('I am the master, launching workers!', cpuid());
+	for (var i = 0; i < numCPUs; ++i) cluster.fork();
+	cluster.on('exit', function(worker, code, signal) { console.log("worker exit", cpuid()); });
 }
 else
-    console.log('I am a worker!', cpuid());
+{
+	console.log('I am a worker!', cpuid());
+	console.log("fib(40):", fibonacci(40), cpuid());
+}
 
 console.log('After the fork', cpuid());
 
@@ -32,6 +39,12 @@ function getPSR(pid) //, callback)
     var result = exec(command);
     return result.toString("utf-8").trim();
 }
+}
+
+
+function fibonacci(n)
+{
+	return (n > 1) ? fibonacci(n - 1) + fibonacci(n - 2): 1;
 }
 
 

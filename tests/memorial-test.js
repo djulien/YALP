@@ -4,34 +4,29 @@
 const NUMLEDS = 768, NUMNULL = 1; //gdoor
 
 /* XPM */
-var Easter_Rainbow_Cross24x16_xpm =
+const USflag24x13_xpm =
 [
-"24 16 9 1",
-" 	c None",
-".	c #E100FB",
-"+	c #000000",
-"@	c #FF0000",
-"#	c #FF7000",
-"$	c #FBFF00",
-"%	c #00FF13",
-"&	c #00FFFF",
-"*	c #3C00FF",
-"          ....          ",
-"        ...+....        ",
-"      ...@@+@@@...      ",
-"    ...@@@@+@@@@@...    ",
-"   ..@@@@##+###@@@@..   ",
-"  ..@@@+++++++++#@@@..  ",
-" ..@@@###$$+$$$###@@@.. ",
-" .@@@###$$$+$$$$###@@@. ",
-"..@@###$$%%+%%%$$###@@..",
-".@@###$$%%%+%%%%$$###@@.",
-".@@##$$%%%&+&&%%%$$##@@.",
-"@@###$%%%&&+&&&%%%$###@@",
-"@###$$%%&&&+*&&&%%$$###@",
-"@##$$%%&&&*+**&&&%%$$##@",
-"@##$$%%&&**+***&&%%$$##@",
-"@##$$%%&&******&&%%$$##@",
+"24 16 4 2",
+"  	c #000000",
+". 	c #00F800",
+"# 	c #0000F8",
+"& 	c #F8F8F8",
+"                                                ",
+"                                                ",
+"# # # # # # # # # . . . . . . . . . . . . . . . ",
+"# & # & # & # & # & & & & & & & & & & & & & & & ",
+"# # & # & # & # # . . . . . . . . . . . . . . . ",
+"# & # & # & # & # & & & & & & & & & & & & & & & ",
+"# # & # & # & # # . . . . . . . . . . . . . . . ",
+"# & # & # & # & # & & & & & & & & & & & & & & & ",
+"# # # # # # # # # . . . . . . . . . . . . . . . ",
+"& & & & & & & & & & & & & & & & & & & & & & & & ",
+". . . . . . . . . . . . . . . . . . . . . . . . ",
+"& & & & & & & & & & & & & & & & & & & & & & & & ",
+". . . . . . . . . . . . . . . . . . . . . . . . ",
+"& & & & & & & & & & & & & & & & & & & & & & & & ",
+". . . . . . . . . . . . . . . . . . . . . . . . ",
+"                                                ",
 ];
 
 //example from https://github.com/jperkin/node-rpio
@@ -47,19 +42,22 @@ rpio.msleep(10 * 1000);
 //test2();
 //scope_test();
 //test3();
-var img = xpm(Easter_Rainbow_Cross24x16_xpm);
+//var img = xpm(Easter_Rainbow_Cross24x16_xpm);
+var img = xpm(USflag24x13_xpm);
 img.xy = xy_gdoor;
 console.log("ONE ONLY");
-for (;;)
+//for (;;)
+for (var retry = 0; retry < 10; ++retry)
 {
-	rpio.setall(0xff00); //0);
+	rpio.setall(0);
 	for (var ofs = -12; ofs < 48-12; ++ofs)
 	{
-ofs = 0;
+ofs = 12; //24;
 		image(img, ofs);
 break;
 		rpio.msleep(500);
 	}
+break;
 }
 
 
@@ -82,23 +80,25 @@ function xpm(data)
 	var colors = {}, pixels = [];
 	var parts = data[ofs++].match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/);
 	if (!parts || (parts.length != 4+1)) throw "bad xpm line 1: " + data[--ofs];
-	var w = parseInt(parts[1]), h = parseInt(parts[2]), numcolors = parseInt(parts[3]), huh = parseInt(parts[4]);
-	console.log("w %d, h %d, #c %d, ?? %d", w, h, numcolors, huh);
+	var w = parseInt(parts[1]), h = parseInt(parts[2]), numcolors = parseInt(parts[3]), chpp = parseInt(parts[4]);
+	console.log("w %d, h %d, #c %d, chpp %d", w, h, numcolors, chpp);
+	var parse = new RegExp("^(.{" + chpp + "})\\s+c\\s+([^ ]+)\s*$", 'i');
 	for (var i = 0; i < numcolors; ++i)
 	{
-		parts = data[ofs++].match(/^(.)\s+c\s+([^ ]+)\s*$/);
+		parts = data[ofs++].match(parse);
 		if (!parts || (parts.length != 2+1)) throw "bad xpm color[" + i + "]: " + data[--ofs];
-		colors[parts[1].charCodeAt(0)] = (parts[2][0] == '#')? parseInt(parts[2].substr(1), 16): parts[2];
+		colors[parts[1]] = (parts[2][0] == '#')? parseInt(parts[2].substr(1), 16): parts[2];
 	}
 	console.log("got %d colors:", numcolors, colors);
 	for (var y = 0; y < h; ++y, ++ofs)
 	{
 		var row = pixels[y] = [];
-		if (data[ofs].length != w) throw "bad xpm: row " + y + " has len " + data[ofs].length;
+		if (data[ofs].length != w * chpp) throw "bad xpm: row " + y + " has len " + data[ofs].length;
 		for (var x = 0; x < w; ++x)
 		{
-			if (!(data[ofs].charCodeAt(x) in colors)) throw "bad xpm: unknown color code '" + data[ofs][x] + "' ofs " + x + " row " + y;
-			row.push(colors[data[ofs].charCodeAt(x)]);
+			var code = data[ofs].substr(chpp * x, chpp);
+			if (!(code in colors)) throw "bad xpm: unknown color code '" + code + "' ofs " + (chpp * x) + " row " + y;
+			row.push(colors[code]);
 		}
 	}
 	if (ofs < data.length) throw "bad xpm: junk at end";

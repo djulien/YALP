@@ -96,18 +96,23 @@ function multi()
 //	console.log("me %s", process.argv[0], process.argv[1]);
 debugger;
 	console.log("parent", stamp());
-	var slave = childproc.fork(process.argv[1], ["c"]);
+//	var slave = childproc.fork(process.argv[1], ["c"]); //, {excArgv: ["--debug-bkg=5859"]}); //avoid conflict with node inspector on parent process
+//	var slave = childproc.spawn(process.argv[0], [process.argv[1], "c"], {xdetached: true, stdio: ['inherit', 'inherit', 'inherit', 'ipc']}); //, {excArgv: ["--debug-bkg=5859"]}); //avoid conflict with node inspector on parent process
 
-	var responses = {};
+//pin child to reserved processor to prevent O/S preempts (must use spawm rather than fork); parent can jump around on remaining processors
+	var slave = childproc.spawn('taskset', ["8", process.argv[0], process.argv[1], "c"], {xdetached: true, stdio: ['inherit', 'inherit', 'inherit', 'ipc']}); //, {excArgv: ["--debug-bkg=5859"]}); //avoid conflict with node inspector on parent process
+	var responses = {}, numresp = 0;
 	slave.on('message', function(msg)
 	{
 		if (typeof msg !== 'object') msg = {data: msg};
 		msg.cpu = cpuid();
 		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
-		console.log('PARENT got message:', msg, stamp());
+		console.log('PARENT got message %d:', ++numresp, msg, stamp());
 	});
+	console.log("sending to slave", cpuid());
 	for (var i = 0; i < 100; ++i)
 		slave.send({ hello: 'world' });
+	console.log("sent to slave", cpuid());
 	setTimeout(function()
 	{
 		for (var i in responses) console.log("parent", i, responses[i]);
@@ -125,13 +130,13 @@ function child()
 debugger;
 	console.log("child", stamp());
 
-	var responses = {};
+	var responses = {}, numresp = 0;
 	process.on('message', function(msg)
 	{
 		if (typeof msg !== 'object') msg = {data: msg};
 		msg.cpu = cpuid();
 		if (isNaN(++responses[JSON.stringify(msg)])) responses[JSON.stringify(msg)] = 1;
-		console.log('CHILD got message:', msg, stamp());
+		console.log('CHILD got message %d:', ++numresp, msg, stamp());
 	});
 	process.on('disconnect', function()
 	{
@@ -452,7 +457,7 @@ function elapsed(epoch)
 
 function stamp(epoch)
 {
-	return '@' + elapsed(epoch) + '&' + cpuid();
+	return '@' + elapsed(epoch) + ' &' + cpuid();
 }
 
 

@@ -182,7 +182,7 @@
     "reload": "^0.7.0",
     "require-globify": "git+https://github.com/djulien/require-globify.git",
     "rgbquant": "^1.1.2",
-    "rpio": "^0.9.7",
+    "rpio": "^0.9.11",
     "serialport": "git+https://github.com/voodootikigod/node-serialport.git",
     "sh.js": "^1.1.1",
     "shelljs": "^0.5.3",
@@ -211,7 +211,7 @@
     "watchify": "^3.7.0",
     "wormhole": "^3.0.0",
     "xml-stream": "^0.4.5",
-    "xmldoc": "^0.3.2"
+    "xmldoc": "^0.3.2",
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
   "comment2-devDependencies": "actually, put RPi-specific deps (mostly GPIO) into dev so they can be excluded from generic dev machine",
