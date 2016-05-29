@@ -29,15 +29,20 @@ const USflag = new xpm(
 ". . . . . . . . . . . . . . . . . . . . . . . . ",
 ]);
 
-USflag.resize(USflag.width, USflag.height + 2);
-USflag.scroll(0, +1);
+USflag.resize(USflag.width, USflag.height + 3);
+USflag.scroll(0, +2);
 
-const USflag_up = USflag.clone(), USflag_down = USflag.clone();
+const USflag_waves = [USflag.clone(), USflag.clone(), USflag.clone(), USflag.clone()];
 for (var x = 0; x < USflag.width; ++x)
 {
-    if (!(Math.floor(x / 4) & 1)) continue;
-    USflag_up.scroll1col(x, -1);
-    USflag_down.scroll1col(x, +1);
+//    if (!(Math.floor(x / 6) & 1)) continue;
+//    USflag_wave1.scroll1col(x, -1);
+//    USflag_wave2.scroll1col(x, +1);
+//    var wavey = [0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, +1, +1, +1, +1, +1][x];
+    var wavey = [0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, +1, +1, +1, +1, +1, 0, 0, 0][x];
+//    USflag_wave1.scroll1col(x, wavey);
+    for (var i = 0; i < USflag_waves.length; ++i)
+        USflag_waves[i].scroll1col((x + i * 3) % USflag.width, wavey);
 }
 
 //example from https://github.com/jperkin/node-rpio
@@ -48,7 +53,7 @@ chkroot();
 var rpio = require('rpio');
 init();
 console.log("sleep 10 sec ...");
-rpio.msleep(10 * 1000);
+rpio.msleep(2 * 1000);
 //test1();
 //test2();
 //scope_test();
@@ -56,26 +61,41 @@ rpio.msleep(10 * 1000);
 //var img = xpm(Easter_Rainbow_Cross24x16_xpm);
 //var img = xpm(USflag24x13_xpm);
 //img.xy = xy_gdoor;
-USflag.xy = USflag_up.xy = USflag_down.xy = xy_gdoor;
+//USflag.xy = USflag_wave1.xy = USflag_wave2.xy = xy_gdoor;
+for (var i = 0; i < USflag_waves.length; ++i) USflag_waves[i].xy = xy_gdoor;
 //console.log("ONE ONLY");
+var wave = 0;
 for (;;)
 //for (var retry = 0; retry < 10; ++retry)
 {
-	rpio.setall(0);
-	for (var ofs = -12; ofs < 48-12; ++ofs)
+//	rpio.setall(0);
+	for (var i = -12; i < 48-12; ++i)
 	{
-ofs = 12; //24;
-		var img = USflag;
-		switch (ofs % 3)
-		{
-			case 1: img = USflag_up; break;
-			case 3: img = USflag_down; break;
-		}
-		image(img, ofs);
+		rpio.setall(0);
+		var ofs = 24-1 - i;
+//ofs = 12; //24;
+		for (var w = 0; w < 3; ++w) wave_fx(ofs);
 //break;
-		rpio.msleep(500);
+//		rpio.msleep(500);
 	}
 //break;
+}
+
+
+function wave_fx(ofs)
+{
+	var img = USflag;
+/*
+	switch (wave++ & 3)
+	{
+		case 1: img = USflag_wave1; break;
+		case 3: img = USflag_wave2; break;
+//		case 2: --ofs; rpio.setall(0); break;
+	}
+*/
+	img = USflag_waves[wave++ % USflag_waves.length];
+	image(img, ofs, false);
+	rpio.msleep(100);
 }
 
 
@@ -133,9 +153,9 @@ function image_test(img, xofs)
 		}
 }
 
-function image(img, xofs)
+function image(img, xofs, debug)
 {
-	console.error("show image %d x %d  at '%d...", img.width, img.height, xofs);
+	if (debug) console.error("show image %d x %d  at '%d...", img.width, img.height, xofs);
 	for (var y = 0; y < img.height; ++y)
 		for (var x = 0; x < img.width; ++x)
 		{
