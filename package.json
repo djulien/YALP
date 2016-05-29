@@ -75,6 +75,7 @@
     "prebuild:js": "npm run lint",
     "build:css": "stylus assets/styles/main.styl > dist/main.css",
     "build:js": "browserify assets/scripts/main.js > dist/main.js",
+    "build:ui": "browserify public/js/main.js -o public/js/uibundle.js",
     "build": "npm run build:css && npm run build:js",
     "dedupe": "npm dedupe",
     "outdates": "npm outdated",
@@ -211,7 +212,7 @@
     "watchify": "^3.7.0",
     "wormhole": "^3.0.0",
     "xml-stream": "^0.4.5",
-    "xmldoc": "^0.3.2",
+    "xmldoc": "^0.3.2"
   },
   "comment-devDependencies": "none, since this is an IDE-like app",
   "comment2-devDependencies": "actually, put RPi-specific deps (mostly GPIO) into dev so they can be excluded from generic dev machine",

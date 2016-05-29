@@ -7,7 +7,6 @@ const xpm = require('my-plugins/image/xpm');
 const NUMLEDS = 768, NUMNULL = 1; //gdoor
 
 /* XPM */
-/* XPM */
 const USflag = new xpm(
 [
 "24 13 4 2",
@@ -136,7 +135,7 @@ function image_test(img, xofs)
 
 function image(img, xofs)
 {
-	console.error("show image %d x %d  at '%d...", img.width, img.height);
+	console.error("show image %d x %d  at '%d...", img.width, img.height, xofs);
 	for (var y = 0; y < img.height; ++y)
 		for (var x = 0; x < img.width; ++x)
 		{
@@ -144,10 +143,16 @@ function image(img, xofs)
 	            if (typeof color != 'number') color = 0; //bkg
 //        	    else color = png.color((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff, 
 			if ((x == 0) && (x + xofs > 0)) rpio.setled(img.xy(x + xofs - 1, y), 0);
-			if ((x + xofs >= 0) && (x + xofs < 48)) rpio.setled(img.xy(x + xofs, y), color);
+			if ((x + xofs >= 0) && (x + xofs < 48)) rpio.setled(img.xy(x + xofs, y), rgswap(color));
 //			if ((x == img[y].length - 1) && (x + xofs < 47)) rpio.setled(img.xy(x + xofs + 1, y), 0);
 		}
 	rpio.flush();
+}
+
+function rgswap(color)
+{
+    color >>>= 0;
+    return ((color & 0xff0000ff) | ((color >> 8) & 0xff00) | ((color << 8) & 0xff0000)) >>> 0; //force to uint32
 }
 
 function scope_test()

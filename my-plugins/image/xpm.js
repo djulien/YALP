@@ -1,6 +1,7 @@
 //xpm image
 'use strict';
 
+require('colors');
 const pnglib = require('pnglib');
 const makenew = require('my-plugins/utils/makenew');
 
