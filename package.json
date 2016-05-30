@@ -150,7 +150,7 @@
     "ip": "^1.0.1",
     "is-little-endian": "0.0.0",
     "is-stream": "^1.0.1",
-    "jquery": "^2.1.4",
+    "jquery": "^2.2.4",
     "lame": "^1.2.3",
     "longjohn": "^0.2.9",
     "messenger": "0.0.9",
