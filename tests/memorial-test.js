@@ -2,6 +2,8 @@
 //cat /proc/interrupts   before and after to check irq occurrences
 
 const xpm = require('my-plugins/image/xpm');
+const TIMING_FUD = 0; //-20;
+const ALL_COLOR = 0x0000f8;
 
 //const NUMLEDS = 256, NUMNULL = 1; //gift
 const NUMLEDS = 768, NUMNULL = 1; //gdoor
@@ -64,6 +66,7 @@ rpio.msleep(2 * 1000);
 //USflag.xy = USflag_wave1.xy = USflag_wave2.xy = xy_gdoor;
 for (var i = 0; i < USflag_waves.length; ++i) USflag_waves[i].xy = xy_gdoor;
 //console.log("ONE ONLY");
+if (ALL_COLOR) all(ALL_COLOR);
 var wave = 0;
 for (;;)
 //for (var retry = 0; retry < 10; ++retry)
@@ -79,6 +82,25 @@ for (;;)
 //		rpio.msleep(500);
 	}
 //break;
+}
+
+
+function all(color)
+{
+	for (var retry = 0; retry < 10-8; ++retry)
+	{
+//		rpio.setall(color);
+		for (var pix = 0; pix < 80; ++pix)
+			rpio.setled(pix, [0x00f800, 0xf8f8f8, 0x0000f8][rwb(pix)]);
+		rpio.flush();
+		rpio.msleep(100);
+	}
+	process.exit(0);
+
+//	function rwb(i) { return 0; }
+//	function rwb(i) { return i % 3; }
+//	function rwb(i) { return Math.floor(i / 17) % 3; }
+	function rwb(i) { return (i < 37)? 0: Math.floor((i - 37) / 7) % 3; }
 }
 
 
@@ -400,7 +422,7 @@ function init()
 //	rpio.init({gpiomem: false}); //use /dev/mem for SPI
 	rpio.spiBegin(); //set GPIO7-GPIO11 to SPI mode; calls .init()
 	rpio.spiChipSelect(0); //TODO: is this needed?
-	rpio.spiSetClockDivider(1 * (104 - 20)); //250 MHz / 104 ~= 2.4MHz => 3 * 24 == 72 bits  == 9 bytes / node WS281X; kludge: make it a little faster (timing is off)
+	rpio.spiSetClockDivider(104 + TIMING_FUD); //250 MHz / 104 ~= 2.4MHz => 3 * 24 == 72 bits  == 9 bytes / node WS281X; kludge: make it a little faster (timing is off)
 	rpio.spiSetDataMode(0); //CPOL (clk polarity) 0, CPHA (clk phase) 0; see http://dlnware.com/theory/SPI-Transfer-Modes
 
 	rpio.txbuf = new Buffer(usec2bytes(LEADER) + nodes2bytes(NUMLEDS + NUMNULL) + usec2bytes(TRAILER)); //6 nodes, 24 bits, 3 cycles/bit + 50 usec trailer
