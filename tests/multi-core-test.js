@@ -11,6 +11,7 @@ require('colors');
 //require('my-plugins/my-extensions/json-revival');
 const fs = require('fs');
 const http = require('http');
+const sockio = require('socket.io'); //NOTE: also needs bufferutil
 //const JsonStreamer = require('stream-json/Streamer');
 //const through2 = require('through2');
 //const readline = require('readline');
@@ -51,8 +52,26 @@ function main()
 
 function fileserve()
 {
+debugger;
+	var io = sockio(http); //http://socket.io/get-started/chat/
+	io.on('connection', function(socket)
+	{
+		console.log('a user connected');
+		socket.on('disconnect', function()
+		{
+			console.log('user disconnected');
+		});
+	});
+
 	var server = http.createServer(function (req, resp)
 	{
+		// Set CORS headers
+		resp.setHeader('Access-Control-Allow-Origin', '*');
+		resp.setHeader('Access-Control-Request-Method', '*');
+		resp.setHeader('Access-Control-Allow-Methods', 'OPTIONS, GET');
+		resp.setHeader('Access-Control-Allow-Headers', '*');
+//
+		console.log("req", req.url);
 		var src = fs.createReadStream('stream.txt');
 //		src = src.pipe(Text2Object());
 		src.pipe(resp);
