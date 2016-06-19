@@ -1,0 +1,147 @@
+/*main YALP styles/theme*/
+
+body
+{
+    xborder: none;
+    margin: 0;
+    xoverflow: hidden; /*TODO?*/
+    background: #000; /*only do this on body; use xparent elsewhere*/
+}
+
+body, p, input
+{
+    color: #0f0 /*!important*/;
+    font-family: Monospace;
+    font-size: 13px;
+}
+
+x-p { white-space: pre; }
+
+input
+{
+    x-border: none;
+    background: transparent;
+}
+
+x-p, x-form, x-input { margin:0; padding:0; }
+x-input:focus { outline: none; border: none; }
+
+
+.fatal
+{
+    position: absolute;
+    top: 30%;
+    left: 10%;
+}
+
+a
+{
+    color: #fff; /*since main text color is #0f0, #fff stands out better than #00f*/
+}
+
+#tty-log
+{
+    white-space: pre;
+}
+
+#tty-log p
+{
+    padding: 1px 1px 1px 4px;
+    margin: 0;
+}
+
+#tty-log .stdin
+{
+    color: #0ff;
+}
+
+#tty-log .stdout
+{
+    color: #0f0;
+}
+
+#tty-log .stderr
+{
+    color: #f00;
+}
+
+#tty-log .status
+{
+    color: #ff0;
+}
+
+#save
+{
+    position: absolute;
+    width: 120px;
+    right: 0;
+    height: 16px;
+    bottom: 0;
+}
+
+#javascript-editor
+{
+    margin: 0;
+    position: absolute;
+    top: 0;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    xwidth: 50%;
+    border: 2px dashed #f00; /*debug only*/
+}
+#statusBar
+{
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 20px;
+    background-color: rgb(245, 245, 245);
+    color: gray;
+    border: 2px dashed #00f; /*debug only*/
+}
+.ace_status-indicator
+{
+    color: gray;
+    position: absolute;
+    right: 0;
+    border-left: 1px solid;
+    border: 2px dashed #0f0; /*debug only*/
+}
+.fx-canvas
+{
+    z-index: 99;
+    margin: 0;
+    position: absolute;
+    xtop: 10px;
+    xbottom: 20px;
+    xleft: 0;
+    xwidth: 320px;
+    xheight: 320px;
+    xright: 20px; /*allow room for vscroll bar*/
+}
+
+/*from http://stackoverflow.com/questions/5127937/how-to-center-canvas-in-html5*/
+#compatibility-canvas
+{
+    xborder: 2px dashed #f00;
+    display: block;
+    padding: 10px;
+    xwidth: 50%;
+    xheight: 50%;
+    width: 300px;
+    height: 200px;
+    font-size: 16pt;
+    color: #f00;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+    z-index: 99;
+}
+/*eof*/

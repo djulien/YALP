@@ -1,6 +1,15 @@
-/*main YALP styles/theme*/
+/**
+ * style.css (https://github.com/chjj/tty.js)
+ * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
+ */
 
-body
+/*override tty bkg: -DJ*/
+old-html, old-body {
+  margin: 0;
+  padding: 0;
+}
+
+html, body
 {
     xborder: none;
     margin: 0;
@@ -8,140 +17,176 @@ body
     background: #000; /*only do this on body; use xparent elsewhere*/
 }
 
-body, p, input
-{
-    color: #0f0 /*!important*/;
-    font-family: Monospace;
-    font-size: 13px;
+div {
+  border: 0;
+  padding: 0;
+  margin: 0;
 }
 
-x-p { white-space: pre; }
-
-input
-{
-    x-border: none;
-    background: transparent;
+html {
+  background: #fff;
 }
 
-x-p, x-form, x-input { margin:0; padding:0; }
-x-input:focus { outline: none; border: none; }
-
-
-.fatal
-{
-    position: absolute;
-    top: 30%;
-    left: 10%;
+html.dark {
+  background: #333;
 }
 
-a
-{
-    color: #fff; /*since main text color is #0f0, #fff stands out better than #00f*/
+html.maximized {
+  overflow: hidden;
 }
 
-#tty-log
-{
-    white-space: pre;
+body {
+  margin: 25px;
 }
 
-#tty-log p
-{
-    padding: 1px 1px 1px 4px;
-    margin: 0;
+/* Only allow plaintext?
+[contenteditable=""],
+[contenteditable="true"] {
+  -webkit-user-modify: read-write-plaintext-only !important;
+}
+*/
+
+/**
+ * Terminal
+ */
+
+.window {
+  padding-top: 15px;
+  border: #fafafa solid 1px;
+  background: #272829;
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  box-shadow: rgba(0, 0, 0, 0.8) 2px 2px 20px;
 }
 
-#tty-log .stdin
-{
-    color: #0ff;
+.maximized .window {
+  border: none;
+  box-shadow: none;
 }
 
-#tty-log .stdout
-{
-    color: #0f0;
+.dark .window {
+  box-shadow: none;
 }
 
-#tty-log .stderr
-{
-    color: #f00;
+.bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 13px;
+  padding: 1px 0;
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  color: #fafafa;
 }
 
-#tty-log .status
-{
-    color: #ff0;
+.dark .bar,
+.maximized .bar {
 }
 
-#save
-{
-    position: absolute;
-    width: 120px;
-    right: 0;
-    height: 16px;
-    bottom: 0;
+.title {
+  position: absolute;
+  right: 5px;
+  top: 2px;
+  font-size: 11px;
+  cursor: default;
 }
 
-#javascript-editor
-{
-    margin: 0;
-    position: absolute;
-    top: 0;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    xwidth: 50%;
-    border: 2px dashed #f00; /*debug only*/
-}
-#statusBar
-{
-    margin: 0;
-    padding: 0;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 20px;
-    background-color: rgb(245, 245, 245);
-    color: gray;
-    border: 2px dashed #00f; /*debug only*/
-}
-.ace_status-indicator
-{
-    color: gray;
-    position: absolute;
-    right: 0;
-    border-left: 1px solid;
-    border: 2px dashed #0f0; /*debug only*/
-}
-.fx-canvas
-{
-    z-index: 99;
-    margin: 0;
-    position: absolute;
-    xtop: 10px;
-    xbottom: 20px;
-    xleft: 0;
-    xwidth: 320px;
-    xheight: 320px;
-    xright: 20px; /*allow room for vscroll bar*/
+.tab {
+  font-size: 16px;
+  margin-left: 8px;
+  margin-top: -2px;
+  float: left;
+  cursor: pointer;
 }
 
-/*from http://stackoverflow.com/questions/5127937/how-to-center-canvas-in-html5*/
-#compatibility-canvas
-{
-    xborder: 2px dashed #f00;
-    display: block;
-    padding: 10px;
-    xwidth: 50%;
-    xheight: 50%;
-    width: 300px;
-    height: 200px;
-    font-size: 16pt;
-    color: #f00;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin: auto;
-    z-index: 99;
+.tab:hover {
+  font-weight: bold;
 }
-/*eof*/
+
+.grip {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+  width: 22px;
+  height: 22px;
+  cursor: se-resize;
+  z-index: -1;
+  background: transparent;
+}
+
+.grip:hover {
+}
+
+.terminal {
+  border: #000 solid 5px;
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  font-size: 11px;
+  color: #f0f0f0;
+  background: #000;
+}
+
+.reverse-video {
+  color: #000;
+  background: #f0f0f0;
+}
+
+/**
+ * Page
+ */
+
+h1 {
+  font: 20px/1.5 sans-serif;
+  background: #333;
+  margin: -25px -25px 0 -25px;
+  height: 30px;
+  padding: 10px 25px;
+  color: white;
+  border-top: #e15729 solid 10px;
+}
+
+#open, #lights {
+  font: 20px/1.5 sans-serif;
+  position: fixed;
+  right: 0;
+  padding: 10px;
+  height: 50px;
+  color: white;
+  cursor: pointer;
+  margin: 0;
+  background: none;
+  border: none;
+  -webkit-appearance: none;
+}
+
+#open {
+  top: 10px;
+  background: #333;
+}
+
+#lights {
+  font-size: 18px;
+  height: 46px;
+  top: 60px;
+  background: #555;
+}
+
+#open:hover, #lights:hover {
+  color: slategrey;
+  background: white;
+}
+
+#open:active, #lights:active {
+  color: orange;
+}
+
+#help {
+  font: 12px/1.5 sans-serif;
+  color: #999;
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+}
+
+.dark h1, .dark #help { display: none; }
