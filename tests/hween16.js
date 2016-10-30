@@ -12,6 +12,113 @@ const ALL_COLOR = 0x80; //rgswap(0x9800c8); //rgswap(0xff4010); //0000f8;
 const NUMLEDS = 768, NUMNULL = 1; //gdoor
 
 /* XPM */
+const Ghost_left = new xpm(
+{
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..+@@++++@@+++..",
+"..@@@@++@@@@++..",
+"..##@@++##@@++..",
+".+##@@++##@@+++.",
+".++@@++++@@++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++.++++.++++.",
+"..++...++...++..",
+"................",
+]);
+
+const Ghost_front = new xpm(
+{
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..++@@++++@@++..",
+"..+@@@@++@@@@+..",
+"..+@@@@++@@@@+..",
+".++@##@++@##@++.",
+".+++##++++##+++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++.++++.++++.",
+"..++...++...++..",
+"................",
+]);
+
+const Ghost_right = new xpm(
+{
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..+++@@++++@@+..",
+"..++@@@@++@@@@..",
+"..++@@##++@@##..",
+".+++@@##++@@##+.",
+".++++@@++++@@++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++.++++.++++.",
+"..++...++...++..",
+"................",
+]);
+
+/* XPM */
+const Ghost_altfeet = new xpm(
+{
+"16 16 4 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+"................",
+".++++++++++++++.",
+".++.+++..+++.++.",
+".+...++..++...+.",
+"................",
+]);
+
+
+/* XPM */
+/*
 const USflag = new xpm(
 [
 "24 13 4 2",
@@ -33,10 +140,12 @@ const USflag = new xpm(
 "& & & & & & & & & & & & & & & & & & & & & & & & ",
 ". . . . . . . . . . . . . . . . . . . . . . . . ",
 ]);
+*/
 
-USflag.resize(USflag.width, USflag.height + 3);
-USflag.scroll(0, +2);
+//USflag.resize(USflag.width, USflag.height + 3);
+//USflag.scroll(0, +2);
 
+/*
 const USflag_waves = [USflag.clone(), USflag.clone(), USflag.clone(), USflag.clone()];
 for (var x = 0; x < USflag.width; ++x)
 {
@@ -49,6 +158,7 @@ for (var x = 0; x < USflag.width; ++x)
     for (var i = 0; i < USflag_waves.length; ++i)
         USflag_waves[i].scroll1col((x + i * 3) % USflag.width, wavey);
 }
+*/
 
 //example from https://github.com/jperkin/node-rpio
 //https://mikaelleven.wordpress.com/2015/12/10/troubleshooting-spi-on-raspberry-pi-nodejs/
@@ -67,9 +177,15 @@ rpio.msleep(10 * 1000);
 //var img = xpm(USflag24x13_xpm);
 //img.xy = xy_gdoor;
 //USflag.xy = USflag_wave1.xy = USflag_wave2.xy = xy_gdoor;
-for (var i = 0; i < USflag_waves.length; ++i) USflag_waves[i].xy = xy_gdoor;
+//for (var i = 0; i < USflag_waves.length; ++i) USflag_waves[i].xy = xy_gdoor;
+Ghost_left.xy = xy_gdoor;
+Ghost_front.xy = xy_gdoor;
+Ghost_right.xy = xy_gdoor;
+Ghost_altfeet.xy = xy_gdoor;
+
 //console.log("ONE ONLY");
 if (ALL_COLOR) all(ALL_COLOR);
+/*
 var wave = 0;
 for (;;)
 //for (var retry = 0; retry < 10; ++retry)
@@ -86,6 +202,15 @@ for (;;)
 	}
 //break;
 }
+*/
+for (;;)
+	for (var ofs = -16, parity = 0; ofs < 48 - 16; ++ofs, ++parity)
+	{
+		rpio.setall(0);
+		image(iGhost_right, ofs, false);
+		if (parity & 2) image(Ghost_altfeet, ofs, false);
+		rpio.msleep(100);
+	}
 
 
 function all(color)
@@ -112,7 +237,7 @@ function all(color)
 
 function wave_fx(ofs)
 {
-	var img = USflag;
+	var img = Ghost_left;
 /*
 	switch (wave++ & 3)
 	{
