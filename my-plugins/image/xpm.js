@@ -303,6 +303,17 @@ XPM.prototype.scroll1col = function scroll(x, yofs)
 }
 
 
+XPM.hmirror_dup = function hmirror_dup()
+{
+    for (var y = 0; y < this.height; ++y)
+        for (var x = 0; x < this.width; ++x)
+            this.colorinx[y].push(this.colorinx[y][this.width - x - 1];
+    this.width *= 2;
+    this.img = null; //stale image data
+    return this; //fluent
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////////
 ////
 /// misc helpers

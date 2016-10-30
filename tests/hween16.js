@@ -192,6 +192,14 @@ const Ghost_altfeet = new xpm(
 ]);
 
 
+const EyeBlink = require('graphics/eye-blink/EyeBlink');
+EyeBlink.forEach(function(img)
+{
+	img.hmirror_dup();
+	img.xy = xy_gdoor;
+}
+
+
 /* XPM */
 /*
 const USflag = new xpm(
@@ -313,6 +321,13 @@ console.log("roll %s", roll);
 			rpio.msleep(100);
 		}
 		roll_delay = 50 * Math.random();
+	}
+
+	for (var eye = EyeBlink.length * Math.floor(3 * Math.random()); eye > 0; --eye)
+	{
+		rpio.setall(0);
+		image(EyeBlink[eye - 1], 0, false);
+		rpio.msleep(100);
 	}
 }
 
