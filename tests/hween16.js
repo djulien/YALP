@@ -3,7 +3,7 @@
 
 const xpm = require('my-plugins/image/xpm');
 const TIMING_FUD = 0; //-20;
-const ALL_COLOR = 0x80; //rgswap(0x9800c8); //rgswap(0xff4010); //0000f8;
+const ALL_COLOR = 0; //0x80; //rgswap(0x9800c8); //rgswap(0xff4010); //0000f8;
 //const ALL_COLOR = 0x0000f8;
 //const ALL_COLOR = 0x00f800;
 //const ALL_COLOR = 0xf80000;
@@ -13,7 +13,7 @@ const NUMLEDS = 768, NUMNULL = 1; //gdoor
 
 /* XPM */
 const Ghost_left = new xpm(
-{
+[
 "16 16 5 1",
 " 	c None",
 ".	c #000000",
@@ -37,9 +37,34 @@ const Ghost_left = new xpm(
 "..++...++...++..",
 "................",
 ]);
+const Ghost_left2 = new xpm(
+[
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..+@@++++@@+++..",
+"..@@@@++@@@@++..",
+"..##@@++##@@++..",
+".+##@@++##@@+++.",
+".++@@++++@@++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++.+++..+++.++.",
+".+...++..++...+.",
+"................",
+]);
 
 const Ghost_front = new xpm(
-{
+[
 "16 16 5 1",
 " 	c None",
 ".	c #000000",
@@ -52,9 +77,9 @@ const Ghost_front = new xpm(
 "...++++++++++...",
 "..++@@++++@@++..",
 "..+@@@@++@@@@+..",
-"..+@@@@++@@@@+..",
+"..+@##@++@##@+..",
 ".++@##@++@##@++.",
-".+++##++++##+++.",
+".+++@@++++@@+++.",
 ".++++++++++++++.",
 ".++++++++++++++.",
 ".++++++++++++++.",
@@ -63,9 +88,34 @@ const Ghost_front = new xpm(
 "..++...++...++..",
 "................",
 ]);
+const Ghost_front2 = new xpm(
+[
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..++@@++++@@++..",
+"..+@@@@++@@@@+..",
+"..+@##@++@##@+..",
+".++@##@++@##@++.",
+".+++@@++++@@+++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++.+++..+++.++.",
+".+...++..++...+.",
+"................",
+]);
 
 const Ghost_right = new xpm(
-{
+[
 "16 16 5 1",
 " 	c None",
 ".	c #000000",
@@ -89,27 +139,52 @@ const Ghost_right = new xpm(
 "..++...++...++..",
 "................",
 ]);
+const Ghost_right2 = new xpm(
+[
+"16 16 5 1",
+" 	c None",
+".	c #000000",
+"+	c #FF0000",
+"@	c #FFFFFF",
+"#	c #0000FF",
+"................",
+"......++++......",
+"....++++++++....",
+"...++++++++++...",
+"..+++@@++++@@+..",
+"..++@@@@++@@@@..",
+"..++@@##++@@##..",
+".+++@@##++@@##+.",
+".++++@@++++@@++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++++++++++++++.",
+".++.+++..+++.++.",
+".+...++..++...+.",
+"................",
+]);
 
 /* XPM */
 const Ghost_altfeet = new xpm(
-{
+[
 "16 16 4 1",
 " 	c None",
 ".	c #000000",
 "+	c #FF0000",
 "@	c #FFFFFF",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
-"................",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
+"                ",
 ".++++++++++++++.",
 ".++.+++..+++.++.",
 ".+...++..++...+.",
@@ -179,8 +254,11 @@ rpio.msleep(10 * 1000);
 //USflag.xy = USflag_wave1.xy = USflag_wave2.xy = xy_gdoor;
 //for (var i = 0; i < USflag_waves.length; ++i) USflag_waves[i].xy = xy_gdoor;
 Ghost_left.xy = xy_gdoor;
+Ghost_left2.xy = xy_gdoor;
 Ghost_front.xy = xy_gdoor;
+Ghost_front2.xy = xy_gdoor;
 Ghost_right.xy = xy_gdoor;
+Ghost_right2.xy = xy_gdoor;
 Ghost_altfeet.xy = xy_gdoor;
 
 //console.log("ONE ONLY");
@@ -203,14 +281,28 @@ for (;;)
 //break;
 }
 */
-for (;;)
-	for (var ofs = -16, parity = 0; ofs < 48 - 16; ++ofs, ++parity)
+const rolleyes = [Ghost_front, Ghost_left, Ghost_front, Ghost_right];
+const rolleyes2 = [Ghost_front2, Ghost_left2, Ghost_front2, Ghost_right2];
+var c = 0;
+var colors = [0xff0000, 0x00ff00, 0x00ffff, 0xffff00, 0xff00ff, 0x0000ff];
+for (;; ++c)
+{
+	for (var ofs = -12, parity = 0; ofs < 48 - 2; ++ofs, ++parity)
 	{
+console.log("ofs %s", ofs);
 		rpio.setall(0);
-		image(iGhost_right, ofs, false);
-		if (parity & 2) image(Ghost_altfeet, ofs, false);
+		image((parity & 1)? Ghost_right2: Ghost_right, ofs, false);
 		rpio.msleep(100);
+		if ((ofs != 24 - 16) && (ofs != 24 + 4)) continue;
+		for (var roll = (ofs < 24)? 16: 0; roll < 32; ++roll, ++parity)
+		{
+console.log("roll %s", roll);
+			rpio.setall(0);
+			image((parity & 1)? rolleyes2[(roll >> 2) % 4]: rolleyes[(roll >> 2) % 4], ofs, false);
+			rpio.msleep(100);
+		}
 	}
+}
 
 
 function all(color)
@@ -562,9 +654,9 @@ function init()
 	var count = 0;
 	rpio.setall = function(color)
 	{
-		console.log("set all ...", count++);
+//		console.log("set all ...", count++);
 		for (var i = 0; i < NUMLEDS; ++i) this.setled(i, color);
-		console.log("... set all");
+//		console.log("... set all");
 	}
 	rpio.setled = function(which, color)
 	{
