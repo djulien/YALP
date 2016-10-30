@@ -3,7 +3,7 @@
 
 const xpm = require('my-plugins/image/xpm');
 const TIMING_FUD = 0; //-20;
-const ALL_COLOR = 0; //0x0000f8;
+const ALL_COLOR = 0x80; //rgswap(0x9800c8); //rgswap(0xff4010); //0000f8;
 //const ALL_COLOR = 0x0000f8;
 //const ALL_COLOR = 0x00f800;
 //const ALL_COLOR = 0xf80000;
@@ -434,9 +434,10 @@ function init()
 	rpio.txbuf = new Buffer(usec2bytes(LEADER) + nodes2bytes(NUMLEDS + NUMNULL) + usec2bytes(TRAILER)); //6 nodes, 24 bits, 3 cycles/bit + 50 usec trailer
 	rpio.txbuf.fill(0); //set trailer to 0s
 	console.log("buf len %d = %d + %d + %d", rpio.txbuf.length, usec2bytes(LEADER), nodes2bytes(NUMLEDS + NUMNULL), usec2bytes(TRAILER));
+	var count = 0;
 	rpio.setall = function(color)
 	{
-		console.log("set all ...");
+		console.log("set all ...", count++);
 		for (var i = 0; i < NUMLEDS; ++i) this.setled(i, color);
 		console.log("... set all");
 	}
