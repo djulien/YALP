@@ -283,24 +283,36 @@ for (;;)
 */
 const rolleyes = [Ghost_front, Ghost_left, Ghost_front, Ghost_right];
 const rolleyes2 = [Ghost_front2, Ghost_left2, Ghost_front2, Ghost_right2];
-var c = 0;
-var colors = [0xff0000, 0x00ff00, 0x00ffff, 0xffff00, 0xff00ff, 0x0000ff];
-for (;; ++c)
+var colors = [0xff0000, 0x00ff00, 0x00ffff, 0xff4411, 0xff00ff]; //, 0x0000ff];
+var roll_delay = 50 * Math.random();
+for (;;)
 {
+	var sel = Math.round(10 * Math.random());
+	var setcolor = {"+": colors[sel % colors.length]};
+	Ghost_front.setpal(setcolor);
+	Ghost_front2.setpal(setcolor);
+	Ghost_left.setpal(setcolor);
+	Ghost_left2.setpal(setcolor);
+	Ghost_right.setpal(setcolor);
+	Ghost_right2.setpal(setcolor);
+	var l2r = (sel >= 5);
 	for (var ofs = -12, parity = 0; ofs < 48 - 2; ++ofs, ++parity)
 	{
-console.log("ofs %s", ofs);
+		var oofs = l2r? ofs: 48-12-2-1 - ofs;
+console.log("ofs %s", oofs);
 		rpio.setall(0);
-		image((parity & 1)? Ghost_right2: Ghost_right, ofs, false);
+		image((parity & 1)? (l2r? Ghost_right2: Ghost_left2): (l2r? Ghost_right: Ghost_left), oofs, false);
 		rpio.msleep(100);
-		if ((ofs != 24 - 16) && (ofs != 24 + 4)) continue;
-		for (var roll = (ofs < 24)? 16: 0; roll < 32; ++roll, ++parity)
+//		if ((ofs != 24 - 16) && (ofs != 24 + 4)) continue;
+		if (--roll_delay > 0) continue;
+		for (var roll = (roll_delay > -0.5)? 16: 0; roll < 32; ++roll, ++parity)
 		{
 console.log("roll %s", roll);
 			rpio.setall(0);
-			image((parity & 1)? rolleyes2[(roll >> 2) % 4]: rolleyes[(roll >> 2) % 4], ofs, false);
+			image((parity & 1)? rolleyes2[(roll >> 2 + 2 * l2r) % 4]: rolleyes[(roll >> 2 + 2 * l2r) % 4], oofs, false);
 			rpio.msleep(100);
 		}
+		roll_delay = 50 * Math.random();
 	}
 }
 
