@@ -192,12 +192,13 @@ const Ghost_altfeet = new xpm(
 ]);
 
 
-const EyeBlink = require('graphics/eye-blink/EyeBlink');
+const EyeBlink = require('../graphics/eye-blink/EyeBlink.js');
 EyeBlink.forEach(function(img)
 {
+//console.log("eye hmirror");
 	img.hmirror_dup();
 	img.xy = xy_gdoor;
-}
+});
 
 
 /* XPM */
@@ -323,12 +324,16 @@ console.log("roll %s", roll);
 		roll_delay = 50 * Math.random();
 	}
 
-	for (var eye = EyeBlink.length * Math.floor(3 * Math.random()); eye > 0; --eye)
+	for (var eye = EyeBlink.length * 2 * Math.floor(3 * Math.random()); eye > 0; --eye)
 	{
+		var eyee = (eye - 1) % (2 * EyeBlink.length);
+		if (eyee >= EyeBlink.length) eyee = 2 * EyeBlink.length - eyee - 1;
+console.log("blink %s", eyee);
 		rpio.setall(0);
-		image(EyeBlink[eye - 1], 0, false);
+		image(EyeBlink[eyee], 0, false);
 		rpio.msleep(100);
 	}
+
 }
 
 

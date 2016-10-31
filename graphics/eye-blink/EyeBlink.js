@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports = EyeBlink;
+const xpm = require('my-plugins/image/xpm');
 
 
 /* XPM */
@@ -157,6 +157,7 @@ const EyeBlink0 = new xpm(
 
 /* XPM */
 const EyeBlink1 = new xpm(
+[
 "24 15 129 2",
 "  	c #AB8D7D",
 ". 	c #B09585",
@@ -301,7 +302,7 @@ const EyeBlink1 = new xpm(
 "^ M 8 a ^.G H %.%.%./.~.~.~.~.~.I z (.k ^.^._.:.",
 "<.^ M [.}.y |.~.&.~.I =.|.J 1.h [.8 M 6 L x 2.g ",
 "n <.^ ^ M 3.4.5.6.[.a 3.^ U d @ # # + l 8 g e 6 ",
-"n n n n d d + @ @ # # : : % * * & 7.< q 6 5 ^ ^ "
+"n n n n d d + @ @ # # : : % * * & 7.< q 6 5 ^ ^ ",
 ]);
 
 /* XPM */
@@ -1851,6 +1852,8 @@ const EyeBlink10 = new xpm(
 ]);
 
 const EyeBlink = [EyeBlink0, EyeBlink1, EyeBlink2, EyeBlink3, EyeBlink4, EyeBlink5, EyeBlink6, EyeBlink7, EyeBlink8, EyeBlink9, EyeBlink10];
+
+module.exports = EyeBlink;
 
 
 //eof
