@@ -2,7 +2,6 @@
 
 const xpm = require('my-plugins/image/xpm');
 
-
 /* XPM */
 const EyeBlink0 = new xpm(
 [
@@ -1851,7 +1850,36 @@ const EyeBlink10 = new xpm(
 "m.m.7.m.j.; : f.* & p.q.r.r.q.q.p.l.k.+ @ m.m.m.",
 ]);
 
+const mask =
+[
+"                                                ",
+"                                                ",
+"            X X X X X X X X X X                 ",
+"        X X X X X X X X X X X X X X X           ",
+"    X X X X X X X X X X X X X X X X X X X       ",
+"  X X X X X X X X X X X X X X X X X X X X X     ",
+"  X X X X X X X X X X X X X X X X X X X X X     ",
+"    X X X X X X X X X X X X X X X X X X X X X   ",
+"      X X X X X X X X X X X X X X X X X X X X   ",
+"      X X X X X X X X X X X X X X X X X X X X   ",
+"        X X X X X X X X X X X X X X X X X X     ",
+"            X X X X X X X X X X X X X X         ",
+"                  X X X X X X X X               ",
+"                                                ",
+"                                                ",
+];
+
+
 const EyeBlink = [EyeBlink0, EyeBlink1, EyeBlink2, EyeBlink3, EyeBlink4, EyeBlink5, EyeBlink6, EyeBlink7, EyeBlink8, EyeBlink9, EyeBlink10];
+
+EyeBlink.forEach(function(img)
+{
+	img.palette["XX"] = 0;
+	for (var y = 0; y < img.height; ++y)
+		for (var x = 0; x < img.width; ++x)
+			if (mask[y].substr(2 * x, 2) == "  ")
+				img.colorinx[y][x] = "XX";
+});
 
 module.exports = EyeBlink;
 
