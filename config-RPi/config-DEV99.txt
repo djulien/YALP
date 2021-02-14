@@ -1,0 +1,206 @@
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan
+#disable_overscan=1
+
+# uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border
+#overscan_left=16
+#overscan_right=16
+#overscan_top=16
+#overscan_bottom=16
+
+# uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# uncomment if hdmi display is not detected and composite is being output
+#hdmi_force_hotplug=1
+
+# uncomment to force a specific HDMI mode (this will force VGA)
+#hdmi_group=1
+#hdmi_mode=1
+
+# uncomment to force a HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes
+#hdmi_drive=2
+
+# uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display
+#config_hdmi_boost=4
+
+# uncomment for composite PAL
+#sdtv_mode=2
+
+#uncomment to overclock the arm. 700 MHz is the default.
+#arm_freq=800
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+dtparam=i2c_arm=off
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Uncomment this to enable infrared communication.
+#dtoverlay=gpio-ir,gpio_pin=17
+#dtoverlay=gpio-ir-tx,gpio_pin=18
+
+# Additional overlays and parameters are documented /boot/overlays/README
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+[all]
+#dtoverlay=vc4-fkms-v3d
+
+
+###############################################################################
+#
+# YALP Custom
+#
+
+#example GPU settings for WS281X control
+#add to end of /boot/config.txt
+#more info:
+#https://www.raspberrypi.org/documentation/configuration/config-txt/README.md
+#https://www.raspberrypi.org/documentation/configuration/config-txt/video.md
+#https://www.raspberrypi.org/documentation/hardware/raspberrypi/dpi/README.md
+#https://www.raspberrypi.org/documentation/configuration/hdmi-config.md
+#https://www.raspberrypi.org/documentation/configuration/device-tree.md
+
+
+#[9999]
+#disable ttyS0 serial port on the GPIO pins 8 and 10:
+#https://www.raspberrypi.org/forums/viewtopic.php?t=155559
+enable_uart=0
+#include/exclude device tree nodes:
+#TODO: enable to read PiHats
+dtparam=i2c_arm=off
+dtparam=spi=off
+#redirect video to gpio:
+#use "gpio readall" to check
+#dtoverlay=vga666
+#dtoverlay=dpi24
+dtoverlay=dpi24-nosync
+#set dpi display geometry:
+dpi_output_format=0x17
+dpi_group=2
+dpi_mode=87
+#2.4MHz, 3 ppb, 4:3 aspect:
+dpi_timings=320 0 0 1 0  240 0 3 3 3  0 0 0  30 0 2400000 1
+#dpi_timings=392 0 0 1 0  294 0 2 2 2  0 0 0  20 0 2400000 1
+#6.4MHz, 8 ppb, 4:3 aspect:
+#dpi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 6400000 1
+#50 MHz, 62.5 ppb:
+#dpi_timings=1470 0 10 10 10  1102 0 3 3 3  0 0 0  30 0 50000000 1
+#9.6 MHz, 12 ppb: 64:27 aspect, 1089 nodes/univ, 2% vblank
+#wrong dpi_timings=861 0 1 1 1  363 0 2 3 2  0 0 0  30 0 9600000 8
+#put console on /dev/fb1 and dpi on /dev/fb0:
+#enable device connected to dpi pins:
+enable_dpi_lcd=1
+#default display !LCD; use HDMI instead:
+############display_default_lcd=0
+display_default_lcd=0
+#from https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=246384
+############max_framebuffers=2
+max_framebuffers=2
+#desktop default = LCD (fb0), put it on HDMI instead:
+############framebuffer_priority=2
+framebuffer_priority=2
+# increase GPU memory
+#needs to be >= 32 for dispmanx?
+gpu_mem=112
+#regular hdmi settings:
+#enable hdmi if no monitor detected:
+#NOTE: affects headphone audio:
+############hdmi_force_hotplug=1
+hdmi_force_hotplug=1
+#tell also to use headphone jack:
+hdmi_ignore_edid_audio=1
+disable_overscan=1
+#?? below needed? sends sound if supported
+#hdmi_drive=2
+#config_hdmi_boost=4
+overscan_left=0
+overscan_right=0
+overscan_top=0
+overscan_bottom=0
+#console framebuffer defaults to display size, but 16 bpp:
+#? framebuffer_width=0
+#? framebuffer_height=0
+#framebuffer_width=525
+#framebuffer_height=394
+#? config_hdmi_boost=4
+framebuffer_depth=32
+#framebuffer_ignore_alpha=1
+#is hdmi separate from dpi?
+#hdmi_group=2
+#hdmi_mode=87
+#hdmi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 6400000 1
+[all]
+
+[00000]
+#x! dpi_timings=640 0 16 96 48  480 0 10 2 33  0 0 0  60 0 25175000 1
+#DMT   640x480  25MHz
+#dpi_group=2
+#hdmi_mode=4
+#https://www.raspberrypi.org/documentation/hardware/raspberrypi/dpi/README.md
+#https://www.raspberrypi.org/forums/viewtopic.php?t=5851
+#http://tinyvga.com/vga-timing/640x480@60Hz
+#to show supported formats:
+#tvservice -m CEA
+#tvservice -m DMT
+#tvservice -s
+#tvservice --explicit="CEA 1 HDMI"
+#? fbset -depth 8
+#fbset -g 640 480 640 480 32
+#dpi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 6400000 1
+#dpi_timings=640 0 16 96 48  480 0 10 2 33  0 0 0  60 0 25175000 1
+#dpi_timings=640 0 16 96 48  480 0 10 2 33  0 0 0  60 0 25175000 1
+#hdmi_ignore_edid=0xa5000080
+#YALP dev Pi "2B"
+#[gpio4=1] #TODO: try jumper to select?
+#[dd1e5f40]
+#dpi_output_format=458775
+#dpi_timings=320 1 23 25 39  240 1 4 3 15  0 0 0 60 0  6400000 1
+#dpi_timings=900 0 40 48 88 600 0 13 3 32 0 0 0 60 0 32000000 6
+#dpi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 32000000 1
+#dpi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 6400000 1
+#dtdebug=1
+#x dpi_output_format=0x6f007
+##?? dpi_output_format=0x117
+#? dpi_output_format=7
+#dpi_output_format=0x6f005
+#dpi_timings=800 0 40 48 88 480 0 13 3 32 0 0 0 60 0 32000000 6
+#other bits don't matter if sync+clock masked off?
+#dpi_output_format=0x17
+#use "tvservice -S" or "vcgencmd get_config str" to check
+#gives 864 x 370 total res, 64:27 aspect, 30 fps, 1089 nodes/univ, 2% vblank
+#wrong dpi_timings=861 0 1 1 1  363 0 2 3 2  0 0 0  30 0 9600000 8
+#broken dpi_timings=716 0 1 1 2  476 0 1 1 2  0 0 0  30 0 6400000 2
+#dpi_timings=525 0 1 1 1  394 0 1 1 8  0 0 0  30 0 6400000 1
+#dpi_timings=1466 0 6 8 6   1100 0 6 8 6    0 0 0 30 0 50000000 1
+#dpi_timings=506 1 8 44 52 264 1 6 10 6 0 0 0 60 0 9600000 1
+#old tries:
+#1536:1152 == 4:3, not sure if this matters
+#1536 x 1152 dots = 1488 x 1104 px (~4:3), 28.3 fps, 50 MHz:
+#hdmi_timings=1488 0 12 12 24   1104 0 12 12 24    0 0 0 30 0 50000000 1
+#1470 x 1112 dots = 1440 x 1080 px (4:3), 30 fps, 49 MHz:
+#hdmi_timings=1440 0 8 8 14   1080 0 8 8 16    0 0 0 30 0 49000000 1
+#1488 x 1120 dots = 1466 x 1100 px (4:3), 30 fps, 50 MHz:
+#hdmi_timings=1466 0 6 8 6   1100 0 6 8 6    0 0 0 30 0 50000000 1
+#not sure if these are needed, but they appear in other examples:
+[all]
+
+#eof

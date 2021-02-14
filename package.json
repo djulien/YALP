@@ -1,21 +1,87 @@
 {
-  "name": "prototype",
-  "version": "0.20.1",
-  "description": "YALP 20 prototype",
-  "main": "index.js",
+  "name": "yalp21",
+  "version": "4.21.2",
+  "description": "Node.js addon for 24-bit parallel GPU port (to drive WS281X LEDs on a RPi)",
+  "author": "djulien",
+  "license": "TODO",
+  "main": "./index.js",
   "scripts": {
-    "test": "node_modules/live-server/live-server.js"
+    "TODO-test": "node-gyp rebuild && mocha --reporter spec",
+    "sdl2-inst": "sudo apt install libsdl2-2.0-0  #libsdl2-2.0-0-dev?",
+    "notpi-preinstall": "run-s sdl2-inst",
+    "X-postinstall": "npm link",
+    "fake-install": "ln -s .. ./node_modules/yalp21",
+    "fake-uninstall": "rm ./node_modules/yalp21",
+    "postinstall": "run-s fake-install",
+    "clean": "rm -r ./build",
+    "??prebuild": "echo \"prebuild\"",
+    "??install": "prebuild-install || node-gyp rebuild",
+    "build-stdalone": "make  #./src/GpuPort",
+    "build-addon": "node-gyp rebuild  &&  ls -l build/Release",
+    "build": "run-s build-addon",
+    "test-stdalone": "sudo ./build/GpuPort",
+    "X-test-addon": "mocha --reporter spec",
+    "test-addon": "./test/test.js",
+    "X-test": "run-s build-stdalone test-stdalone",
+    "test": "run-s test-addon",
+    "build+test": "run-s build test"
   },
+  "homepage": "https://github.com/djulien/gpuport",
   "repository": {
     "type": "git",
-    "url": "TBD"
+    "url": "git://github.com/djulien/gpuport.git"
+  },
+  "bugs": {
+    "url": "https://github.com/djulien/gpuport/issues"
   },
   "keywords": [
+    "RPi",
+    "Raspberry Pi",
+    "GPU",
+    "GPU port",
+    "parallel port",
+    "24-bit parallel port",
+    "WS2811",
+    "WS2812",
+    "WS281X",
+    "Javascript",
+    "Node.js",
     "YALP"
   ],
-  "author": "djulien",
-  "license": "ISC",
-  "devDependencies": {
-    "live-server": "^1.2.1"
-  }
+  "dependencies": {
+    "bindings": "^1.2.1",
+    "circular-json": "^0.5.9",
+    "colors": "^1.4.0",
+    "colorsys": "^1.0.22",
+    "glob": "^7.1.6",
+    "lame": "git+https://github.com/suldashi/node-lame.git",
+    "magic-globals": "^0.9.1",
+    "minimatch": "^3.0.4",
+    "nan": "^2.2.0",
+    "node-addon-api": "^3.0.0",
+    "node-inline-worker": "^1.0.0",
+    "npm-run-all": "^4.1.5",
+    "pnglib": "0.0.1",
+    "speaker": "^0.5.2",
+    "sprintf-js": "^1.1.2",
+    "xmldoc": "^1.1.2"
+  },
+  "OLD-devDependencies": {
+    "node-lame": "^1.2.2",
+    "mpg123": "^0.2.3",
+    "ndjson": "^2.0.0",
+    "bson-ext": "^2.0.5",
+    "bson": "^4.1.0",
+    "semver": "^7.3.2",
+    "node-mpg123": "^1.0.2-23",
+    "colors.js": "^1.2.4",
+    "colors": "git+https://github.com/djulien/colors.js.git",
+    "debug": "^2.2.0",
+    "sprintf.js": "^0.1.4",
+    "readable-stream": "^2.0.5",
+    "node-gyp": "^7.1.0",
+    "mocha": "^2.1.0",
+    "xterm": "^4.8.1"
+  },
+  "devDependencies": {}
 }

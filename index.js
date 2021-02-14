@@ -1,109 +1,74 @@
-//YALP - Yet Another Lightshow Player
-//setup:
-//0. download + install node.js 4.x from https://nodejs.org
-//1. using git:  git clone https://github.com/djulien/yalp.git
-//   or just go to https://github.com/djulien/yalp, click the "Download Zip" button, and then extract it
-//2. cd yalp  (the folder created from step 1, above)
-//3. npm install
-//4. npm run symlinks
-//5. open a port in your firewall if running remotely
-//usage:
-//1. npm [run-script] start
+#!/usr/bin/env node
+//GpuPort JS wrapper
+"use strict";
 
-'use strict'; //helps catch errors
+//module mgmt:
+const addon = require('bindings')('yalp-addon');
+//const utils = require("./utils");
+//console.log(typeof debug, JSON.stringify(Object.keys(debug)));
+Object.assign(module.exports, addon); //, Debug);
+//console.log(Object.keys(module.exports));
+//{
+//debug utils:
+//added here so caller can use them without any additional requires()
+//    debug, srcline,
+//these are defined by addon:
+//    cfg, //config info (isXWindows, noGUI, isXTerm, isSSH, isRPi)
+//    WS281X, //high-level WS281X formatting
+//    Pivot24, //24-bit parallel port
+//    FBPixels: //unfmted screen I/O
+//    GpuPort, //low-level GPIO
+//});
 
-//var path = require('path');
-global.ROOTDIR = __dirname; //path.relative(path.dirname(require.main.filename), filename); //make it easier for other modules to navigate
-var elapsed = require('my-plugins/utils/elapsed')(); //.elapsed.toString;
-//require('my-plugins/config'); //load config settings (global)
-//var pkg = require('./package.json'); //introspect: read my package + config settings
-require('colors'); //makes console messages easier to distinguish
-try { require('my-plugins/check-install'); }
-catch (exc) { console.log("YALP not installed correctly (are sym links ok?)".red); process.exit(0); }
-require('my-plugins/my-extensions'); //load custom language extensions
-//console.log("env: ", process.env);
-console.log("versions: ".blue, process.versions);
+//debug info:
+//const started = Date.now();
+//require('colors').enabled = true; //for console output (all threads)
+//require("magic-globals"); //__file, __line, __stack, __func, etc
+//const Path = require("path");
+////const { format } = require('path');
+//function debug(...args)
+//{
+//    console.log(...args, `$${addon.thrinx} T+${(Date.now() - started) / 1e3} ${srcline(+1)}`.brightBlue);
+//}
+//function srcline(nested)
+//{
+//    const caller = __stack[nested + 1 || 1];
+//    const retval = `  @${Path.basename(caller.getFileName().replace(__filename, "me"))}:${caller.getLineNumber()}`;
+//    return retval;
+//}
 
-var opts = require('my-plugins/cmdline'); //combine command line options and config settings
-//var bool = require('my-plugins/utils/bool-checks');
-var hostname = require('os').hostname();
 
-console.log("starting YALP server (%s) ...".green, hostname);
-console.log("my root '%s'".blue, global.ROOTDIR);
-//console.log("config:", global.pkg.yalp);
+//high-level WS281X formatting:
+//function WS281X() { }
 
-//http://stackoverflow.com/questions/7310521/node-js-best-practice-exception-handling
+//function FBPixels() { }
 
-//try{
-console.log("TODO: run npm find-dupes, outdated, or update periodically, also flatten?".red);
-console.log("TODO: convert console.log to debug".red);
-if (/*!bool.isfalse*/(opts.faultmon !== false)) require('my-plugins/fault-mon'); //notify and/or restart after crash
+//low-level GPIO:
+//function GpuPort() { }
 
-//see http://expressjs.com/starter/
-//var express = require('express');
-var app = require('express')(); //express();
-//var app = require('express').createServer();
-//var http = require('http'); //NOTE: according to http://expressjs.com/guide/migrating-4.html express 4.x no longer needs this, but socket.io needs it
-//var server = http.createServer(app);
-//http.globalAgent.maxSockets = opts.max_sockets || 10; //http://webapplog.com/seven-things-you-should-stop-doing-with-node-js/
-//var server = require('http').createServer(app);
-//var io = require('socket.io')(server);
-var email = require('my-plugins/utils/email');
-
-// set the view engine to ejs
-//app.set('view engine', 'ejs');
-require('my-plugins/routes')(app); //(server); //(app); //set up web server routes and middleware
-//require('my-plugins/auto-build'); //detect changes + re-package bundles (incremental)
-if (/*!bool.isfalse*/(opts.filemon !== false)) require('my-plugins/file-mon'); //file watcher + incremental bundler
-
-var timeout = setTimeout('throw "Start-up is taking too long!";', 5000);
-var server = app.listen(opts.port /*|| /-*(new Date().getFullYear()*-/ 2015*/, opts.host || "localhost", function()
-//server.listen(opts.port || /*(new Date().getFullYear()*/ 2015, opts.host || "localhost", function()
+//CLI (debug):
+if (!module.parent)
 {
-    var host = server.address().address; //.replace(/^::$/, "localhost");
-    var port = server.address().port;
-    console.log("YALP server listening at http://%s:%s after %s".green, host, port, elapsed.scaled());
-    if (email) email('YALP ready', 'server listening at %s:%s on %s pid %d after %s', host, port, hostname, process.pid, elapsed.scaled());
+    console.error(`To run, use "npm test" instead.`);
+    console.log("exports: ", Object.entries(addon).map(([key, val]) => truncate(`${key} = ${typeof val}: ` + fmt(val), 65)));
+//    addon.start.call(new Date(), function(clock) { console.log(this, clock); }, 5);
+console.log("js ret");
+}
 
-    if (/*!bool.isfalse*/(opts.ui !== false) && (opts.ui != "none")) //launch UI in browser
-    {
-        var url = 'http://' + host + ':' + port + '/'; //path.sep + 'YALP.html');
-        if (!opts.ui || /*bool.istrue*/(opts.ui === true)) opts.ui = null; //"default";
-        console.log("starting ui '%s' -> %s ... ".green, opts.ui || '', url);
-        var launch = require('open'); //https://github.com/pwnall/node-open/blob/master/lib/open.js; NOTE: opener starts with #! (ES6), so use open instead
-        launch(url, opts.ui, function (err)
-        {
-            if (err) throw err;
-            else console.log("browser launched".green);
-        });
-    }
-    clearTimeout(timeout);
-});
+function fmt(val)
+{
+//    return (Object.keys(val) || [val.toString()]).join(", ");
+    return (typeof val == "object")? Object.keys(val).join(", "): val.toString();
+}
 
+function truncate(val, len)
+{
+    return val
+        .toString()
+        .replace(new RegExp(`(?<=[^]{${len || 30},}\\b)[^]*$`), " ...");
+}
 
-/*
-//TODO
-/////////////////////////////////////////
-var tty = require('tty.js'); //https://github.com/chjj/tty.js/
-
-var app = tty.createServer({
-  shell: 'bash',
-  users: {
-    foo: 'bar'
-  },
-  port: 8000
-});
-
-app.get('/foo', function(req, res, next) {
-  res.send('bar');
-});
-
-app.listen();
-//////////////////////////////////////////
-
-//} catch (exc) { console.log("ERROR:".red, exc, '@' + require('my-plugins/utils/stack-trace')()); }
-
-console.log("YALP server init complete after %s".blue, elapsed.scaled());
-*/
+//const s = new addon.testobj(5), s2 = new addon.testobj;
+//addon.jsdebug(`s = ${s.i}, after func(5) = ${s.func(5)}, s = ${s.i}, s2 = ${s2.i}`);
 
 //eof

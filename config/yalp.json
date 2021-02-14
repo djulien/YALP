@@ -1,0 +1,53 @@
+//YALP custom config file
+//allows custom settings to be used without custom code
+{
+  fbopts: //simulate/override dpi_timings from RPi config.txt
+  {
+//    fbnum: 1,
+    timing: "320 0 0 1 0  240 0 3 3 3  0 0 0  30 0 2400000 1"
+  },
+  sched:
+  {
+    START: 645,
+    STOP: 2310, //2145,
+    POLL: 5e3, //60e3,
+  },
+  xplaylist:
+  {
+    first: /intro/i, //plays 1x only
+    loop: 
+    [
+        /hippo/i,
+        /love came down/i,
+        /decorations/i,
+        /capital C/i,
+    ],
+    last: /closing/i, //plays 1x only
+    folder: "./seq/**/*seq*.js", //look for seq within this folder
+  },
+  player:
+  {
+    mp3lag: -420,
+  },
+/*
+    "x-NOTE": "This file must be here for npm link to work!",
+    "x-name": "my-plugins",
+    "x-version": "0.1.0",
+    "x-description": "dummy wrapper for YALP plug-ins",
+    "x-main": "none.js",
+    "x-private": "true",
+    "xscripts": {
+      "test": "tbd"
+    },
+    "xrepository": {
+      "type": "git",
+      "url": "github.com/djulien/yalp"
+    },
+    "xkeywords": [
+      "yalp",
+      "my-plugins"
+    ],
+    "xauthor": "djulien <djulien5854@thejuliens.net>",
+    "xlicense": "tbd",
+*/
+}

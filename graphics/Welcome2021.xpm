@@ -1,0 +1,11 @@
+/* XPM */
+static char * Welcom2021_Xpm[] = {
+"79 5 3 1",
+"  	c None",
+"X	c #0000FF",
+"Z	c #800080",
+"X   X  XXXXX  X       XXXX   XXX   X   X  XXXXX     ZZZZ    ZZZ   ZZZZ    Z  XX",
+"X   X  X      X      X      X   X  XX XX  X             Z  Z   Z      Z  ZZ  XX",
+"X X X  XXXX   X      X      X   X  X X X  XXXX       ZZZ   Z   Z   ZZZ    Z  XX",
+"XX XX  X      X      X      X   X  X   X  X         Z      Z   Z  Z       Z    ",
+"X   X  XXXXX  XXXXX   XXXX   XXX   X   X  XXXXX     ZZZZZ   ZZZ   ZZZZZ   Z  XX"};
