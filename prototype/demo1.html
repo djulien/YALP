@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>demo 1</title>
+        <xlink rel="stylesheet" href="styles.css">
+        <style>
+            .xnotebook::before
+            {
+                content: url("./graphics/notebook7.png");
+/*                position: absolute;*/
+                xz-index: 1;
+            }
+            .xnotebook::before
+            {
+                position: relative;
+                top: 0;
+                left: 0;
+                xborder: 1px solid green;
+                background-color: green;
+            }
+            .notebook
+            {
+                background-image: url("./graphics/notebook7.png");
+                background-size: auto auto; /*contain;*/
+                background-repeat: no-repeat;
+                xwidth: 590px;
+                xheight: 800px;
+
+                xwidth: 10px; xheight: 50px; xdisplay: inline-block; xposition: relative; xoverflow: hidden;
+                max-width: 100%; xmax-height: 90%;
+                min-width: 150px; min-height: 180px;
+                xdisplay: inline;
+                xheight: 90%;
+                display: inline-block;
+                xobject-fit: scale-down;
+                margin: 2px; padding: 4px;
+                border: 1px solid blue;
+            }
+            .cell
+            {
+                xz-index: 2;
+                xfloat: left;
+                margin: 4px;
+                padding; 2px;
+                border: 1px solid red;
+                xdisplay: block;
+                max-width: 98%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="notebook">
+            <div class="cell">
+                cell 1, text or code
+            </div>
+            outside, sep
+            <div class="cell">
+                cell 2, text or code
+            </div>
+            outside, sel
+            <div class="cell">
+                cell 3, text or code
+            </div>
+    </body>
+</html>

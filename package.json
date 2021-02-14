@@ -1,31 +1,21 @@
 {
-  "name": "yalp17",
-  "version": "0.3.0",
-  "description": "YALP (Yet Another Lightshow Player) prod, 2017 edition",
+  "name": "prototype",
+  "version": "0.20.1",
+  "description": "YALP 20 prototype",
   "main": "index.js",
   "scripts": {
-    "usage": "type 'npm run <script-name>'",
-    "test": "tbd"
+    "test": "node_modules/live-server/live-server.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/djulien/yalp-redo"
-  },
-  "engines": {
-    "node": "v8.2.1"
+    "url": "TBD"
   },
   "keywords": [
-    "tbd"
+    "YALP"
   ],
   "author": "djulien",
-  "license": "CC-BY-NC-SA-4.0",
-  "dependency-NOTE": "use install --save-exact to protect against creeping incompatibility",
-  "dependencies": {
-    "badwords": "^1.0.0",
-    "colors": "git+https://github.com/djulien/colors.js.git",
-    "crontab-ui": "0.3.1",
-    "node-poplib-gowhich": "1.0.2",
-    "nodemailer": "4.0.1",
-    "nodemailer-smtp-transport": "2.7.4"
+  "license": "ISC",
+  "devDependencies": {
+    "live-server": "^1.2.1"
   }
 }
