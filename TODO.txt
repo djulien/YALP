@@ -1,10 +1,2 @@
-vids:
-- rgb meteors on icicles
-- global color wheel w gift face + box/fence waves, angel colored
-- static photos for preview bkgs, wiring
-- Nat scene
-
-- gar reorg:
-- trn rm reorg
-
+demos
 - RPi: fresh install
