@@ -1,11 +1,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 ////
-/// yalp-node-addon.cpp - YALP Node.js add-on; uses GPU as a 24-bit parallel port
+/// yalp-napi.cpp - YALP Node.js add-on; uses GPU as a 24-bit parallel port
 // primary purpose: drive 24 channels of WS281X pixels using Node.js on a RPi, with low CPU overhead
 
 // Rev history:
-// 0.11.20  DJ  misc tweaks for single-threaded version
-// 0.1.21  DJ  rewrite to use shm and support multiple procs or threads; reuse frbufs in shm with circ queue
+// 4.11.20  DJ  misc tweaks for single-threaded version
+// 4.1.21  DJ  rewrite to use shm and support multiple procs or threads; reuse frbufs in shm with circ queue
+// 4.2.21  DJ  move nodes out of port sttr, misc tweaks for RPi vs. XWindows
 
 ///////////////////////////////////////////////////////////////////////////////
 ////
@@ -444,12 +445,13 @@ private:
         gpubits_t* bp24 = &pxbuf[0][0]; //.pixels();
         gpubits_t* gapptr = &pxbuf[0][xres];
         const int gap_adjust = /*m_shdata.xtotal*/ pxbuf.width() - xres; //xtotal; //px width varies due to O/S FB padding; /*m_shdata.*/xres; //should be 1
-        size_t want_xyofs = (NULLBITS + /*m_shdata.*/univlen() * WSBITS) * PPB;
-        if (want_xyofs > pxbuf.width() * pxbuf.height()) fatal("xy ofs %'d will overshoot eo pxbuf '%'d", want_xyofs, pxbuf.width() * pxbuf.height());
 bool save_debug = want_debug-- > 0;
 //NOTE: xtotal > xres, px width >= xres (os fb could pad to any width)
         if (save_debug) debug("pivot: %d null, xres %'d, px width %'u - xres %'d => gap adjust %'d, univlen %'d, ppb %d, px@ %p, first gap @%p ('%'u)", NULLBITS, xres, pxbuf.width(), xres, gap_adjust, univlen(), PPB, &pxbuf[0][0], gapptr, gapptr - &pxbuf[0][0]); //xtotal
         if (pxbuf.dirty()) fatal("FB still dirty?"); //backlog or timing messed up?
+        size_t want_xyofs = (NULLBITS + /*m_shdata.*/univlen() * WSBITS) * PPB;
+        int want_y = want_xyofs / xtotal, want_x = want_xyofs % xtotal; //pxbuf.width();
+        if (/*want_xyofs*/ want_y * pxbuf.width() + want_x > pxbuf.width() * pxbuf.height()) fatal("xy ofs %'d => [y %'d, x %'d] will overshoot eo pxbuf[x %'d, y %'d] = '%'d", want_xyofs, want_y, want_x, pxbuf.width(), pxbuf.height(), pxbuf.width() * pxbuf.height());
         for (int i = 0; i < NULLBITS * PPB; ++i) *bp24++ = BLACK; //NOTE: assumes NULLBITS < rowlen (no address gaps)
         for (int xy = 0; xy < /*m_shdata.*/univlen(); ++xy) //fill L2R, T2B
         {
@@ -517,12 +519,12 @@ bool save_debug = want_debug-- > 0;
                 if (bp24 == gapptr) fatal("start bits[%'d] 0x%x fall into gap@ %p ('%'d); prev gap adjust: bp24@ %p ('%'d) += %d => %p ('%'d), gapptr@ %p ('%'d) += %d => %p ('%'d)", xy, RGBbits(px24), gapptr, gapptr - &pxbuf[0][0], bp24, bp24 - &pxbuf[0][0], gap_adjust, bp24 + gap_adjust, bp24 + gap_adjust - &pxbuf[0][0], gapptr, gapptr - &pxbuf[0][0], /*pxbuf.width()*/ xres, gapptr + /*pxbuf.width()*/ xres, gapptr + pxbuf.width() - &pxbuf[0][0]);
                 *bp24++ = WHITE; //active; // | Abits(WHITE); //only set start bit for active ports
                 if (bp24 == gapptr) fatal("data bits[%'d] 0x%x fall into gap@ %p ('%'d)", xy, RGBbits(px24), gapptr, gapptr - &pxbuf[0][0]);
-                *bp24++ = DATA_BITS; //px24; //(px24 & active); // | Abits(WHITE); //*++; //1:1 to output px (but pivoted); 24 channel bits are in RGB positions, set alpha so px will be displayed, but only send data for active (dirty) ports
+                *bp24++ = px24; //DATA_BITS; //(px24 & active); // | Abits(WHITE); //*++; //1:1 to output px (but pivoted); 24 channel bits are in RGB positions, set alpha so px will be displayed, but only send data for active (dirty) ports
 //if (bp24 == gapptr) want_debug = true;
                 if (bp24 == gapptr && want_debug-- > 0) debug("gap adjust: bp24@ %p ('%'d) += %d => %p ('%'d), gapptr@ %p ('%'d) += %d => %p ('%'d)", bp24, bp24 - &pxbuf[0][0], gap_adjust, bp24 + gap_adjust, bp24 + gap_adjust - &pxbuf[0][0], gapptr, gapptr - &pxbuf[0][0], /*pxbuf.width()*/ xres, gapptr + /*pxbuf.width()*/ xres, gapptr + xres - &pxbuf[0][0]); //pxbuf.width()
 static gpubits_t* svbp24;
 static gpubits_t* svgapptr;
-                if (bp24 == gapptr) { svbp24 = bp24 += gap_adjust; svgapptr = gapptr += xres + gap_adjust; for (int i = 1; i <= gap_adjust; ++i) bp24[-i] = HSYNC_GAP; } //pxbuf.width(); }
+                if (bp24 == gapptr) { svbp24 = bp24 += gap_adjust; svgapptr = gapptr += xres + gap_adjust; } //for (int i = 1; i <= gap_adjust; ++i) bp24[-i] = HSYNC_GAP; } //pxbuf.width(); }
                 else *bp24++ = BLACK; //0 | Abits(WHITE); //all ports get stop bit
             }
         }
@@ -531,7 +533,7 @@ static gpubits_t* svgapptr;
 //usleep((int)33e3);
 //        size_t want_xyofs = (NULLBITS + /*m_shdata.*/univlen() * WSBITS) * PPB;
 //        int y = xyofs / /*m_shdata.*/xtotal, x = xyofs % /*m_shdata.*/xtotal;
-        int want_y = want_xyofs / xtotal, want_x = want_xyofs % xtotal; //pxbuf.width();
+//        int want_y = want_xyofs / xtotal, want_x = want_xyofs % xtotal; //pxbuf.width();
         int got_y = (bp24 - &pxbuf[0][0]) / pxbuf.width(), got_x = (bp24 - &pxbuf[0][0]) % pxbuf.width(); //xres
         if (got_y != want_y || got_x != want_x) fatal("bp24 @%p ('%'d) landed on px[y %'d][x %'d], expected px[y %'d][x %'d] @%p eoframe", bp24, bp24 - &pxbuf[0][0], got_y, got_x, want_y, want_x, &pxbuf[want_y][want_x]);
         if (save_debug) debug("pivot %'d nodes onto %'d+%d x %'d canvas took %'d usec, active 0x%x @eof", /*m_shdata.*/univlen(), xres, gap_adjust, pxbuf.height(), perf.elapsed() /*<(int)1e6>(started_usec)*/, WHITE); //active);
@@ -723,13 +725,14 @@ private:
 //            Napi::Value arg
 //            std::vector<Napi::Value> args;
 //        debug("ports getter");
-        for (int i = 0; i < SIZEOF(m_shmptr->ports); ++i) //NUMPORTS; ++i)
+        for (size_t i = 0; i < SIZEOF(m_shmptr->ports); ++i) //NUMPORTS; ++i)
         {
 //                new (&ports[i]) port_t(info); //::new(sizeof(port_t), &ports[i]); //set new port addr within shm
 //            std::vector<Napi::Value> args;
 //            args.push_back(Napi::Number::New(info.Env(), i));
 //            retary[i] = ExportedClass<port_napi>::NewInstance(info.Env(), args);
             port_t::prealloc(&m_shmptr->ports[i]);
+//            long ii = i; //RPi requires "long"
             /*Napi::Value port*/ retary[i] = ExportedClass<port_shm>::NewInstance(info.Env()); //, args);
 //            retary[i] = Napi::ObjectReference::New(port, 1); //ref count 1 to prevent gc
         }
@@ -769,7 +772,7 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //            Napi::Value arg
 //            std::vector<Napi::Value> args;
 //        if (!init)
-        for (int i = 0; i < YALP::NUMBUFS; ++i) //SIZEOF(m_shmptr->frbufs); ++i) //NUMBUFS; ++i)
+        for (size_t i = 0; i < YALP::NUMBUFS; ++i) //SIZEOF(m_shmptr->frbufs); ++i) //NUMBUFS; ++i)
         {
 //                new (&frbufs[i]) frbuf_t(info); //::new(sizeof(frbuf_t), &frbufs[i]); //set new frbuf addr within shm
 //debug("here1");
@@ -788,12 +791,16 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
             Napi::Object frbuf = ExportedClass<frbuf_shm>::NewInstance(info.Env()); //, args);
 //attach 2D nodes to frbuf object:
             /*static*/ auto nodes2D = Napi::Array::New(info.Env(), SIZEOF(m_shmptr->wsnodes[0]));
-            for (int p = 0; p < SIZEOF(m_shmptr->wsnodes[0]); ++p)
-                nodes2D[p] = Napi::TypedArrayOf</*shmdata_t::frbuf_t::port_t::*/ YALP::wsnode_t>::New(info.Env(), m_shmptr->univlen(), arybuf, (char*)&m_shmptr->wsnodes[i][p][0] - (char*)&m_shmptr->wsnodes[0][0][0], napi_uint32_array); ////https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+            for (size_t p = 0; p < SIZEOF(m_shmptr->wsnodes[0]); ++p)
+//            {
+//                long pp = p; //RPi requires "long"
+                nodes2D[p] = Napi::TypedArrayOf</*shmdata_t::frbuf_t::port_t::*/ YALP::wsnode_t>::New(info.Env(), m_shmptr->univlen(), arybuf, (char*)&m_shmptr->wsnodes[i][p][0] - (char*)&m_shmptr->wsnodes[0][0][0], napi_uint32_array); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+//            }
             frbuf.Set("wsnodes", nodes2D);
 //debug("js frbuf[%d]: seq# %'d, fr# %'d", i, napi2val<int>(frbuf.Get("seqnum")), napi2val<int>(frbuf.Get("frnum")));
             frbufs_js[i] = Napi::Persistent(frbuf); //ref count 1 to prevent gc
-            retary[i] = frbuf;
+//            long ii = i; //RPi requires "long"
+            retary[i] = frbuf; //RPi requires "long"
 //            retary[i] = Napi::ObjectReference::New(port, 1); //ref count 1 to prevent gc
 //debug("here3");
         }
@@ -1348,6 +1355,7 @@ debug("measured pix clock on fb#%d: %'u usec / %'d fr = %'u usec/fr = %'u psec/p
 //no        xsync += xfront + xback; //consolidate for simpler calculations
 //no        ysync += yfront + yback;
 //        m_scrinfo.isvalid = true;
+        debug("fb# %d config (before override): xres %'d, xtotal %'d, yres %'d, ytotal %'d", fbnum, scrv.xres, scrv.xtotal(), scrv.yres, scrv.ytotal());
         std::string changes;
 #define UPDATE(old, new)  if (new != old) { changes += ", " #new; old = new; }
         UPDATE(scrv.xres, xres);
@@ -1362,7 +1370,7 @@ debug("measured pix clock on fb#%d: %'u usec / %'d fr = %'u usec/fr = %'u psec/p
 #undef UPDATE
         if (fps != (int)scrv.fps()) warn("ignoring fps %d: doesn't match calculated fps %4.3f", fps, scrv.fps());
         if (!changes.length()) return scrv; //changes += ", (none)";
-        warn("timing override fb#%d: hres %'d + %'d+%'d+%'d, yres %'d + %'d+%'d+%'d, fps %'d, clk %'d KHz, changed: %s", fbnum, xres, xfront, xsync, xback, yres, yfront, ysync, yback, fps, pxclock, changes.c_str() + 2);
+        warn("timing override fb#%d: xres %'d + %'d+%'d+%'d, yres %'d + %'d+%'d+%'d, fps %'d, clk %'d KHz, changed: %s", fbnum, xres, xfront, xsync, xback, yres, yfront, ysync, yback, fps, pxclock, changes.c_str() + 2);
         return scrv;
     }
 //check for valid WS281x univ:
@@ -1453,8 +1461,9 @@ public: //properties
 //stats (read-only JS):
     struct
     {
-        std::atomic<uint32_t> numfr; //#frames drawn
-        using numfr_t = typename decltype(numfr)::value_type;
+        using numfr_t = uint32_t;
+        std::atomic<numfr_t> numfr; //#frames drawn
+//        using numfr_t = typename decltype(numfr)::value_type;
         std::atomic<uint32_t> busytime, emittime, idletime;
         std::atomic<uint32_t> last_updloop; //#frames or error from last upd loop
 //atomic broken here; node can't find __atomic_store_16 in clear()
@@ -1564,11 +1573,13 @@ fatal("frbuf_t (proxy) ctor @%p: unkn frbuf, shm @%p", this, &m_shdata);
             return retval;
         }
     public: //properties
-        std::atomic<uint32_t> seqnum; //cycle#/song#; bump when rewinding timestamp
-        using seqnum_t = typename decltype(seqnum)::value_type;
+        using seqnum_t = uint32_t;
+        std::atomic<seqnum_t> seqnum; //cycle#/song#; bump when rewinding timestamp
+//        using seqnum_t = typename decltype(seqnum)::value_type;
 //        std::atomic<timer_t<(int)1e3>::elapsed_t> timestamp; //when to show this frame rel to seq start (msec); wraps @~1.2 hr
-        std::atomic<uint32_t> frnum; //fr#
-        using frnum_t = typename decltype(frnum)::value_type;
+        using frnum_t = uint32_t;
+        std::atomic<frnum_t> frnum; //fr#
+//        using frnum_t = typename decltype(frnum)::value_type;
 //                shmdata_t* m_shdata = shmdata_t::shm_singleton();
         using timestamp_t = timer_t<(int)1e3>::elapsed_t; //typename decltype(timestamp)::value_type;
         inline timestamp_t timestamp(int relfrnum = 0) { return shmdata_t::shm_singleton()->frtime_msec(frnum + relfrnum); } //when to show this frame rel to seq start (msec); wraps @~1.2 hr
@@ -2070,7 +2081,7 @@ public: //ctor/dtor
 //    AutoClose(const char* name): AutoClose(
 //    AutoFile(int fbnum): AutoClose(fbname(fbnum), O_RDWR) {}
     template <typename ... ARGS>
-    AutoFile(ARGS&& ... args): m_fd(::open(std::forward<ARGS>(args) ...)) {}; //perfect fwd args to open()
+    AutoFile(ARGS&& ... args): m_fd(::open(std::forward<ARGS>(args) ...)) {} //debug("autofile: fd %d", m_fd); }; //perfect fwd args to open()
 //can't specialize member functions :(    template<int> AutoFile(int fd): m_fd(fd) {};
 //    template<> AutoFile(): m_fd(-1) {}
     ~AutoFile()
@@ -2135,23 +2146,29 @@ public: //ctor/dtor
 //debug("autoFB: fb# %d, mmap? %d, open? %d, ovr? %d: xtotal %d, yres %d", fbnum, want_mmap, isOpen(), timovr, gpuinfo.xtotal, gpuinfo.yres);
         if (!isOpen()) RETURN(want_mmap? fatal("open fb '%s' failed", fbname(fbnum)): 0);
         struct fb_fix_screeninfo scrf;
-        if (!timovr && ::ioctl(*this, FBIOGET_FSCREENINFO, &scrf) < 0) fatal("get screen fixed info failed");
+        if (/*!timovr &&*/ ::ioctl(*this, FBIOGET_FSCREENINFO, &scrf) < 0) fatal("get screen fixed info failed");
         if (timovr) //override timing with caller info
         {
-            scrf.line_length = sizeof(DATA_T) * gpuinfo.xtotal;
-            scrf.smem_len = gpuinfo.xtotal * gpuinfo.yres;
+            int xcmp = INTCMP(gpuinfo.xtotal, scrf.line_length / sizeof(DATA_T));
+            int ycmp = INTCMP(gpuinfo.yres, scrf.smem_len / scrf.line_length);
+            const char* cmpstr = "<=>";
+            if (xcmp || ycmp) warn("FB# %d override: xtotal %'lu %c actual %'lu, yres %'lu %c actual %'lu", fbnum, gpuinfo.xtotal, cmpstr[xcmp + 1], scrf.line_length / sizeof(DATA_T), gpuinfo.yres, cmpstr[ycmp + 1], scrf.smem_len / scrf.line_length);
+            if (isXWindows) scrf.line_length = gpuinfo.xtotal * sizeof(DATA_T); //NOTE: can't do this on real FB (rows would be misaligned in memory)
+            if (isXWindows || (ycmp < 0)) scrf.smem_len = gpuinfo.yres * scrf.line_length; //can only shorten real FB
         }
+        if (scrf.line_length % sizeof(DATA_T)) fatal("FB# %d row len %'d !multiple of px data type %d; row+gap addressing broken", fbnum, scrf.line_length, sizeof(DATA_T));
         m_rowlen32 = scrf.line_length / sizeof(DATA_T); //NOTE: might be larger than screen xres due to padding
-        if (scrf.line_length % sizeof(DATA_T)) fatal("FB %d row len %'d !multiple of px data type %d; row+gap addressing broken", fbnum, scrf.line_length, sizeof(DATA_T));
 //debug("rowlen %d", m_rowlen32);
-        m_height = scrf.smem_len / m_rowlen32;
-        if (scrf.smem_len % scrf.line_length) warn("FB %d memlen %'d !multiple of row len %'d", fbnum, scrf.smem_len, scrf.line_length);
+        if (scrf.smem_len % scrf.line_length) warn("FB# %d memlen %'d !multiple of row len %'d", fbnum, scrf.smem_len, scrf.line_length);
+        m_height = scrf.smem_len / scrf.line_length; //m_rowlen32;
 //debug("height %d", m_height);
 //        if (!want_mmap) return;
+debug("using w %'d, h %'d, #px %'d, XWin? %d", m_rowlen32, m_height, m_rowlen32 * m_height, isXWindows);
         if (!gpuinfo.for_timing && !gpuinfo.for_update) return;
         if (isXWindows) RETURN(devwindow(gpuinfo));
         constexpr void* DONT_CARE = NULL; //CONSTDEF(DONT_CARE, NULL); //system chooses addr
-        m_pxbuf = (DATA_T*)::mmap(DONT_CARE, numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, *this, 0 /*ofs*/); //shared with GPU
+//debug("addr %p, #px %'lu x len %'lu = size %'lu, prot 0x%x, flags 0x%x, fd %d, ofs 0", DONT_CARE, numpx(), sizeof(DATA_T), numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this);
+        m_pxbuf = (DATA_T*)::mmap(DONT_CARE, numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this, 0 /*ofs*/); //shared with GPU
         if (m_pxbuf == (DATA_T*)MAP_FAILED) fatal("mmap fb failed"); //throw std::runtime_error(strerror(errno));
 //        if (m_rowlen32 != scrv.xres) warn("raster rowlen32 %'lu != width %'d", m_rowlen32, scrv.xres);
 //        if (new_height * new_rowlen32 * 4 != scrf.smem_len) debug(YELLOW_MSG "CAUTION: raster size %'lu != calc %'d", new_height * new_rowlen32 * 4, scrf.smem_len);
@@ -2328,7 +2345,7 @@ private: //static helpers
     static wrapped_flag_t* shmalloc(size_t size)
     {
         static wrapped_flag_t* ptr = 0;
-        if (size != sizeof(wrapped_t)) fatal("bad shmdata alloc size: %'u, expected %'u", size, sizeof(wrapped_t)); //don't allow derived classes; only inh final class (to avoid mixed memory sizes)
+        if (size != sizeof(wrapped_flag_t)) fatal("bad shmdata alloc size: %'u, expected %'u, sizeof wrapped_t %'lu", size, sizeof(wrapped_flag_t), sizeof(WRAP_T)); //don't allow derived classes; only inh final class (to avoid mixed memory sizes)
 //        if (ptr != callerptr) fatal("shm new(%'lu): already have a shmdata instance: @%p, caller's @%p", size, ptr, callerptr); //only allow attach 1x per process; NOTE: first alloc calls here 2x (alloc + placement new)
         if (ptr) { debug(PINK_MSG "reuse prev shmdata @%p", ptr); return ptr; } //fatal("already have a shmdata instance");
         int shmid = ::shmget(SHMKEY, size /*+ sizeof(shmid)*/, 0666 | IPC_CREAT); //| IPC_EXCL: 0)); // | SHM_NORESERVE); //NOTE: clears to 0 upon creation
@@ -2607,6 +2624,11 @@ debug("shell '%s' output %'lu:'%s'", cmd, result.length(), result_esc.c_str());
 //#elements in an array:
 //array elements can be *any* type
 #define SIZEOF(thing)  (sizeof(thing) / sizeof((thing)[0]))
+
+
+//int compare:
+//ret -1 for <, 0 for =, +1 for >
+#define INTCMP(lhs, rhs)  (((lhs) > (rhs)) - ((lhs) < (rhs)))
 
 
 //divide up:

@@ -403,6 +403,7 @@ inline Napi::Value val2napi(const Napi::Env& env, T val) = delete; //detect miss
 //struct doubleval { typedef double type; };
 //struct unsintval { typedef unsigned int type; };
 //struct strval { typedef const char* type; };
+//TODO: use generic is_integral, etc below:
 inline Napi::Value val2napi(const Napi::Env& env, int n) //, const char* which)
 {
 //debug("%s val2napi(int) %d", which, n);
@@ -415,6 +416,9 @@ inline Napi::Value val2napi(const Napi::Env& env, bool n) //, const char* which)
     return Napi::Number::New(env, n);
 }
 #ifndef __arm__ //not needed on RPi
+//size_t == unsigned int on RPi:
+//template<typename T>
+//inline typename std::enable_if<!std::is_same<T, size_t>::value, Napi::Value>::type val2napi(const Napi::Env& env, size_t n) //, const char* which)
 inline Napi::Value val2napi(const Napi::Env& env, unsigned int n) //, const char* which)
 {
 //debug("%s val2napi(uns int) %u", which, n);
@@ -476,6 +480,7 @@ template<typename T>
 //    return 0; //unknown data type; just use 0
 //}
 inline T napi2val(const Napi::Value& value) = delete; //detect missing overloads
+//TODO: use generic is_integral, etc below:
 template<>
 inline bool napi2val<bool>(const Napi::Value& value) //, const char* which)
 {
@@ -489,17 +494,21 @@ inline int napi2val<int>(const Napi::Value& value) //, const char* which)
     return value/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce
 }
 template<>
-inline size_t napi2val<size_t>(const Napi::Value& value) //, const char* which)
-{
-//debug("napi2val<int> %s", which);
-    return value/*.As<Napi::Number>()*/.ToNumber().Uint32Value(); //coerce
-}
-template<>
 inline unsigned int napi2val<unsigned int>(const Napi::Value& value) //, const char* which)
 {
-//debug("napi2val<int> %s", which);
+//debug("napi2val<uns int> %s", which);
     return value/*.As<Napi::Number>()*/.ToNumber().Uint32Value(); //coerce
 }
+//size_t == unsigned int on RPi:
+#if 0 //ndef __arm__ //not needed on RPi
+template<> //typename T>
+//inline size_t napi2val<typename std::enable_if<!std::is_same<T, size_t>::value, size_t>::type>(const Napi::Value& value) //, const char* which)
+inline size_t napi2val<size_t>(const Napi::Value& value) //, const char* which)
+{
+//debug("napi2val<size_t> %s", which);
+    return value/*.As<Napi::Number>()*/.ToNumber().Uint32Value(); //coerce
+}
+#endif //__arm__
 template<>
 inline float napi2val<float>(const Napi::Value& value) //, const char* which)
 {

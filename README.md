@@ -32,7 +32,8 @@ demos/videos:
 3. mkdir folder; cd folder
 4. npm init  #your project settings
 5. npm install --save yalp
-  or git clone
+  or git clone https://github.com/djulien/YALP.git + cd + npm install (~8 minutes)
+5b. npm run fake-install to create symlink to self
 6. npm run setup  #install dpi24 overlay; set static IP; enable AP
 7. (customize show settings)
 8. pm2 start yalp
