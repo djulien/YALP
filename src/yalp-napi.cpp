@@ -218,7 +218,7 @@ class YALP: public shmdata_t
 {
     using SUPER = shmdata_t;
     using self_t = YALP;
-    CONSTDEF(NULLBITS, 1); //kludge: GPIO seems to need a few usec to settle before sending data?
+    CONSTDEF(NULLBITS, 1); //kludge: GPIO seems to need a few usec to fulfill before sending data?
     CONSTDEF(PPB, 3); //enum { PPB = 3 };
 //    /*struct*/ shmdata_t m_shdata; //data shared between all instances (across threads + procs)
 //public: //types + defs
@@ -667,10 +667,11 @@ NAPI_EXPORT_CLASS(frbuf_shm, "frbuf_t");
 //using shmdata_t = struct shmdata<>; //NUMBUFS, UNIV_MAXLEN>;
 
 
-#include <vector>
-#include <tuple>
-#include <thread>
-#include <functional> //std::function<>
+//#include <vector>
+//#include <tuple>
+//#include <thread>
+//#include <functional> //std::function<>
+//#include "promiseWrapper.h" //promiseFuncWrapper //https://github.com/SurienDG/NAPI-Thread-Safe-Promise
 class YALP_shm
 {
 public:
@@ -747,7 +748,7 @@ private:
     Napi::ObjectReference frbufs_js[YALP::NUMBUFS]; //DON'T incl 1 extra for null
 //    Napi::Value fbptr2napi(const Napi::Object& This, frbuf_t* fbptr) //Napi::CallbackInfo &info)
 //    Napi::ObjectReference& fbptr2napi(/*const Napi::Env& env,*/ /*const*/ frbuf_t* fbptr)
-    Napi::Value fbptr2napi(const Napi::Env& env, /*const*/ frbuf_t* fbptr)
+    Napi::Value fbptr2napi(const Napi::Env& env, const frbuf_t* fbptr)
     {
 //if (!fbptr) debug("ret null frbuf to caller");
 if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && fbptr != &m_shmptr->frbufs[2] && fbptr != &m_shmptr->frbufs[3]) fatal("inv frbuf ptr@ %p", fbptr);
@@ -871,6 +872,206 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
     NAPI_EXPORT_PROPERTY(self_t, "seqnum", m_shmptr->oldest()->seqnum.load);
     NAPI_EXPORT_PROPERTY(self_t, "timestamp", m_shmptr->oldest()->timestamp); //.load);
 #ifdef USING_NAPI
+//https://github.com/nodejs/node-addon-api/blob/main/doc/async_worker_variants.md
+//https://github.com/mika-fischer/napi-thread-safe-callback/issues/10
+//https://github.com/SurienDG/NAPI-Thread-Safe-Promise
+//NOTE: don't really need Queue wker; doesn't need *all* evts as long as main JS thread wakes periodically
+    template<typename QUE_T = uint32_t>
+//    using que_t = uint32_t; //shmdata_t::frbuf_t; //kludge: napi only allows simple types
+    class UpdloopAsyncWker: public Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>
+    {
+        using SUPER = Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>;
+//        Napi::FunctionReference m_cb;
+        self_t* m_ptr;
+        numfr_t m_retval;
+        Napi::Promise::Deferred m_promise;
+        Napi::FunctionReference m_cb;
+//        auto Finalizer = //[&bkg]( Napi::Env ) { bkg.join(); }; //finalizer used to clean up thread
+//            [&bkg](Napi::Env, FinalizerDataType*, Context* ctx) { debug(CYAN_MSG "finalizer"); /*bkg.join()*/; delete ctx; }; //finalizer used to clean up thread
+//        tsfn = TSFN::New(info.Env(), evth, "YALP frbuf evth", UnlimQuelen, NumThreads, ctx, Finalizer); //NOTE: can only be called from main thread
+//    context->tsfn = Napi::ThreadSafeFunction::New(
+//        env, Napi::Function::New(env, [](const Napi::CallbackInfo &info) {}),
+//        "TSFN", 0, 1, [context, mu](Napi::Env env)
+//    {
+//            mu->lock();
+//            if (context->resolve) context->deferred.Resolve(Napi::String::New(env, context->data));
+//            else context->deferred.Reject(Napi::Error::New(env, context->data).Value());
+//            mu->unlock();
+//    });
+//    Napi::Function::New(env, [](const Napi::CallbackInfo &info) {};
+    public:
+        UpdloopAsyncWker(Napi::Env env, Napi::Function& cb, self_t* ptr): SUPER(env), m_ptr(ptr), m_retval(-1), m_promise(Napi::Promise::Deferred::New(env)), m_cb(Napi::Persistent(cb)) {} //m_ptr->Ref(); }
+        ~UpdloopAsyncWker() { m_cb.Unref(); m_cb.Reset(); } //m_ptr->Unref(); } //is this needed?
+        Napi::Promise::Deferred& def() { return m_promise; }
+        void Execute(const typename SUPER::ExecutionProgress& progress) //executed on wker thread; CAUTION: don't call napi
+        {
+//debug("napi updloop start");
+            self_t* ptr = m_ptr; //avoid capturing "this" (not restrictive)
+            auto emitfr = [/*this*/ ptr, progress](shmdata_t::frbuf_t* fbptr = 0)
+            {
+                QUE_T msg = fbptr? fbptr - &ptr->m_shmptr->frbufs[0]: -1;
+//debug("progress: fbptr@ %p, seq# %d, fr# %'d => fb# %d", fbptr, fbptr? fbptr->seqnum.load(): -1, fbptr? fbptr->frnum.load(): -1, msg);
+                progress.Send(&msg, 1); //triggers OnProgress() on evt loop thread
+            };
+            m_retval = m_ptr->m_shmptr->updloop(emitfr); //run on bkg thread so main thread doesn't block
+//debug("napi updloop ret with #fr %'d", m_retval);
+        }
+        void OnProgress(const QUE_T* msg, size_t ignored /* count */) //Send() called during Execute()
+        {
+            shmdata_t::frbuf_t* fbptr = (*msg != (QUE_T)-1)? &m_ptr->m_shmptr->frbufs[*msg]: 0; //kludge: convert back to fbptr
+//debug("progress: msg %d => fbptr@ %p, seq# %d, fr# %'d", *msg, fbptr, fbptr? fbptr->seqnum.load(): -1, fbptr? fbptr->frnum.load(): -1);
+            Napi::HandleScope scope(SUPER::Env());
+//            if (!this->progressCallback.IsEmpty()) {
+//                this->progressCallback.Call(Receiver().Value(), {Number::New(Env(), *data)});
+//            SUPER::Callback().Call(/*Receiver().Value()*/ SUPER::Env().Null(), {m_ptr->fbptr2napi(SUPER::Env(), fbptr)});
+            m_cb.Call(scope.Env().Null(), {m_ptr->fbptr2napi(scope.Env(), fbptr)});
+        }
+        void OnOK() //Execute() completed successfully
+        {
+debug(GREEN_MSG "onok: resolve %'d", m_retval);
+            Napi::HandleScope scope(SUPER::Env());
+//            m_promise.Resolve(Napi::Number::New(Env(), m_numfr));
+//            m_onok(Napi::Number::New(SUPER::Env(), m_retval));
+            m_cb.Call(scope.Env().Null(), {scope.Env().Null()});
+            m_promise.Resolve(Napi::Number::New(scope.Env(), m_retval));
+//            m_ptr->Unref();
+//            m_cb.Unref();
+//            m_cb.Reset(); //is this needed?
+debug("here1");
+        }
+        void OnError(const Napi::Error &err) //error during Execute(); TODO: is this needed?
+        {
+debug(RED_MSG "onerr: msg %s", err.Message().c_str());
+            Napi::HandleScope scope(SUPER::Env());
+//            // We call our callback provided in the constructor with 2 parameters
+//            if (!this->errorCallback.IsEmpty()) {
+//                // Call our onErrorCallback in javascript with the error message
+//                this->errorCallback.Call(Receiver().Value(), {String::New(Env(), e.Message())});
+//            }
+//            m_promise.Reject(Napi::String::New(Env(), err.Message()));
+//            m_onerr(Napi::String::New(SUPER::Env(), err.Message()));
+            m_promise.Reject(Napi::String::New(scope.Env(), err.Message()));
+//            m_ptr->Unref();
+//            m_cb.Unref();
+//            m_cb.Reset(); //is this needed?
+        }
+    };
+    Napi::Value updloop_method(const Napi::CallbackInfo& info)
+    {
+        if (info.Length() != 1 || !info[0].IsFunction()) return err_napi(info.Env(), "evt handler (function) expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
+        Napi::Function evth = info[0].As<Napi::Function>(); //don't need Persistent() due to acq/rel?
+//        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
+        UpdloopAsyncWker<>* wker = new UpdloopAsyncWker(info.Env(), evth, this);
+//        wker->Queue();
+//        return promise.Promise();
+        Napi::Value retval = wker->def().Promise();
+        wker->Queue();
+        return retval;
+    }
+#endif //def USING_NAPI
+#if 0 //def USING_NAPI
+//https://github.com/nodejs/node-addon-api/blob/main/doc/async_worker_variants.md
+//https://github.com/mika-fischer/napi-thread-safe-callback/issues/10
+//https://github.com/SurienDG/NAPI-Thread-Safe-Promise
+//NOTE: don't really need Queue wker; doesn't need *all* evts as long as main JS thread wakes periodically
+    template<typename ONOK_T, typename ONERR_T, typename QUE_T = uint32_t>
+//    using que_t = uint32_t; //shmdata_t::frbuf_t; //kludge: napi only allows simple types
+    class UpdloopAsyncWker: public Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>
+    {
+        using SUPER = Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>;
+//        Napi::FunctionReference m_cb;
+        self_t* m_ptr;
+        Napi::Promise::Deferred& m_promise;
+        numfr_t m_retval;
+        ONOK_T m_onok;
+        ONERR_T m_onerr;
+    public:
+        UpdloopAsyncWker(Napi::Function& cb, self_t* ptr, Napi::Promise::Deferred& promise, ONOK_T onok, ONERR_T onerr): SUPER(cb), /*m_cb(cb),*/ m_ptr(ptr), m_promise(promise), m_onok(onok), m_onerr(onerr) {}
+//        {
+// Set our function references to use them below
+//            this->errorCallback.Reset(errorCallback, 1);
+//            this->progressCallback.Reset(progressCallback, 1);
+//            m_cb.Reset(cb, 1);
+//        }
+        ~UpdloopAsyncWker() {}
+        void Execute(const typename SUPER::ExecutionProgress& progress) //executed on wker thread; CAUTION: don't call napi
+        {
+debug("napi updloop start");
+            self_t* ptr = m_ptr;
+            auto emitfr = [/*this*/ ptr, progress](shmdata_t::frbuf_t* fbptr = 0)
+            {
+                QUE_T msg = fbptr? fbptr - &ptr->m_shmptr->frbufs[0]: -1;
+//debug("progress: fbptr@ %p, seq# %d, fr# %'d => fb# %d", fbptr, fbptr? fbptr->seqnum.load(): -1, fbptr? fbptr->frnum.load(): -1, msg);
+                progress.Send(&msg, 1);
+            };
+            m_retval = m_ptr->m_shmptr->updloop(emitfr); //run on bkg thread so main thread doesn't block
+debug("napi updloop ret with #fr %'d", m_retval);
+        }
+        void OnProgress(const QUE_T* msg, size_t ignored /* count */) //Send() called during Execute()
+        {
+            shmdata_t::frbuf_t* fbptr = (*msg != (QUE_T)-1)? &m_ptr->m_shmptr->frbufs[*msg]: 0; //kludge: convert back to fbptr
+//debug("progress: msg %d => fbptr@ %p, seq# %d, fr# %'d", *msg, fbptr, fbptr? fbptr->seqnum.load(): -1, fbptr? fbptr->frnum.load(): -1);
+            Napi::HandleScope scope(SUPER::Env());
+//            if (!this->progressCallback.IsEmpty()) {
+//                this->progressCallback.Call(Receiver().Value(), {Number::New(Env(), *data)});
+            SUPER::Callback().Call(/*Receiver().Value()*/ SUPER::Env().Null(), {m_ptr->fbptr2napi(SUPER::Env(), fbptr)});
+        }
+        void OnOK() //Execute() completed successfully
+        {
+debug(GREEN_MSG "onok: resolve %'d", m_retval);
+            Napi::HandleScope scope(SUPER::Env());
+//            m_promise.Resolve(Napi::Number::New(Env(), m_numfr));
+            m_onok(Napi::Number::New(SUPER::Env(), m_retval));
+        }
+        void OnError(const Napi::Error &err) //error during Execute()
+        {
+debug(RED_MSG "onerr: msg %s", err.Message().c_str());
+            Napi::HandleScope scope(SUPER::Env());
+//            // We call our callback provided in the constructor with 2 parameters
+//            if (!this->errorCallback.IsEmpty()) {
+//                // Call our onErrorCallback in javascript with the error message
+//                this->errorCallback.Call(Receiver().Value(), {String::New(Env(), e.Message())});
+//            }
+//            m_promise.Reject(Napi::String::New(Env(), err.Message()));
+            m_onerr(Napi::String::New(SUPER::Env(), err.Message()));
+        }
+    };
+    Napi::Value updloop_method(const Napi::CallbackInfo& info)
+    {
+        if (info.Length() != 1 || !info[0].IsFunction()) return err_napi(info.Env(), "evt handler (function) expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
+        Napi::Function evth = info[0].As<Napi::Function>(); //don't need Persistent() due to acq/rel?
+//        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
+//        UpdloopAsyncWker* wker = new UpdloopAsyncWker(evth, this, promise);
+//        wker->Queue();
+//        return promise.Promise();
+        return promiseFuncWrapper(info.Env(), [&info](resolveFunc resolve, rejectFunc reject)
+        {
+            auto onok = [resolve](Napi::Value retval) { debug("resolve"); resolve(retval); };
+            auto onerr = [reject](Napi::Value errval) { debug("reject"); reject(errval); };
+            UpdloopAsyncWker* wker = new UpdloopAsyncWker(evth, this, promise, onok, onerr);
+            wker->Queue();
+        });
+    }
+#endif //def USING_NAPI
+#if 0 //def USING_NAPI
+//https://github.com/mika-fischer/napi-thread-safe-callback/issues/10
+    Napi::Value updloop_method(const Napi::CallbackInfo& info)
+    {
+        if (info.Length() != 1 || !info[0].IsFunction()) return err_napi(info.Env(), "evt handler (function) expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
+        Napi::Function evth = info[0].As<Napi::Function>(); //don't need Persistent() due to acq/rel?
+        return promiseFuncWrapper(info.Env(), [&info](resolveFunc resolve, rejectFunc reject)
+        {
+// anonymous function passed to thread safe resolve and reject functions
+// here we can write our threaded code
+            std::string arg1 = info[0].As<Napi::String>();
+            std::thread([resolve, reject, arg1]()
+            {
+                resolve or reject(arg1);
+            }).detach();
+        });
+    }
+#endif //def USING_NAPI
+#if 0 //def USING_NAPI
 //https://www.nextptr.com/tutorial/ta1188594113/passing-cplusplus-captureless-lambda-as-function-pointer-to-c-api
 //https://github.com/nodejs/node-addon-api/blob/main/doc/typed_threadsafe_function.md
 //https://github.com/nodejs/node-addon-api/blob/main/doc/threadsafe_function.md
@@ -907,8 +1108,13 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //        typedef void (Napi::Promise::Deferred::*promise_completion_t)(Napi::Value) /*const*/;
 //        promise_completion_t resolve, reject; //kludge: no env during ctor to cre dummy promise, so just store func ptrs
 //        Napi::Promise::Deferred* promise; //kludge: need to use ptr; inst requires ctor but !env yet
-        std::vector<Napi::Promise::Deferred> promise; //kludge: inst requires ctor but !env yet
+//        std::vector<Napi::Promise::Deferred> promise; //kludge: inst requires ctor but !env yet
 //        fremit_data_t(Napi::Env env): promise(Napi::Promise::Deferred::New(env)) {} //def ctor needed by container
+        Napi::Promise::Deferred promise;
+//        Napi::Reference<Napi::Promise> ref;
+//        Napi::ObjectReference ref;
+        fremit_data_t(Napi::Env env): promise(env) {}
+        ~fremit_data_t() {}
     } fremit;
 //    using DataType = self_t;
     using Context = Napi::Reference<Napi::Value>; //JS "this"
@@ -922,26 +1128,31 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //        int newcount = retval.Ref(); //bump ref count?
 //int fifo = ptr->fremit.fbptr? ptr->fremit.fbptr - &ptr->m_shmptr->frbufs[0]: -1;
 //debug("upd loop call emitfr with fbptr@ %p => frbuf# %d", fbptr, fifo);
-//debug("calljs? %d %d, frbuf# %d, settle? %d", env != nullptr, callback != nullptr, fifo, !ptr->fremit.fbptr);
-        callback.Call(ctx->Value(), {retval}); //ignore retval from JS
+//debug("calljs? %d %d, frbuf# %d, fulfill? %d", env != nullptr, callback != nullptr, fifo, !ptr->fremit.fbptr);
+        callback.Call(ctx->Value(), {retval}); //quasi evt emitter; ignore retval from JS
         if (ptr->fremit.fbptr) return; //process more frames
-//settle original updloop() call:
+//fulfill promise from original updloop() call:
 //            Napi::Value result = Napi::Number::New(env, ptr->m_shmptr->stats.last_updloop);
 //debug("get updloop result");
         int result = ptr->m_shmptr->stats.last_updloop; //NOTE: this doesn't see error with final tsfn release
         if (!result) result = ptr->m_shmptr->stats.numfr;
-//debug(CYAN_MSG "updloop settled, result %'d", result);
-        if (result < 0) ptr->fremit.promise[0].Reject(Napi::Number::New(env, result));
-        else ptr->fremit.promise[0].Resolve(Napi::Number::New(env, result));
+debug(CYAN_MSG "updloop fulfilled, result %'d", result);
+//result = -99;
+//        Napi::Promise::Deferred promise = ptr->fremit.ref.Value().As<Napi::Promise::Deferred>();
+//        Napi::Value prom = ptr->fremit.ref.Value();
+//        Napi::Promise::Deferred promise = prom.As<Napi::Promise::Deferred>();
+        if (result < 0) ptr->fremit.promise.Reject(Napi::Number::New(env, result));
+        else ptr->fremit.promise.Resolve(Napi::Number::New(env, result));
     }
     Napi::Value updloop_method(const Napi::CallbackInfo& info)
     {
         if (info.Length() != 1 || !info[0].IsFunction()) return err_napi(info.Env(), "evt handler (function) expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
         Napi::Function evth = info[0].As<Napi::Function>(); //don't need Persistent() due to acq/rel?
 //        Napi::Promise::Deferred/*&*/ retval = Napi::Promise::Deferred::New(info.Env());
-        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
-        fremit.promise.clear();
-        fremit.promise.emplace_back(promise); //Napi::Promise::Deferred::New(info.Env());
+//        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
+//        fremit.promise.clear();
+//        fremit.promise.emplace_back(promise); //Napi::Promise::Deferred::New(info.Env());
+        fremit.promise = Napi::Promise::Deferred::New(info.Env());
 //        fremit.resolve = (Napi::Promise::Deferred::Resolve*)&promise.Resolve;
 //        fremit.resolve = &Napi::Promise::Deferred::promise.Resolve;
 //        fremit.reject = &promise.Reject;
@@ -963,7 +1174,7 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
         using FinalizerDataType = void;
         const size_t UnlimQuelen = 0, NumThreads = 1; //queue len, thread count
         auto Finalizer = //[&bkg]( Napi::Env ) { bkg.join(); }; //finalizer used to clean up thread
-            [&bkg](Napi::Env, FinalizerDataType*, Context* ctx) { /*debug(CYAN_MSG "finalizer")*/; bkg.join(); delete ctx; }; //finalizer used to clean up thread
+            [&bkg](Napi::Env, FinalizerDataType*, Context* ctx) { debug(CYAN_MSG "finalizer"); /*bkg.join()*/; delete ctx; }; //finalizer used to clean up thread
         tsfn = TSFN::New(info.Env(), evth, "YALP frbuf evth", UnlimQuelen, NumThreads, ctx, Finalizer); //NOTE: can only be called from main thread
         bkg = std::thread([this, /*info, retval,*/ tsfn]
         {
@@ -980,6 +1191,7 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
             {
 //int fifo = fbptr? fbptr - &this->m_shmptr->frbufs[0]: -1;
 //debug("upd loop call emitfr with fbptr@ %p => frbuf# %d", fbptr, fifo);
+//if (this->m_shmptr->stats.numfr > 400) fbptr = 0;
                 this->fremit.fbptr = fbptr;
 //if (!fbptr) debug(CYAN_MSG "emit eof");
 //                Napi::ObjectReference& frbuf_js = this->fbptr2napi(fbptr);
@@ -994,19 +1206,23 @@ fatal("upd loop js callback failed");
 //            if (ok != napi_ok) RETURN(this->m_shmptr->cancel(-3)); //NOTE: must acquire from calling thread
             numfr_t numfr = this->m_shmptr->updloop(emitfr); //run on bkg thread so main thread doesn't block
 debug("updloop ret with #fr %'d", numfr);
-            try { ok = tsfn.Release(); }
+            try { ok = tsfn.Release(); debug(GREEN_MSG "tsfn rel ok"); }
             catch (...) { debug(RED_MSG "tsfn rel exc"); ok = napi_ok; } //ignore
 //debug("tsfn released ok? %d", ok == napi_ok);
 //            if (ok == napi_ok) return; //RETURN(this->m_shmptr->cancel(numfr)); //set loop result
 //            if (ok != napi_ok) retval.Reject(err_napi(info.Env(), "tsfn rel failed")); //napi_invalid_arg         }); //(thread-count is 0) or napi_generic_failure
 //            else retval.Resolve(Napi::Number::New(info.Env(), numfr)); //TODO: is this safe?
 //            if ((ok != napi_ok) || !this->shmptr->stats.last_updloop) this->shmptr->cancel((ok != napi_ok)? -2: numfr); //set updloop result
-            this->m_shmptr->cancel((ok == napi_ok)? numfr: -2); //set updloop result; NOTE: too late for promise settle, but caller can check it later
+            this->m_shmptr->cancel((ok == napi_ok)? numfr: -2); //set updloop result; NOTE: promise already fulfilled, but caller can check updloop status later
 //{ m_defer.Resolve(...)
 //{ m_def.Reject(error.Value()); }
         });
+        bkg.detach();
 //debug("created bkg thread, returning promise");
-        return promise.Promise();
+//        Napi::Object retval = promise.Promise();
+//        fremit.ref = Napi::Persistent(retval); //promise.Promise());
+//        return fremit.ref.Value();
+        return fremit.promise.Promise();
     }
 #endif //def USING_NAPI
     NAPI_EXPORT_METHOD(self_t, "updloop", /*m_ptr->*/updloop_method);
@@ -1029,7 +1245,7 @@ debug("updloop ret with #fr %'d", numfr);
 public:
     YALP_shm() = delete;
     template <typename ... ARGS>
-    YALP_shm(ARGS&& ... args): m_shmptr(std::forward<ARGS>(args) ...) //perfect fwd; explicitly call ctor to init
+    YALP_shm(Napi::Env env, ARGS&& ... args): m_shmptr(std::forward<ARGS>(args) ...) //, fremit(env) //perfect fwd; explicitly call ctor to init
     {
         debug_noinfo("+----------------------------");
         debug_noinfo("| shm: key 0x%x, len %'lu", SHMKEY, sizeof(decltype(m_shmptr)::wrapped_t));
@@ -1048,7 +1264,7 @@ public:
 #ifdef USING_NAPI
 //ctor with JS args:
 //    Napi::Array frbufs_js;
-    YALP_shm(const Napi::CallbackInfo& info): YALP_shm(opts_napi(info)) //, fremit(info.Env())
+    YALP_shm(const Napi::CallbackInfo& info): YALP_shm(info.Env(), opts_napi(info)) //, fremit(info.Env())
     {
 //        debug("yalp napi ctor instantiate frbufs");
 //        frbufs_js = frbufs_getter(info); //instantiate frbuf/port wrapper objs

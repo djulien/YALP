@@ -78,6 +78,8 @@
 #               'include_dirs+' : ["<!(node -e \"require('nan')\")"],
 #                "<!@(node -p \"require('node-addon-api').include\")"
 #                "<!@(node -p \"require('node-addon-api').include + '/src'\")"
+#                "<!@(node -p \"require('path').resolve(__dirname, require('napi_thread_safe_promise').include)\")",
+#                "<!@(node -p \"require('napi_thread_safe_promise').include\")",
 #               'include_dirs+': [" <!(sdl2-config --cflags)"], #CAUTION: need "+" and leading space here
 #                " <!(test -x sdl2-config  &&  sdl2-config --cflags  ||  exit 0)", #CAUTION: need leading space here
 #                " <!@(command -v sdl2-config  &&  sdl2-config --cflags  ||  exit 0)", #CAUTION: need leading space here
@@ -102,6 +104,7 @@
 #            "dependencies": [ "<!(node -p \"require('node-addon-api').gyp\")" ],
 #TODO:                'deps/sdl2/sdl2.gyp:output',
 #                "<!(node -p \"console.log('add SDL2 compile');\")",
+#                "<!(node -p \"require('napi_thread_safe_promise').gyp\")",
             ],
 #            'conditions':
 #            [

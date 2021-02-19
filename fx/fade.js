@@ -40,7 +40,7 @@ async function fx_fade(opts) //, frbuf)
     const seqnum = yalp.seqnum;
 //    for (;;) { render(); model.out(); await; }
 debug("fade: model '%s', start %'d, duration %'d, steplen %'d msec => #steps %'d, from[0] %s => to[0] %s".brightGreen, model.name, start || 0, duration || 0, steplen, Math.trunc((duration || 0) / steplen), hex(from[0], "0xFF"), hex(to[0], "0xFF"));
-if (model.want_dump) //show theoretical inital fx state (for debug, has no effect on wsnodes)
+if (model.want_dump) //show theoretical inital fx state (for debug, doesn't need to be flushed)
 {
     model.nofrbuf.timestamp = start;
 //debug("initial state".brightCyan, model.nofrbuf.timestamp);
@@ -55,6 +55,7 @@ if (model.want_dump) //show theoretical inital fx state (for debug, has no effec
         if (!frbuf) { debug("fade complete/cancel".brightRed); break; } //seq completed or cancelled
         if (frbuf.timestamp > start + duration) { debug("fade eof %'d msec".brightGreen, frbuf.timestamp); break; } //eofx
 //debug("fx_fade: wanted time >= %'d, got time %'d", Math.trunc(fxtime), frbuf.timestamp); //, mp3play.timestamp, (fxtime - start) / duration);
+if (false)
         fxtime = frbuf.timestamp; //adaptive
 const sv0 = model.nodes1D[0];
         for (let n = 0; n < model.nodes1D.length; ++n)
@@ -69,7 +70,7 @@ const sv0 = model.nodes1D[0];
 //}
         model.out(frbuf, true); //model.dirty = true;
     }
-if (model.want_dump) //show theoretical final fx state (for debug, has no effect on wsnodes)
+if (model.want_dump) //show theoretical final fx state (for debug, doesn't need to be flushed)
 {
 debug("final should be", hex(to[0], "0xFF"));
     model.nofrbuf.timestamp = start + duration;

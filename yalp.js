@@ -197,7 +197,7 @@ debug("loading seq '%s', exports %s ...".brightCyan, name, Object.keys(exports).
 TODO("re-instate try/catch");
 debugger;
     /*try*/ { await runfx({fx: seq}).retval; }
-//    const ret = runfx({fx: seq}); //.retval;
+//    const ret = runfx({fx: seq, model: seq}); //.retval;
 //debug(typeof ret.got_frbuf);
 //debug(ret.got_frbuf({seqnum: 5, timestamp: 5}));
 //debug(typeof ret, Object.keys(ret), typeof ret.retval);
@@ -249,8 +249,8 @@ const NOFR = {seqnum: -1, timestamp: -99};
 const evts =
 [
 //    {start: 0, duration: 10e3, fx: mp3play, media: /take three/i, xmodel: models.speaker},
-    {start: 1e3, duration: 2e3, fx: fx_fade, model: models.devpanel, fps: 20, to: 0xFF00FF00},
-    {start: 5e3, duration: 3e3, fx: fx_fade, model: models.devpanel, fps: 2, to: 0xFFff00ff},
+    {start: 10e3, duration: 2e3, fx: fx_fade, model: models.devpanel, fps: 20, to: 0xFF00FF00},
+    {start: 15e3, duration: 3e3, fx: fx_fade, model: models.devpanel, fps: 2, to: 0xFFff00ff},
 ];
 my_exports({seq}); //allow use by player
 async function seq(opts)
@@ -286,13 +286,15 @@ debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf |
 //        if (evt.strict && frbuf.timestamp > evt.start + evt.duration) continue; //skip this evt
         my_fx.push(/*evt.fx.call(null,*/ runfx(evt)); //, frbuf)); //start next async fx; start even if late
     }
-    debug("waiting for seq + %'d evts to finish".brightGreen, my_fx.length - 1);
+    debug("waiting for seq + %'d evts to finish, last frbuf was {%d, %'d}".brightGreen, my_fx.length - 1, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
     await Promise.all(my_fx.map(fx => fx.retval));
     debug("seq + %'d evts finished", my_fx.length - 1);
     yalp.cancel(); //exit from frame upd loop
-debug("here0");
+//debug("here0", typeof bkg, !!bkg.then);
+//    await sleep(5e3);
     const numfr = await bkg;
     debug("%'d frames processed (%'d msec)", numfr, Math.round(Math.max(numfr, 0) * 1e3 / yalp.frtime));
+//    await sleep(5e3);
     debug("color stats", color_stats);
 }
 
@@ -305,9 +307,11 @@ debug("here0");
 //evt emitter + promise seems like less overhead than async wker per frame, uses fewer threads
 /*NOT! async*/ function runfx(opts)
 {
-    const pending = {};
+//    /*const*/ opts.model.pending = {}; //model should only have 1 fx, so put pending frbuf req there
 //    yalp.on("frame", got_frbuf);
     opts.await_frame = await_frame;
+    if (!opts.fx) throwx("no fx to run");
+    if (!opts.model) opts.model = opts.fx; //use fx/seq as model
     runfx.latest = {got_frbuf}; //kludge: allow seq to incl self evth; CAUTION: must be set < calling fx()
 //    const retval = opts.fx(opts); //promise to wait for fx/seq to finish
 //debug("here1");
@@ -321,27 +325,24 @@ debug("here0");
 
     function got_frbuf(frbuf)
     {
+//debug("got frbuf {%'d, %'d}", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
+        const pending = opts.model.pending || {};
 //if (!pending) throwx("no pending");
-//debug("got frbuf {%'d, %'d}, pending {%'d, %'d}", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, isdef(pending.seqnum, pending.seqnum, NOFR.seqnum), isdef(pending.timestamp, pending.timestamp, NOFR.timestamp));
+//debug("got frbuf {%'d, %'d}, pending {%'d, %'d}", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, (pending || NOFR).seqnum, (pending || NOFR).want_time);
         if (!pending.promise) return; //caller !waiting for frbuf
-if (!pending.resolve) throwx("no pending resolve");
-        if (!frbuf || frbuf.seqnum != pending.seqnum) pending.resolve(); //eof or cancel
-        if (frbuf.timestamp >= pending.timestamp) pending.resolve(frbuf); //got desired frame
+//if (!pending.resolve) throwx("no pending resolve");
+        if (!frbuf || frbuf.seqnum != pending.seqnum) return pending.resolve(); //eof or cancel; TODO: figure out why must return here for seq to exit correctly
+        if (frbuf.timestamp >= pending.want_time) return pending.resolve(frbuf); //got desired frame
 //debug("exit got_frbuf");
     }
-    async function await_frame(seqnum, timestamp)
+    async function await_frame(seqnum, want_time)
     {
-        pending.seqnum = seqnum;
-        pending.timestamp = timestamp;
-//debug("await_frame {%'d, %'d}", seqnum, timestamp);
-        const frbuf = yalp.newer(seqnum, timestamp);
-        if (frbuf) return frbuf; //no need to wait
-        return pending.promise = new Promise((resolve, reject) =>
-        {
-//debug("save await_frame settlers");
-            pending.resolve = resolve; //function (val) { debug("resolve".brightGreen, val); return resolve(val); }; //resolve;
-            pending.reject = reject; //function (val) { debug("reject".brightRed, val); return reject(val); }; //reject;
-        });
+        const pending = opts.model.pending || (opts.model.pending = {}); //model should only have 1 fx, so put pending frbuf req there
+        [pending.seqnum, pending.want_time] = [seqnum, want_time];
+//debug("await_frame {%'d, %'d}", seqnum, want_time);
+        const frbuf = yalp.newer(seqnum, want_time);
+        if (frbuf) return frbuf; //no need to wait; allow fx to pre-render
+        return pending.promise = new Promise((resolve, reject) => { [pending.resolve, pending.reject] = [resolve, reject]; });
     }
 }
 

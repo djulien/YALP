@@ -78,6 +78,7 @@
     "colors": "git+https://github.com/djulien/colors.js.git",
     "debug": "^2.2.0",
     "sprintf.js": "^0.1.4",
+    "napi_thread_safe_promise": "^1.1.2",
     "readable-stream": "^2.0.5",
     "node-gyp": "^7.1.0",
     "mocha": "^2.1.0",

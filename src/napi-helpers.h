@@ -765,6 +765,87 @@ NAPI_EXPORT_MODULE(ExportedClass<cls>::Export) // /*Exported<cls>::Init*/ cls, T
 /// async helpers
 //
 
+//thread-safe promise:
+//based on https://github.com/SurienDG/NAPI-Thread-Safe-Promise
+//changed to allow Napi::Value as resolve/reject arg
+
+#if 0 //too restrictive (string arg only)
+//#include <napi.h>
+#include <functional> //std::function<>
+#include <memory> //std::mutex<>, std::make_shared<>, std::shared_ptr<>
+//#include <thread>
+
+// promise function types:
+typedef std::function<void(const Napi::Value resval)> resolveFunc;
+typedef std::function<void(const Napi::value rejval)> rejectFunc;
+// type of function type which will be passed promise functions:
+typedef std::function<void(resolveFunc, rejectFunc)> PromiseFunc;
+// this will give the promise function (promFunc) the resolve and reject
+// functions the promise function can then be used to do the main work
+Napi::Promise promiseFuncWrapper(const Napi::Env env, const PromiseFunc &promFunc);
+//#define PROMISE(info, funcBody) \
+//    promiseFuncWrapper(         \
+//        info.Env(), [&](resolveFunc resolve, rejectFunc reject) funcBody)
+
+template <typename DATA_T>
+Napi::Promise promiseFuncWrapper(const Napi::Env env, const PromiseFunc &promFunc)
+{
+    struct tfsnContext
+    {
+        Napi::Promise::Deferred deferred;
+//    std::string data;
+//        Napi::Value data;
+        DATA_T data;
+        bool resolve;
+        bool called;
+        Napi::ThreadSafeFunction tsfn;
+        tfsnContext(Napi::Env env): deferred{Napi::Promise::Deferred::New(env)}, resolve{false}, called{false} {};
+    };
+    std::shared_ptr<tfsnContext> context = std::make_shared<tfsnContext>(env);
+    std::shared_ptr<std::mutex> mu = std::make_shared<std::mutex>();
+    context->tsfn = Napi::ThreadSafeFunction::New(
+        env, Napi::Function::New(env, [](const Napi::CallbackInfo &info) {}),
+        "TSFN", 0, 1, [context, mu](Napi::Env env)
+    {
+            mu->lock();
+            if (context->resolve) context->deferred.Resolve(Napi::String::New(env, context->data));
+            else context->deferred.Reject(Napi::Error::New(env, context->data).Value());
+            mu->unlock();
+    });
+    // create resolve function
+    resolveFunc resolve = [context, mu](const DATA_T arg) //Napi::Value arg) //std::string argsInput)
+    {
+        mu->lock();
+        context->data = arg; //argsInput;
+        context->resolve = true;
+        if (!context->called)
+        {
+            context->called = true;
+            context->tsfn.Release();
+        }
+        mu->unlock();
+    };
+    // create reject function
+    rejectFunc reject = [context, mu](const DATA_T arg) //Napi::Value arg) //std::string &msg)
+    {
+        mu->lock();
+        context->data = arg; //msg;
+        context->resolve = false;
+        if (!context->called)
+        {
+            context->called = true;
+            context->tsfn.Release();
+        }
+        context->tsfn.Release(); //??
+        mu->unlock();
+   };
+// call our function to do work and either resolve or reject a resolution
+    promFunc(resolve, reject);
+    return context->deferred.Promise();
+}
+#endif
+
+        
 //NOTE: intermittent error "call to pure virtual function" seems to be a node.js problem
 //use native threads instead
 
