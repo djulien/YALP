@@ -937,7 +937,7 @@ debug(GREEN_MSG "onok: resolve %'d", m_retval);
 //            m_ptr->Unref();
 //            m_cb.Unref();
 //            m_cb.Reset(); //is this needed?
-debug("here1");
+//debug("here1");
         }
         void OnError(const Napi::Error &err) //error during Execute(); TODO: is this needed?
         {
@@ -961,7 +961,7 @@ debug(RED_MSG "onerr: msg %s", err.Message().c_str());
         if (info.Length() != 1 || !info[0].IsFunction()) return err_napi(info.Env(), "evt handler (function) expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
         Napi::Function evth = info[0].As<Napi::Function>(); //don't need Persistent() due to acq/rel?
 //        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
-        UpdloopAsyncWker<>* wker = new UpdloopAsyncWker(info.Env(), evth, this);
+        UpdloopAsyncWker<>* wker = new UpdloopAsyncWker<>(info.Env(), evth, this); //RPi requires "<>"
 //        wker->Queue();
 //        return promise.Promise();
         Napi::Value retval = wker->def().Promise();
@@ -3154,7 +3154,8 @@ public: //static methods
 //    timeval_t& since = (&started == /*NULL_OF(timeval_t)*/ &USE_EPOCH)? epoch: started; //compare to caller vs. global epoch
         const timeval_t& current = now();
 //        diff -= (&started == /*NULL_OF(timeval_t)*/ &USE_EPOCH)? epoch: started; //compare to caller vs. global epoch
-        timeval_t diff = current; //member-wise compare prev to current time
+        bool was_init = update.tv_sec || update.tv_usec;
+        timeval_t diff = was_init? current: update; //member-wise compare prev to current time
         diff.tv_sec -= update.tv_sec;
         diff.tv_usec -= update.tv_usec;
         /*if (want_update)*/ update = current; //update compare basis for next time after diff
@@ -3162,12 +3163,12 @@ public: //static methods
 //static int count = 0;
 //if (!count++) printf("elapsed<%'d>: max sec %'u, diff %'d sec + %'d usec %s\n", UNITS, MAX_SEC, diff.tv_sec, diff.tv_usec, SRCLINEF);
 //CAUTION: need to check for overflow *before* multiply (arm clamps to max uint32):
-        if (diff.tv_sec < 0 || diff.tv_sec >= MAX_SEC) fatal("%'dsec wrap @T+%'d sec; limit was %'u sec", UNITS, diff.tv_sec, MAX_SEC);
+        if (diff.tv_sec < 0 || diff.tv_sec >= MAX_SEC) fatal("%'d sec wrap @T+%'d sec; limit was %'u sec", UNITS, diff.tv_sec, MAX_SEC);
         return diff.tv_sec * UNITS + diff.tv_usec / ((int)1e6 / UNITS);
     }
     static timeval_t now()
     {
-        timeval_t retval;
+        static timeval_t retval;
         static struct timezone& tz = *NULL_OF(struct timezone); //relative times don't need this
         if (gettimeofday(&retval, &tz)) fatal("get time of day failed");
         return retval;

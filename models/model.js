@@ -14,7 +14,7 @@
 const fs = require("fs");
 const assert = require('assert').strict; //https://nodejs.org/api/assert.html; CAUTION: SLOW
 const {debug, debug_nested, srcline, TODO} = require("../incl/msgout");
-const {isdef, my_exports, elapsed, name2file, /*time2str,*/ plural, commas, uint32} = require("../incl/utils");
+const {isdef, isary, my_exports, elapsed, name2file, /*time2str,*/ plural, commas, uint32} = require("../incl/utils");
 const {hex} = require("../incl/colors");
 
 
@@ -78,26 +78,6 @@ const models = yalp.frbufs[0].ports
 */
 
 
-//null pixels:
-//linear string of nodes; no need for fancy geometry
-my_exports({nullpx});
-//function nullpx(count)
-function nullpx(opts)
-{
-//    return model(`nullpx[${count}]: NULLPX`, () => mapall(grid(count)));
-//    const {nodes2D, width: W, height: H} = grid(SQSIZE * 2, SQSIZE / 2); //hacked panel
-    const count = (typeof opts == "object")? opts.count || 1: +opts || 1;
-    return model(Object.assign({name: `null px[${count}]: NULL`}, mapall(grid(count))));
-}
-
-
-my_exports({ismodel});
-function ismodel(obj)
-{
-    return (obj instanceof model);
-}
-
-
 //model base class:
 //defines virtual 2D grid of nodes
 //uses function-style ctor
@@ -119,6 +99,8 @@ function model(opts)
     this.name = (tags.shift() || `model${this.srcline}`).replace(/\s+/g, "");
 //    this.portnum = +opts.portnum;
 //    [this.maxbr, this.RGSWAP] = [+opts.maxbr || 3 * 0xFF, opts.RGSWAP];
+
+//get/check node map:
 //    [this.width, this.height] = [+opts.width || 1, +opts.height || 1]; //virtual nodes
 //    [this.numpx, this.nodes1D, this.nodes2D] = [opts.numpx, opts.nodes1D, opts.nodes2D]; //physical nodes
 //    this.numpx = opts.numpx || this.wi
@@ -173,7 +155,8 @@ function model(opts)
 //        if (n >= this.hwmap.length) debug(`${this.name}: ${n} !in hwmap[0..${this.hwmap.length})?!`.brightRed);
         if (this.hwmap[n] < 0 || this.hwmap[n] >= this.numpx) throw `${name}: hwmap[${n}/${this.hwmap.length}] ${this.hwmap[n]} from nodes[x ${Math.floor(n / this.height)}, y ${n % this.height}] !in range [0..${this.numpx})`.brightRed;
     }
-//analyze:
+
+//analyze node map:
     const outmap = {};
 //                        outrow[-1] = `"${this.width}x${this.height}:${this.numpx}"`;
     const dups = [], nulls = [];
@@ -211,30 +194,48 @@ if (false)
 debug_nested(+1.5, "creating model '%s', %'dx%'d grid, %'d node%s", this.name, this.width, this.height, plural(this.numpx), plural());
 //    assert(H == this.nodes2D.length, `height mismatch: got ${this.nodes2D.length}, expected ${H}`.brightRed);
 //    assert(W == this.nodes2D[0].length, `width mismatch: got ${this.nodes2D[0].length} expected ${W}`.brightRed);
-//define helper methods:
+
+//helper methods:
+//subdivide grid into smaller region:
     this.mkrect = function(myrect) //{x, y, w, h})
     {
         return this.mkrect.prev = Object.assign({},
             this.mkrect.prev || ({x: 0, y: 0, get w() { return this.width - this.x; }, get h() { return this.height - this.y; }}),
             myrect || {});
     }
+
+//set nodes to given color/image:
     this.fill = function(color, rect)
     {
         const want_debug = this.debug-- > 0;
+        const [X, Y, W, H] = rect? [+rect.x || 0, +rect.y || 0, +rect.w || 1, +rect.h || 1]: [0, 0, this.width, this.height];
 if (want_debug)
-    debug("fill %'d node%s%s with %s", plural(rect? (+rect.w || 1) * (+rect.h || 1): this.nodes1D.length), plural(), rect? ` x ${+rect.x || 0}..${(+rect.x || 0) + (+rect.w || 1)}, y ${+rect.y || 0}..${(+rect.y || 0) + (+rect.h || 1)}`: "", hex(color || BLACK, "0xFF"));
+    debug("fill %'d x %'d = %'d node%s with %s %s", W, H, plural(W * H), plural(), isary(color)? "image": "scalar", isary(color)? color.map(c => hex(c, "0xFF")).join(", "): hex(color || BLACK, "0xFF"));
+        if (isary(color)) //image
+        {
+            if (W * H != color.length) warn("src len %'d != dest len %'d x %'d = %'d", color.length, W, H, W * H);
+            if (rect) //column-by-column partial fill
+                for (let x = 0; x < W; ++x)
+                    this.nodes2D[X + x].set(color.slice(x * H, (x + 1) * H), Y);
+            else
+                this.nodes1D.set(color);
+        }
+        else //scalar
 //for (const col of this.nodes2D) col.fill(color || BLACK); }
-        if (rect) //column-by-column partial fill
-            for (let x = 0, xofs = +rect.x || 0; x < (+rect.w || 1); ++x)
-                this.nodes2D[xofs + x].fill(color || BLACK, +rect.y || 0, (+rect.y || 0) + (+rect.h || 1));
+            if (rect) //column-by-column partial fill
+                for (let x = 0; x < W; ++x)
+                    this.nodes2D[X + x].fill(color || BLACK, Y, Y + H);
 //                for (let y = 0, yofs = +rect.y || 0; y < (+rect.h || 1); ++y)
 //                {
 //                    this.nodes2D[xofs + x][yofs + y] = color || BLACK;
 //                    assert(limit < 2e3, `bad loop? ${typeof (xofs + x)} ${typeof (yofs + y)} x ${x} y ${y}`);
 //                }
-        else this.nodes1D.fill(color || BLACK); //for (const col of this.nodes2D) col.fill(color || BLACK);
+            else this.nodes1D.fill(color || BLACK); //for (const col of this.nodes2D) col.fill(color || BLACK);
         this.dirty = true;
     }
+
+//dummy frame:
+//mainly for debug/test
     const self = this;
     this.nofrbuf = //dummy frbuf for testing/debug
     {
@@ -250,11 +251,13 @@ if (want_debug)
             return retval;
         },
     };
+
+//GPU output:
 //TODO: !define .out() for models not in layout?
-    this.out = function(frbuf, force)
+    this.out = function(frbuf) //, force)
     {
 //debug("model '%s' out: dirty? %d, force? %d, dump? %d", this.name, +!!this.dirty, +!!force, +!!this.want_dump);
-        if (!this.dirty && !force) return;
+//caller wouldn't call if !dirty        if (!this.dirty && !force) return;
 //debug(frbuf);
         const want_debug = this.debug-- > 0; //turn off for next time
 //NO-SLOW!        assert(isdef(this.port) && isdef(this.firstpx) && this.ctlr, `can't output to non-layout model '${this.name}'`);
@@ -286,7 +289,7 @@ if (want_debug) debug("'%s' out: dirty? %d, force? %d, copying %'d nodes of %'dx
 TODO("check perf, optimize?");
 //        if (this.RGSWAP)
         const rgswap = this.RGSWAP || ((nop) => nop);
-        let changed = false;
+//        let changed = false;
 //        port.wsnodes.set(this.nodes1D, this.firstpx);
         for (let n = 0; n < this.hwmap.length; ++n)
         {
@@ -325,6 +328,7 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
         }
         function quote(val, quo) { return (quo || '"') + val.toString() + (quo || '"'); }
     }
+
 //write node map to csv:
     this.csv = async function(label, fmt)
     {
@@ -341,6 +345,7 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
 //        debug("wrote %'d lines to '%s'", outfile.numwrites, outfile.name);
         await outfile.wait4close();
     }
+
 //collection tracking:
 //    this.tags = tags;
     for (const tag of tags)
@@ -350,6 +355,24 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
 //        this.segments = segs.map((seg, inx) => new model(name.replace(/:|$/, `_${inx + 1}$&`), () => seg));
 }
 
+
+//null pixels:
+//linear string of nodes; no need for fancy geometry
+my_exports({nullpx});
+//function nullpx(count)
+function nullpx(opts)
+{
+//    return model(`nullpx[${count}]: NULLPX`, () => mapall(grid(count)));
+//    const {nodes2D, width: W, height: H} = grid(SQSIZE * 2, SQSIZE / 2); //hacked panel
+    const count = (typeof opts == "object")? opts.count || 1: +opts || 1;
+    return model(Object.assign({name: `null px[${count}]: NULL`}, mapall(grid(count))));
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////
+////
+/// helpers
+//
 
 //create 2D grid:
 //pre-populate with unmapped node#s
@@ -407,6 +430,13 @@ function mapall(grid)
     const numpx = grid.numpx = /*grid.nodes2D? grid.nodes2D.length * grid.nodes2D[0].length:*/ grid.nodes1D.length;
     for (let n = 0; n < numpx; ++n) grid.nodes1D[n] = n;
     return grid;
+}
+
+
+my_exports({ismodel});
+function ismodel(obj)
+{
+    return (obj instanceof model);
 }
 
 

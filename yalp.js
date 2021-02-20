@@ -18,7 +18,7 @@ const fs = require("fs");
 //const layout = require("./layout");
 //const {isdef, elapsed, srcline} = require("gpuport");
 const {my_exports, find_files, shortpath, isRE, sleep, elapsed, isdef, json_clup, revive_re} = require("yalp21/incl/utils");
-const {debug, log, errlog, TODO, srcline} = require("yalp21/incl/msgout");
+const {debug, warn, log, errlog, fmtstr, TODO, srcline} = require("yalp21/incl/msgout");
 const {stats: color_stats} = require("yalp21/incl/colors");
 //const {TODO} = require("yalp21/incl/utils");
 //srcline.me = Path.basename(__file); //kludge: show "me" in debug msgs
@@ -45,10 +45,11 @@ const OPTS = cfg.fbopts ||
 //elapsed();
 const yalp = new YALP(OPTS);
 my_exports({yalp}); //allow access by custom code
-const [numfr, busy, emit, idle] = [yalp.numfr, yalp.busy_time, yalp.emit_time, yalp.idle_time];
-const total = busy + emit + idle;
+//const [numfr, busy, emit, idle] = [yalp.numfr, yalp.busy_time, yalp.emit_time, yalp.idle_time];
+//const total = busy + emit + idle;
+//Object.defineProperty(yalp, "total", {get: function() { return this.busy_time + this.emit_time + this.idle_time; },});
 debugger;
-log("YALP: fb# %d, %'d x %'d, univ {# %d, len %'d, %'d max}, frame {intv %'d usec, fps %3.1f}, bkg running? %d, parent? %d, #att %d, seq# %'d, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, yalp.fbnum, yalp.xres, yalp.yres, yalp.NUM_UNIV, yalp.UNIV_LEN, yalp.UNIV_MAXLEN, yalp.frtime, 1e6 / yalp.frtime, yalp.bkgpid, +!!module.parent, yalp.num_att, yalp.seqnum, numfr, total? numfr / total: 0, total? busy / total: 0, total? emit / total: 0, total? idle / total: 0 );
+log("YALP: fb# %d, %'d x %'d, univ {# %d, len %'d, %'d max}, frame {intv %'d usec, fps %3.1f}, bkg running? %d, parent? %d, #att %d, seq# %'d, elapsed %'d vs %'d, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, yalp.fbnum, yalp.xres, yalp.yres, yalp.NUM_UNIV, yalp.UNIV_LEN, yalp.UNIV_MAXLEN, yalp.frtime, 1e6 / yalp.frtime, yalp.bkgpid, +!!module.parent, yalp.num_att, yalp.seqnum, yalp.elapsed, (yalp.busy_time + yalp.emit_time + yalp.idle_time) / 1e3, yalp.numfr, yalp.elapsed? yalp.numfr * 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.busy_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.emit_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.idle_time / 1e3 / yalp.elapsed: 0);
 //log(Object.keys(yalp));
 //log("yalp init".brightGreen);
 //process.exit();
@@ -102,6 +103,7 @@ my_exports({scheduler}); //allow reuse by custom code
     if (playlist.loop) for (let i = 0; active(); ++i) await player(playlist.loop[i % playlist.loop.length]);
     if (playlist.last) await player(playlist.last);
     log("scheduler: exit".brightGreen); //restart each day for safety (also allows file updates)
+log("stats: elapsed %'d vs %'d, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, yalp.elapsed, (yalp.busy_time + yalp.emit_time + yalp.idle_time) / 1e3, yalp.numfr, yalp.elapsed? yalp.numfr * 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.busy_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.emit_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.idle_time / 1e3 / yalp.elapsed: 0);
 } //)();
 //if (!module.parent) run(isMainThread? main_seq: wker); 
 if (!module.parent) run(scheduler); //allow inline init and I/O to finish first (avoids hoist problems)
@@ -196,6 +198,7 @@ debug("loading seq '%s', exports %s ...".brightCyan, name, Object.keys(exports).
 //try/catch: the show must go on :P
 TODO("re-instate try/catch");
 debugger;
+    runfx.seqnum = yalp.seqnum;
     /*try*/ { await runfx({fx: seq}).retval; }
 //    const ret = runfx({fx: seq, model: seq}); //.retval;
 //debug(typeof ret.got_frbuf);
@@ -264,10 +267,27 @@ async function seq(opts)
     my_fx.push(runfx.latest); //kludge: allow seq to use its own evth; caller didn't have access to my_fx[]
 //debug(my_fx[0], typeof my_fx[0].retval, my_fx[0].retval, typeof my_fx[0].got_frbuf, my_fx[0].got_frbuf);
     const bkg = yalp.updloop(frbuf => (/*debug("evth {%'d, %'d} => %'d evth", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, my_fx.length),*/ my_fx.map(fx => (/*debug(typeof fx, typeof fx.got_frbuf),*/ fx.got_frbuf(frbuf))))); //fx.pending.resolve(frbuf));
-    const seqnum = yalp.seqnum;
-log("seq[%'d] start".brightCyan, seqnum); //, Object.keys(yalp));
+//    const seqnum = yalp.seqnum;
+log("seq[%'d] start".brightCyan, runfx.seqnum); //, Object.keys(yalp));
 //    for (let i = 0, frbuf = null; i < evts.length; ++i)
-    evts.sort((lhs, rhs) => (lhs.start - rhs.start) || (lhs.duration - rhs.duration));
+    evts
+        .sort((lhs, rhs) => ((lhs.start || 0) - (rhs.start || 0)) || ((lhs.duration || 0) - (rhs.duration || 0)))
+        .reduceRight((next, evt, inx, all) => //kludge: in lieu of .forEachReverse()
+        {
+            const warnings = [];
+            if (!opts.fx) throwx("evt[%'d/%'d]: no fx to run", inx, all.length);
+            if (!opts.model) { opts.model = opts.fx; warnings.push(["using fx as model"]); } //use fx/seq as model
+            if (!opts.hasOwnProperty("start")) { opts.start = 0; warnings.push(["setting fx start to 0"]); }
+            if (!opts.fps) { opts.fps = yalp.fps || 1; warnings.push(["setting fps to %d", opts.fps]); }
+            if (!evt.hasOwnProperty("duration")) //default run until next evt
+            {
+                evt.duration = (next[evt.model.name].start || evts.last.start) - (evt.start || 0) || 1;
+                warnings.push(["setting duration to %'d msec", evt.duration]);
+            }
+            if (warnings.length) warn("evt[%'d/%'d]: %s", inx, all.length, warnings.map(msg => fmtstr(...msg)).join(", "));
+            next[evt.model.name] = evt; //remember next evt for this model
+            return next;
+        }, {});
 models.devpanel.want_dump = true;
 TODO("add model latency stats: (elapsed, model, fx, fr timestamp, in/out time");
 TODO("tsfn -> wker thread? or async/promise across to wker thread?");
@@ -278,10 +298,10 @@ TODO("tsfn -> wker thread? or async/promise across to wker thread?");
 //    for (let time = evts[0].start; time < evts.top.start + evts.top.duration; time += steplen)
     {
 debug("evt[%'d/%'d]: model '%s' await %'d-%'d msec, cur frbuf {%'d, %'d}", inx, Object.keys(evts).length, evt.model.name, evt.start, FXAHEAD, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
-        if (!frbuf || evt.start - FXAHEAD > frbuf.timestamp) frbuf = await await_frame(seqnum, evt.start - FXAHEAD); //work ahead a little; gives expensive fx extra time to start
+        if (!frbuf || evt.start - FXAHEAD > frbuf.timestamp) frbuf = await await_frame(evt.start - FXAHEAD); //seqnum, //work ahead a little; gives expensive fx extra time to start
 //debugger;
 //debug(typeof frbuf, frbuf.constructor.name, frbuf);
-debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
+debug("seq[%'d]: got frbuf {%'d, %'d}", runfx.seqnum, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
         if (!frbuf) break; //seq completed or cancelled
 //        if (evt.strict && frbuf.timestamp > evt.start + evt.duration) continue; //skip this evt
         my_fx.push(/*evt.fx.call(null,*/ runfx(evt)); //, frbuf)); //start next async fx; start even if late
@@ -307,11 +327,15 @@ debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf |
 //evt emitter + promise seems like less overhead than async wker per frame, uses fewer threads
 /*NOT! async*/ function runfx(opts)
 {
-//    /*const*/ opts.model.pending = {}; //model should only have 1 fx, so put pending frbuf req there
 //    yalp.on("frame", got_frbuf);
     opts.await_frame = await_frame;
-    if (!opts.fx) throwx("no fx to run");
-    if (!opts.model) opts.model = opts.fx; //use fx/seq as model
+//    if (!opts.fx) throwx("no fx to run");
+//    if (!opts.model) opts.model = opts.fx; //use fx/seq as model
+//    /*const*/ opts.model.pending = {seqnum: yalp.seqnum}; //model should only have 1 fx, so put pending frbuf req there
+//    if (!opts.start) opts.start = 0;
+//    if (!opts.duration) opts.duration = ??;
+//    if (!opts.fps) opts.fps = yalp.fps || 1;
+//    if (!opts.seqnum) opts.seqnum = yalp.seqnum;
     runfx.latest = {got_frbuf}; //kludge: allow seq to incl self evth; CAUTION: must be set < calling fx()
 //    const retval = opts.fx(opts); //promise to wait for fx/seq to finish
 //debug("here1");
@@ -335,12 +359,12 @@ debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf |
         if (frbuf.timestamp >= pending.want_time) return pending.resolve(frbuf); //got desired frame
 //debug("exit got_frbuf");
     }
-    async function await_frame(seqnum, want_time)
+    async function await_frame(want_time) //seqnum,
     {
         const pending = opts.model.pending || (opts.model.pending = {}); //model should only have 1 fx, so put pending frbuf req there
-        [pending.seqnum, pending.want_time] = [seqnum, want_time];
+        [pending.seqnum, pending.want_time] = [runfx.seqnum, want_time];
 //debug("await_frame {%'d, %'d}", seqnum, want_time);
-        const frbuf = yalp.newer(seqnum, want_time);
+        const frbuf = yalp.newer(runfx.seqnum, want_time);
         if (frbuf) return frbuf; //no need to wait; allow fx to pre-render
         return pending.promise = new Promise((resolve, reject) => { [pending.resolve, pending.reject] = [resolve, reject]; });
     }

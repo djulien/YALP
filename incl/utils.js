@@ -61,12 +61,12 @@ function my_exports(thing) //, rename)
     if (typeof thing != "object")
     {
         const name = thing.name || "export@" + caller.where;
-        if (caller.exports[name] && caller.exports[name] != thing) fatal("dupl export: " + name, caller.where);
+        if (caller.exports.hasOwnProperty(name) && caller.exports[name] != thing) fatal("dupl export: " + name, caller.where);
         return caller.exports[name] = thing;
     }
     for (const [name, val] of Object.entries(thing))
     {
-        if (caller.exports[name] && caller.exports[name] != val) fatal("dupl export: " + name, caller.where);
+        if (caller.exports.hasOwnProperty(name) && caller.exports[name] != val) fatal("dupl export: " + name, caller.where);
         caller.exports[name] = val;
     }
 //console.log("my exports", Object.keys(module.exports).map(key => truncate(key, 30)));

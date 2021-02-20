@@ -57,6 +57,8 @@ const MSGTYPE =
     debug: 1, debug_level: 11, debug_nested: 101, debug_limit: 1001,
     log: 2,
     errlog: 102,
+    warn: 3,
+    fmtstr: 5,
     TODO: 103,
     fatal: 109,
 };
@@ -102,6 +104,7 @@ function myprintf(dest, ...args)
     const label = (dest == MSGTYPE.errlog)? "ERROR: ".brightRed:
         (dest == MSGTYPE.fatal)? "FATAL: ".brightRed:
         (dest == MSGTYPE.TODO)? "TODO: ".brightYellow:
+        (dest == MSGTYPE.warn)? "WARNING: ".brightYellow:
         (dest == MSGTYPE.log)? "LOG: ":
         "DEBUG: ".brightBlue; //`DEBUG ${args.length}: `;
     const info = srcline(/*(debug.depth || 0)*/ depth + 1); // + ` T+${elapsed() / 1e3}`;
@@ -130,6 +133,7 @@ function myprintf(dest, ...args)
 //        if (!blue[0].length) console.log(label, ...args.map((arg) => fmt(arg)), caller);
 //        else console.log(label.brightBlue.slice(0, -blue[1].length), ...args.map((arg) => replaceAll(fmt(arg), blue[1], blue[0])), caller.brightBlue.slice(blue[0].length));
 //console.log(typeof outstr, typeof outstr.color_nest);
+        if (dest == MSGTYPE.fmtstr) return valstr;
         const outstr = color_nest(label + valstr + info) //.brightBlue;
             .replace(/\r(.*)$/, `$1 ${CLREOL} \r`); //issue clear to end-of-line sequence + move \r to end of line
 //      if (!isMainThread) parentPort.postMessage(outstr); //kludge: worker threads can't use console; delegate to main thread

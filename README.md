@@ -1,13 +1,14 @@
 # YALP MVP:
-- multi-core render
+* model/fx latency stats
+* multi-core render
+* FPS/univlen calculator / wr config.txt / 22.5 fps
+* pi-fm?
 - fx + model notebooks/interactive preview
 - install proc
-- pi-fm?
 - sms, log
 - AP/fixed IP, easy display
-- FPS/univlen calculator
 - Vixen2, xLights real-time adapter
-- audience interactivity (kids games)
+- audience interactivity (kids games, maze? dwg?)
 - arch diagram
 
 # shm
