@@ -1,0 +1,5 @@
+{
+  "name": "yalp-models",
+  "description": "dummy package to find models/model.js easier",
+  "main": "./model.js"
+}

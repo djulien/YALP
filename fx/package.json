@@ -1,0 +1,5 @@
+{
+  "name": "yalp-fx",
+  "description": "dummy package to find fx/fx.js easier",
+  "main": "./fx.js"
+}

@@ -8,10 +8,10 @@
 //ver 0.21.1  DJ  rework API
 
 'use strict'; //find bugs easier
-const {my_exports, isary, isdef} = require("yalp21/incl/utils");
-const {yalp} = require("yalp21/yalp");
+const {my_exports, isary, isdef, json_clup} = require("yalp21/incl/utils");
+//const {yalp} = require("yalp21/yalp");
 //const {RGBblend} = require("yalp21/incl/colors");
-const {RGBdim1, hsv2RGB, RGBblend, hex} = require("yalp21/incl/colors");
+const {XPARENT, RGBdim1, RGB2hsv, hsv2RGB, RGBblend, hex} = require("yalp21/incl/colors");
 const {debug} = require("yalp21/incl/msgout");
 //debug(yalp);
 
@@ -31,15 +31,21 @@ async function fx_fade(opts) //, frbuf)
 //    const duration = opts.duration || 0;
 //    const fps = opts.fps || yalp.fps || 1;
     const from = isary(opts.from)? opts.from.slice(): //from image
-                /*isdef(opts.from)?*/ new Uint32Array(model.nodes1D.length).fill(opts.from >>> 0); //from color
+//                isdef(opts.from)? new Uint32Array(model.nodes1D.length).fill(opts.from >>> 0): //from scalar
+//                model.nodes1D.slice(); //from current
+                new Uint32Array(model.nodes1D.length).fill(isdef(opts.from)? opts.from >>> 0: XPARENT); //from scalar
 //                model.nodes1D.slice(); //from current
     const to = isary(opts.to)? opts.to.slice(): //to image
-                new Uint32Array(model.nodes1D.length).fill(opts.to >>> 0); //to color
+//                isdef(opts.to)? new Uint32Array(model.nodes1D.length).fill(opts.to >>> 0): //to scalar
+//                model.nodes1D.slice(); //to current
+                new Uint32Array(model.nodes1D.length).fill(isdef(opts.to)? opts.to >>> 0: XPARENT); //to scalar
     const steplen = 1e3 / fps; //(fps - 1); //, num_steps = Math.ceil(DURATION / steplen); //msec
 //    const colors = toary(opts.color); //|| [BLACK, WHITE_dim]);
 //    const DIM = .5; //TODO
 //    const seqnum = yalp.seqnum;
 //    for (;;) { render(); model.out(); await; }
+    const trace = [];
+    trace.push(from[0]);
 debug("fade: model '%s', start %'d, duration %'d, steplen %'d msec => #steps %'d, from[0] %s => to[0] %s".brightGreen, model.name, start, duration, steplen, Math.trunc(duration / steplen), hex(from[0], "0xFF"), hex(to[0], "0xFF"));
 if (model.want_dump) //show theoretical inital fx state (for debug, doesn't need to be flushed)
 {
@@ -47,9 +53,9 @@ if (model.want_dump) //show theoretical inital fx state (for debug, doesn't need
 //debug("initial state".brightCyan, model.nofrbuf.timestamp);
     for (let n = 0; n < model.nodes1D.length; ++n)
         model.nodes1D[n] = from[n];
-    model.out(model.nofrbuf); //, true);
+    model.out(model.nofrbuf, "initial"); //, true);
 }
-    for (let fxtime = start, count = 0; fxtime < start + duration; fxtime = (Math.trunc(fxtime / steplen) + 1) * steplen, ++count)
+    for (let fxtime = start; fxtime < start + duration; fxtime = (Math.trunc(fxtime / steplen) + 1) * steplen)
     {
 //debug("fade await seq# %d, time %'d msec", seqnum, Math.trunc(fxtime));
         const frbuf = await await_frame(fxtime); //seqnum,
@@ -61,6 +67,7 @@ if (false)
 //const sv0 = model.nodes1D[0];
         for (let n = 0; n < model.nodes1D.length; ++n)
             model.nodes1D[n] = RGBblend((fxtime - start) / duration, from[n], to[n]); //TODO: fx-local cache
+        trace.push(model.nodes1D[0]);
 //if (duration == 2e3) debug("fade %3.2f [0] %d => %d", (fxtime - start) / duration, sv0, model.nodes1D[0]);
 //if (!(count % 30)) //fxtime < start + steplen || fxtime + steplen > start + duration)
 //{
@@ -69,18 +76,21 @@ if (false)
 //        buf += ", " + hex(model.nodes1D[n], "0xFF");
 //    debug("fade blend %3.2f: %s", (fxtime - start) / duration, buf.slice(2));
 //}
-        model.out(frbuf); //, true); //model.dirty = true;
+        model.out(frbuf, RGB2hsv(model.nodes1D[0])); //, true); //model.dirty = true;
     }
+trace.push(to[0]);
 if (model.want_dump) //show theoretical final fx state (for debug, doesn't need to be flushed)
 {
-debug("final should be", hex(to[0], "0xFF"));
+//debug("final should be", hex(to[0], "0xFF"));
     model.nofrbuf.timestamp = start + duration;
 //debug("final state".brightCyan, model.nofrbuf.timestamp);
     for (let n = 0; n < model.nodes1D.length; ++n)
         model.nodes1D[n] = to[n];
-    model.out(model.nofrbuf, true);
+    model.out(model.nofrbuf, "final"); //, true);
 }
     debug("fade: completed".brightGreen);
+    debug(trace.map(color => hex(color, "0xFF")).join(","));
+    debug(trace.map(color => json_clup(JSON.stringify(RGB2hsv(color)))).join(","));
 }
 
 //eof

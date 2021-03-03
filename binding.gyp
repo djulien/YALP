@@ -42,7 +42,7 @@
 #path ~/.node-gyp/*/include/node/common.gypi/.node-gyp/*/include/node/common.gypi
             "cflags_cc!": #conflict with above; turn off these options (in case common.gypi turns them on)
             [
-                "-fno-exceptions",
+                "-fno-exceptions", #"-fexceptions", #use opposite of above
                 "-std=gnu++1y",
             ],
 #NOTE?: node-gyp only reads *one* "cflags_cc+" here, otherwise node-gyp ignores it
@@ -61,6 +61,7 @@
             [
 #                "NODEJS_ADDON", #using node-gyp => want Node.js add-on
                 'NAPI_DISABLE_CPP_EXCEPTIONS', #?? https://github.com/nodejs/node-addon-api/blob/master/doc/setup.md
+#                'NAPI_CPP_EXCEPTIONS', #?? https://github.com/nodejs/node-addon-api/blob/master/doc/setup.md
                 'BUILT="<!(date +\"%F %T\")"',
 #runt chk only                'XWINDOWS="<!(echo $DISPLAY)"', #don't compile for framebuffer
 #                'XWINDOWS="<!(type -p X &>/dev/null && echo \"yes\" || echo \"no\")"', #installed, but might not be running

@@ -3,8 +3,8 @@
 
 'use strict'; //find bugs easier
 const assert = require('assert').strict; //https://nodejs.org/api/assert.html; CAUTION: SLOW
-const {my_exports} = require("yalp21/incl/utils");
-const {TODO} = require("yalp21/incl/msgout");
+const {my_exports} = require("yalp/incl/utils");
+const {TODO} = require("yalp/incl/msgout");
 const {model, grid, shmslice, ZZ, flip} = require("./model");
 
 

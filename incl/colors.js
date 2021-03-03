@@ -8,8 +8,10 @@
 
 'use strict'; //find bugs easier
 const {hsvToRgb/*: hsv2rgb*/, rgbToHex/*: rgb2hex*/, hexToRgb/*: hex2rgb*/, rgbToHsv/*: rgb2hsv*/} = require("colorsys"); //https://github.com/netbeast/colorsys
-const {uint32, isdef, hex, my_exports} = require("./utils");
-const {TODO, debug} = require("./msgout");
+const {uint32, isdef, hex, my_exports} = require("yalp/incl/utils");
+const {TODO, debug} = require("yalp/incl/msgout");
+//my_exports({XPARENT}); //circ dep: any exports used by msgout.js must be defined before including msgout
+const {XPARENT} = require("yalp");
 //const assert = require('assert').strict; //https://nodejs.org/api/assert.html
 //const {/*WS281x, CFG,*/ debug, debug_nested, debug_limit, srcline, plural, commas, hex, isdef} = require("gpuport"); //"../"); //npm link allows real module name to be used here
 //debug.max_arg_len = 400;
@@ -43,7 +45,7 @@ const WARM_WHITE = 0xFFffffb4; //h 60/360, s 30/100, v 1.0 //try to simulate inc
 const COOL_WHITE = 0xFFb4b4ff; //0xFFccccff));
 //const PALETTE_primary = [RED, GREEN, BLUE, YELLOW, CYAN, MAGENTA];
 const BLACK = 0xFF000000; //NOTE: alpha must be on to take effect
-const XPARENT = 0; //NOTE: alpha off; used to merge/blend with bkg
+//const XPARENT = 0; //NOTE: alpha off; used to merge/blend with bkg
 
 //easier on the eyes for testing:
 const RED_dim = RGBdim1(RED, 0.01); //0xFF020000;
@@ -54,7 +56,8 @@ const CYAN_dim = RGBdim1(CYAN, 0.01); //0xFF000101;
 const MAGENTA_dim = RGBdim1(MAGENTA, 0.01); //0xFF010001;
 const WHITE_dim = RGBdim1(WHITE, 0.01); //0xFF010101;
 
-Object.assign(module.exports,
+//Object.assign(module.exports,
+my_exports(
 {
     RED, GREEN, BLUE, YELLOW, CYAN, MAGENTA, WHITE, BLACK,
     RED_WRAP, WARM_WHITE, COOL_WHITE, XPARENT,
@@ -78,6 +81,7 @@ function palette_dim(color, brlist)
 }
 
 
+//pick a color between 2 colors:
 my_exports({RGBblend});
 function RGBblend(mix, color1, color2, brightness1)
 {
@@ -87,6 +91,8 @@ function RGBblend(mix, color1, color2, brightness1)
 //    return rgb2RGB({r: combine(rgb1.r,rgb2.r), g: combine(rgb1.g, rgb2.g), b: combine(rgb1.b, rgb2.b)});
     const hsv1 = RGB2hsv(color1), hsv2 = RGB2hsv(color2);
 //TODO: cache?
+    if (hsv1.v <= 0.01 || hsv1.v >= 0.99) hsv1.h = hsv2.h; //kludge: preserve hue during xition from black/white
+    if (hsv2.v <= 0.01 || hsv2.v >= 0.99) hsv2.h = hsv1.h; //preserve hue during xition to black/white
     const blended = {h: combine(hsv1.h, hsv2.h), s: combine(hsv1.s, hsv2.s), v: combine(hsv1.v, hsv2.v) * (brightness1 || 1)};
     return hsv2RGB(blended);
 

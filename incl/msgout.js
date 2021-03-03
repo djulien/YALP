@@ -24,7 +24,7 @@ const Path = require('path');
 const JSON = require('circular-json'); //CAUTION: replaces std JSON with circular-safe version
 const {sprintf, vsprintf} = require('sprintf-js'); //https://www.npmjs.com/package/sprintf-js
 //const {isMainThread, parentPort} = require('worker_threads');
-const {jsdebug/*, thrinx*/} = require("yalp21"); //"bindings")("gpuport"); //"../"); //npm link allows real module name to be used here; CAUTION: need bindings here to avoid recursive export
+const {jsdebug/*, thrinx*/} = require("yalp"); //"bindings")("gpuport"); //"../"); //npm link allows real module name to be used here; CAUTION: need bindings here to avoid recursive export
 //CAUTION: circular deps
 //any exports used by utils.js must be defined before including utils
 //module.exports.debug = debug;
@@ -32,7 +32,7 @@ const {jsdebug/*, thrinx*/} = require("yalp21"); //"bindings")("gpuport"); //"..
 //module.exports.debug_limit = debug_limit;
 //module.exports.srcline = srcline;
 //console.log("msgout: loading utlis");
-const {my_exports, auto_obj, tostr, time2str, truncate, commas, isdef} = require("yalp21/incl/utils"); //NOTE: also adds __stack and console colors
+const {my_exports, auto_obj, tostr, time2str, truncate, commas, isdef} = require("yalp/incl/utils"); //NOTE: also adds __stack and console colors
 //console.log("msgout: loaded utlis", my_exports, elapsed);
 //console.log("imports", my_exports, elapsed, tostr, truncate, commas, isdef);
 

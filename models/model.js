@@ -14,7 +14,7 @@
 const fs = require("fs");
 const assert = require('assert').strict; //https://nodejs.org/api/assert.html; CAUTION: SLOW
 const {debug, debug_nested, srcline, TODO} = require("../incl/msgout");
-const {isdef, isary, my_exports, elapsed, name2file, /*time2str,*/ plural, commas, uint32} = require("../incl/utils");
+const {isdef, isary, my_exports, elapsed, name2file, tostr, /*time2str,*/ plural, commas, uint32} = require("../incl/utils");
 const {hex} = require("../incl/colors");
 
 
@@ -183,7 +183,7 @@ function model(opts)
 //debug(typeof this.nodes2D, this.nodes2D.constructor.name);
 //debug(typeof this.nodes2D[0], (this.nodes2D[0] || "huh?").constructor.name, this.nodes2D[0]);
 //    const [W, H] = [this.width, this.height]; //= [this.nodes2D.length, this.nodes2D[0].length]; //[this.width, this.height];
-if (false)
+//if (false)
     Object.defineProperties(this, //kludge: reduce debug output clutter
     {
         nodes1D: {value: this.nodes1D, enumerable: false},
@@ -252,13 +252,58 @@ if (want_debug)
         },
     };
 
+//perf (render) stats:
+    Object.defineProperties(this,
+    {
+        perf:
+        {
+            value:
+            {
+                numfr: 0,
+                wait_time: 0, //time spent waiting for frbuf (msec)
+                busy_time: 0, //time spend rendering (msec)
+                latency: 0, //time from frbuf rcv until render needed (msec); should be > frtime to prevent dropped frames
+                started: elapsed(),
+                get avg_wait() { return this.numfr? this.wait_time / this.numfr: 0; },
+                get avg_busy() { return this.numfr? this.busy_time / this.numfr: 0; },
+                get avg_latency() { return this.numfr? this.latency / this.numfr: 0; },
+            },
+            enumerable: false,
+        },
+        stats:
+        {
+            get() { return this.perf; },
+            set(ignored) { this.perf.numfr = this.perf.wait_time = this.perf.busy_time = this.perf.latency = 0; this.perf.started = this.perf.timestamp = elapsed(); },
+            enumerable: true,
+        },
+        idle: { set(newidle) { this.busy = !newidle; }, enumerable: true},
+        busy:
+        {
+            set(newbusy)
+            {
+                const now = elapsed();
+                this.stats[newbusy? "wait_time": "busy_time"] += now - this.stats.timestamp;
+                if (newbusy) this.stats.latency += this.pending.got_time - now;
+                this.stats.timestamp = now;
+            },
+            enumerable: true,
+        },
+    });
+//        this.numfr = 0;
+//    this.elapsed = elapsed(); //msec
+//        this.wait_time = this.busy_time = 0; //render perf
+//        this.latency = 0; //delay until render
+
 //GPU output:
 //TODO: !define .out() for models not in layout?
-    this.out = function(frbuf) //, force)
+    this.out = function(frbuf, comment) //, force)
     {
 //debug("model '%s' out: dirty? %d, force? %d, dump? %d", this.name, +!!this.dirty, +!!force, +!!this.want_dump);
 //caller wouldn't call if !dirty        if (!this.dirty && !force) return;
 //debug(frbuf);
+        ++this.perf.numfr;
+//        this.perf.latency += elapsed() - frbuf.timestamp;
+//        ((this.pending || {}).want_time /
         const want_debug = this.debug-- > 0; //turn off for next time
 //NO-SLOW!        assert(isdef(this.port) && isdef(this.firstpx) && this.ctlr, `can't output to non-layout model '${this.name}'`);
 //NO-SLOW!        assert(this.hwmap, `${this.name || "UNNAMED"}: !hwmap?! ${Object.keys(this).join(", ")}`.brightRed);
@@ -274,15 +319,15 @@ if (want_debug) debug("'%s' out: dirty? %d, force? %d, copying %'d nodes of %'dx
         if (this.want_dump && !fs.existsSync(outfile)) //show mapping
         {
 //            if (fs.existsSync(outfile)) break; //header already written
-            dumpout.pushrow(`${commas(this.width)} x ${commas(this.height)} (${commas(this.numpx)})`, "frtime", "fxtime", ([hwofs]) => `[${commas(hwofs)}]:`);
-            dumpout.pushrow("mapped from:", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => `[${commas(x)}, ${commas(y)}]`).join(", ")}`);
+            dumpout.pushrow(`${commas(this.width)} x ${commas(this.height)} (${commas(this.numpx)})`, "frtime", "fxtime", "comment", ([hwofs]) => `[${commas(hwofs)}]:`);
+            dumpout.pushrow("mapped from:", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => `[${commas(x)}, ${commas(y)}]`).join(", ")}`);
         }
         if (this.want_dump && !this.out_count++) //show initial node values
         {
 //            const outnodes = port.wsnodes;
-            if (fs.existsSync(outfile)) dumpout.pushrow("", "", "", n => ""); //session separator
-            dumpout.pushrow("wsnodes", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(portnodes[this.firstpx + hwofs], "0xFF"), this).join(", ")}`); //NOTE: post-RGSWAP
-            dumpout.pushrow("model", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(this.nodes2D[x][y], "0xFF"), this).join(", ")}`); //NOTE: pre-RGSWAP
+            if (fs.existsSync(outfile)) dumpout.pushrow("", "", "", "", n => ""); //session separator
+            dumpout.pushrow("wsnodes", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(portnodes[this.firstpx + hwofs], "0xFF"), this).join(", ")}`); //NOTE: post-RGSWAP
+            dumpout.pushrow("model", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(this.nodes2D[x][y], "0xFF"), this).join(", ")}`); //NOTE: pre-RGSWAP
             this.out_count = 1;
         }
         const svnodes = this.want_dump && portnodes.slice(this.firstpx, this.firstpx + this.numpx); //NOTE: creates new (typed) ary, not ref
@@ -315,16 +360,17 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
 //        {
 //            dumpout.push(`"update",` + delta + "\n");
 //            dumpout.push(`"T+${/*time2str() elapsed()*/ frbuf.timestamp / 1e3}",` + this.outary.map(([hwofs]) => (outnodes[this.firstpx + hwofs] != svnodes[hwofs])? `"${hex(outnodes[this.firstpx + hwofs])}"`: `"="`).join(",") + "\n"); //show resulting values (post-RGSWAP)
-            dumpout.pushrow(`T+${commas((elapsed() / 1e3).toFixed(3))}`, commas((frbuf.timestamp / 1e3).toFixed(3)), commas(((this.pending || {}).want_time / 1e3).toFixed(3)), ([hwofs]) => delta[hwofs]); //show resulting values
+            dumpout.pushrow(`T+${commas((elapsed() / 1e3).toFixed(3))}`, commas((frbuf.timestamp / 1e3).toFixed(3)), commas(((this.pending || {}).want_time / 1e3).toFixed(3)), comment, ([hwofs]) => delta[hwofs]); //show resulting values
 //        }
 //        dumpout.push(`"aka",` + this.hwmap.filter((hwofs) => (hwofs != UNMAPPED)).map((hwofs) => `"${hex(this.nodes1D[hwofs])}"`).join(",") + "\n");
         if (!dumpout.length) return;
 //        fs.appendFileSync(outfile, dumpout.map(v_f => (typeof v_f == "function")? this.outary.map(v_f).map(str => '"' + str + '"').join(",") + "\n": '"' + v_f + '",').join("")); //TODO: async for better perf?
         fs.appendFileSync(outfile, dumpout.join("")); //TODO: async for better perf?
 
-        function pushrow(that, rowhdr, frtime, fxtime, fmtvals) //need to fmt vals before they change
+        function pushrow(that, rowhdr, frtime, fxtime, comment, fmtvals) //need to fmt vals before they change
         {
-            return this.push(quote(rowhdr) + "," + quote(frtime || "") + "," + quote(fxtime || "") + "," + that.outary.map(fmtvals).map(val => quote(val)).join(",") + "\n");
+            const hdrcols = [rowhdr, frtime, fxtime, comment];
+            return this.push(hdrcols.map(val => quote(tostr(val || "").replace(/"/g, '""'))).join(",") + "," + that.outary.map(fmtvals).map(val => quote(val)).join(",") + "\n");
         }
         function quote(val, quo) { return (quo || '"') + val.toString() + (quo || '"'); }
     }

@@ -6,7 +6,15 @@
 const addon = require('bindings')('yalp-addon');
 //const utils = require("./utils");
 //console.log(typeof debug, JSON.stringify(Object.keys(debug)));
-Object.assign(module.exports, addon); //, Debug);
+Object.assign(module.exports, addon); //, Debug); //re-export all add-on exports
+Object.defineProperty(module.exports, "debout", //kludge: export setter also
+{
+    get() { return addon.debout; },
+    set(newfd) { addon.debout = newfd; }, //console.log("new fd", typeof newfd, newfd); },
+    enumerable: true,
+});
+module.exports.pkgpath = require.resolve("./package.json"); //my_exports({yalp}); //https://stackoverflow.com/questions/10111163/in-node-js-how-can-i-get-the-path-of-a-module-i-have-loaded-via-require-that-is
+
 //console.log(Object.keys(module.exports));
 //{
 //debug utils:
@@ -50,9 +58,9 @@ Object.assign(module.exports, addon); //, Debug);
 if (!module.parent)
 {
     console.error(`To run, use "npm test" instead.`);
-    console.log("exports: ", Object.entries(addon).map(([key, val]) => truncate(`${key} = ${typeof val}: ` + fmt(val), 65)));
+    console.log("exports: ", Object.entries(module.exports).map(([key, val]) => truncate(`${key} = ${typeof val}: ` + fmt(val), 65)));
 //    addon.start.call(new Date(), function(clock) { console.log(this, clock); }, 5);
-console.log("js ret");
+//console.log("js ret");
 }
 
 function fmt(val)

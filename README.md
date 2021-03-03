@@ -78,6 +78,16 @@ YALP is not intended to compete with other existing Lightshow hardware or softwa
 ## documentation
 jsnotebooks for models, fx, scheduling, audience/interactivity; incl (3D) photos of props with fx experiments
 
+# suggested workflow
+
+Not fixed in stone, but suggested workflow is:
+1. choose music, edit
+2. choose (create or reuse/map existing) models/props
+3. consider mood, tempo, features of song
+4. choose overall colors, fx
+5. identify evts/cues
+6. match fx to evts/cues
+
 # folder sttr
 Yalp folder
  ├── (build)

@@ -8,7 +8,7 @@ const fs = require("fs");
 const glob = require("glob");
 const Path = require("path");
 const {sprintf} = require('sprintf-js'); //https://www.npmjs.com/package/sprintf-js
-const assert = require('assert').strict; //https://nodejs.org/api/assert.html
+//slow! const assert = require('assert').strict; //https://nodejs.org/api/assert.html
 //don't load until needed (circ dep): const {debug, debug_limit, srcline/*, isdef, commas, plural*/} = re_export(require("yalp21/incl/debug"));
 //delay load until needed (circ dep and hoist):
 //CAUTION: circular deps
@@ -22,8 +22,8 @@ const assert = require('assert').strict; //https://nodejs.org/api/assert.html
 //const {jselapsed} = require("yalp21"); //"bindings")("gpuport"); //"../"); //npm link allows real module 
 my_exports({my_exports, auto_obj, tostr, time2str, truncate, commas, isdef}); //circ dep: any exports used by msgout.js must be defined before including msgout
 //console.log("utlis: loading msgout");
-const {debug, debug_limit, debug_nested, fatal, srcline} = require("yalp21/incl/msgout");
-const {jselapsed} = require("yalp21"); //"bindings")("gpuport"); //"../"); //npm link allows real module 
+const {debug, debug_limit, debug_nested, fatal, srcline} = require("yalp/incl/msgout");
+const {jselapsed} = require("yalp"); //"bindings")("gpuport"); //"../"); //npm link allows real module 
 //console.log("utlis: loaded msgout", debug, srcline);
 //debug.max_arg_len = 300;
 
@@ -89,6 +89,11 @@ function re_export(obj)
     Object.assign(caller_exports, obj);
     return obj; //allow inline usage
 }
+
+
+//lazy-load:
+my_exports({lazy_load});
+function lazy_load(val) { return (typeof val == "function")? val(): val; }
 
 
 //const UINT32_MAX = -1 >>> 0; //(() => (new Uint32Array(1))[0] = -1)();
@@ -192,7 +197,7 @@ function rpt2csv(filename, rptlines)
         .concat(rptlines)
         .map(row => Object.values(row).map(col => `"${col}"`).join(","))
         .join("\n"));
-    debug("%'d line%s written to '%s'", plural(rptlines.length + 1), plural(), filename);
+    debug("%'d line%s written to '%s'".brightCyan, plural(rptlines.length + 1), plural(), filename);
 }
 
 
@@ -209,7 +214,7 @@ function x_mp3play(filename, cb)
 
 //    new Sound('/path/to/the/file/filename.mp3').play();
     if (!filename) return; //caller just wanted preload/check?
-    assert(fs.existsSync(filename), `'${filename}' !found`);
+    if (!fs.existsSync(filename)) throwx(`'${filename}' !found`); //assert(fs.existsSync(filename), `'${filename}' !found`);
 // with ability to pause/resume:
 //    elapsed(0);
 //    const music = new Sound(filename);
@@ -328,7 +333,7 @@ function tween(mix, from, to)
 {
 //    return Array.isArray(from)? from.map((val, inx) => mix * val + (1 - mix) * to[inx]):
     if (typeof from != "object") return (1 - mix) * from + mix * to; //scalar
-    assert(typeof to == "object");
+    if (typeof to != "object") throwx("expected object, got " + typeof to); //assert(typeof to == "object");
 //        const from_ents = Object.entries(from), to_ents = Object.entries(to);
 //        assert(from_ents.length == to_ents.length);
     const retval = {};
@@ -347,7 +352,7 @@ function toary(val) { return /*toary.ary =*/ (/*isdef(val) &&*/ !Array.isArray(v
 my_exports({find_files});
 function find_files(path, count)
 {
-    const glob = require('glob'); //in here so it won't be loaded unless needed
+//    const glob = require('glob'); //in here so it won't be loaded unless needed
 //debug(path, count, path.match(/^~/));
     const [min, max] = Array.isArray(count)? count: [count, count]; //isdef(count)? [count, count]: ["", ""];
 //    const [min, max] = Array.isArray(count)? count: isdef(count)? [count, count]: ["", ""];
@@ -362,18 +367,37 @@ function find_files(path, count)
 //debug(__stack);
 //debug(module.parent.path);
 //debug("find files '%s', caller '%s'", path, caller);
-    for (const tree = Path.resolve(Path.dirname(caller), path).split(Path.sep); /*tree.length > 0*/; tree.splice(-2, 1))
+//debug(Path.resolve(Path.dirname(caller), path).split(Path.sep));
+    const found = [], excl = [];
+    const root = Path.dirname(caller).split(Path.sep); //don't traverse back past this level
+    for (const tree = Path.resolve(Path.dirname(caller), path).split(Path.sep); tree.length >= root.length /*tree.at(-2)*/; tree.splice(-2, 1)) //drop innermost folder each time
     {
+//debug(typeof tree.at(1), tree.at(1), tree.length, tree.at(-2));
+        if (tree.at(-2).startsWith("!")) { excl.push(tree.at(-2).slice(1).replace(/[\.]/g, "\\$&").replace(/\*/g, ".$&?")); continue; } //kludge: glob doesn't seem to handle exclusions correctly
 //debug("find: caller '%s', tree %s", caller, tree.join("/")); 
 //        const filename = Path.join(__dirname, /*"**",*/ "!(*-bk).vix");
         const next = tree.join(Path.sep);
-        const retval = glob.sync(next) || [];
+//debug("find files in ".brightCyan, next); //, next.replace(/\/\*\.js$/, );
+        const more_files = glob.sync(next) || [];
+//debug("found".brightGreen, retval); //more_files);
+//debug("excl".brightRed, excl);
 //debug("looking in '%s', found %'d, wanted %'d..%'d", next, retval.length, min, max);
-        if (!retval.length && tree.length > 1) continue; //try parent
+//        if (!more_files.length && tree.length > 1) continue; //try parent
+//        more_files.forEach(file => debug("found".brightGreen, file));
+//        excl.forEach(file => debug("excl".brightRed, file));
+        more_files.forEach(file => !~found.indexOf(file) && found.push(file)); //dedup (caused by "/**/")
 //    debug(`'%s' matches ${commas(plural(retval.length))} file${plural()}: ${retval.map((retpath) => shortpath(retpath)).join(", ")}, ${min_desc}${(max != min)? `...${max_desc}`: ""} expected`, path_fixup, retval.length);
-        if (isdef(count)) assert((retval.length >= min) && (retval.length <= max), `path '${path}' matches ${plural(retval.length)} file$(plural()), expected ${min}..${max} match${plural(max, "es"), plural()}`);
-        return find_files.files = retval; //results cached
     }
+//found.forEach(f => debug("found".brightGreen, f));
+//debug("excl".brightRed, ...excl);
+    const excl_re = new RegExp("\\" + Path.sep + "(" + excl.join("|") + ")(\\" + Path.sep + "|\\.js$)", "");
+//debug("excl re", excl_re.source);
+//found.forEach(f => debug(!!f.match(excl_re), f));
+    const retval = found.filter(file => !file.match(excl_re));
+//        .filter((file, inx, all) => inx == all.indexOf(file)); //dedup (caused by "/**/")
+//retval.forEach(r => debug("remaining".brightGreen, r, ));
+    if (isdef(count) && !(retval.length >= min && retval.length <= max)) throwx(`path '${path}' matches ${plural(retval.length)} file$(plural()), expected ${min}..${max} match${plural(max, "es"), plural()}`);
+    return find_files.files = retval; //results cached
 }
 
 
@@ -406,7 +430,7 @@ function tostr(thing, radix)
 {
     return ((thing === null) || (typeof thing == "undefined"))? thing + "":
         ((typeof thing == "Date") || (typeof thing == "string"))? thing.toLocaleString(): //CAUTION: .toLocaleString is defined for Object as well; can't use duck typing
-        (typeof thing == "object")? JSON.stringify(thing):
+        (typeof thing == "object")? json_clup(JSON.stringify(thing)):
         ((typeof thing == "number") && (typeof radix != "undefined"))? thing.toString(radix):
         thing.toString();
 }
@@ -423,9 +447,9 @@ function truncate(val, len)
 //module.exports.truncate = truncate;
 
 
-//clean up JSON before parsing:
-my_exports({json_clup});
-function json_clup(str)
+//fix up up JSON before parsing:
+my_exports({json_fixup});
+function json_fixup(str)
 {
     const retval = str.toString()
         .replace(/\/\/[^\n]*/g, "") //strip single-line comments
@@ -439,6 +463,20 @@ function json_clup(str)
     return retval;
 //const cfg = JSON.parse(fs.readFileSync("./config/yalp.json").toString(), revive);
 //const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+}
+
+
+//make JSON more readable:
+//CAUTION: will cause parse errors; use json_clup to fix < re-parse
+my_exports({json_clup});
+function json_clup(str)
+{
+//console.log("in:", str.toString(), str.toString().match(/,(?=[^\s])/), str.toString().match(/(?<=[\{,])\s*("([^"]+)")(?=:)/));
+    const retval = str.toString()
+        .replace(/(?<=[:,])[^\s]/g, " $&") //append space to "," and ":"
+        .replace(/(?<=[\{\[,])\s*("([^"]+)"\s*)(?=:)/g, " $2"); //(_, quo, keep) => keep); //strip quotes from prop names
+//console.log("out:", retval);
+    return retval;
 }
 
 
@@ -489,7 +527,7 @@ function isRE(obj) { return (obj instanceof RegExp); }
 my_exports({sleep});
 async function sleep(msec)
 {
-debug("sleep %'d msec", msec);
+debug_nested(+1, "sleep %'d msec", msec);
     return new Promise((resolve) => setTimeout(resolve, msec));
 }
 
@@ -632,7 +670,8 @@ function extensions()
     addprop(RegExp.prototype, { toJSON: { value: RegExp.prototype.toString, }, }); //work-around from https://stackoverflow.com/questions/12075927/serialization-of-regexp
     addprop(Array.prototype,
     {
-        top: { get() { return this[this.length - 1]; }, }, //NOTE: undef when array is empty
+        at: { value: function(inx) { return this[(inx < 0) * this.length + inx % (this.length || 1)]; }, },
+        top: { get() { return this[this.length - 1]; }, }, //NOTE: undef when array is empty; use "last" instead?
         push_fluent: { value: function(...args) { this.push(...args); return this; }, },
 //        pop_fluent: { value: function(...args) { this.pop(...args); return this; }, },
     });
@@ -640,7 +679,7 @@ function extensions()
     {
         replace_if: { value: function(want_repl, from, to) { return want_repl? this.replace(from, to): this; }, }, //conditional replace; in-line "if" reduces verbosity
     });
-    debug("%d of %d extension%s installed", numadd, plural(numadd + numskip), plural());
+//    debug("%d of %d extension%s installed", numadd, plural(numadd + numskip), plural());
     extensions.done = true;
 
     function addprop(proto, props) //Object_defineProperties

@@ -4,15 +4,71 @@
 //Can be used for non-commercial purposes.
 //
 //History:
-//ver 1.21.1  DJ  rework model ctor, rework layout sttr
+//ver 1.21.1  DJ  rework model ctor, rework layout sttr, move to separate file
 
 'use strict'; //find bugs easier
 //require('colors').enabled = true; //for console output (all threads)
 //require("magic-globals"); //__file, __line, __stack, __func, etc
-const {strict_obj, isdef, throwx, rpt2csv, shortname, my_exports} = require("yalp21/incl/utils");
-const {debug, txtout, TODO} = require("yalp21/incl/msgout");
-const {NUM_PORTS} = require("yalp21");
+const fs = require("fs");
+const Path = require("path");
+const {strict_obj, isdef, json_fixup, revive_re, throwx, rpt2csv, shortpath, my_exports} = require("yalp/incl/utils");
+const {debug, txtout, log, TODO} = require("yalp/incl/msgout");
+
+//my_exports({YALP, isRPi, debug, cfg}); //].forEach((exp) => my_exports(exp));
 debug.max_arg_len = 500;
+
+
+///////////////////////////////////////////////////////////////////////////////
+////
+/// config
+//
+
+
+const addon = require("yalp");
+const {YALP, NUM_PORTS, isRPi, pkgpath} = addon;
+//const yalp = require("yalp"); //CAUTION: circular ref
+
+//allow cfg file to override hard-coded defaults:
+//const j = {x: 1, y: "A", r: /ab/g, f: 1.2}; console.log(j.r.toString(), JSON.stringify(j));
+const cfg = //require("yalp21/config/yalp.json"); //allow cfg to override hard-coded/demo values
+    JSON.parse(json_fixup(fs.readFileSync(Path.resolve(Path.dirname(pkgpath), "config/yalp.json"), "utf8")), revive_re);
+//console.log(cfg);
+
+
+//321 x 240 gives 30 fps with 1,069 univ len:
+const OPTS = cfg.fbopts ||
+{
+//    fbnum: isRPi? 1: 0,
+    timing: "320 0 0 1 0  240 0 3 3 3  0 0 0  30 0 2400000 1", //simulate/override dpi_timings from RPi config.txt
+};
+
+//kludge: redirect debug output to file:
+//debug("initial debout = ", addon.debout);
+//const fd = fs.openSync("data/log.txt", "w");
+//debug("log fd = ", fd);
+//addon.debout = fd; //redirect debug output to file
+//console.log("here1");
+//debug("here1");
+//debug("new debout = ", addon.debout);
+
+
+//elapsed();
+const yalp = new YALP(OPTS);
+my_exports({ctlr: yalp}); //allow seq to access controller (shouldn't really need to, though)
+//debug("here9");
+//addon.debout = process.stdout.fd; //send debug output back to console
+//fs.closeSync(fd);
+//debug("here8");
+//yalp.debout = addon.debout;
+//const [numfr, busy, emit, idle] = [yalp.numfr, yalp.busy_time, yalp.emit_time, yalp.idle_time];
+//const total = busy + emit + idle;
+//Object.defineProperty(yalp, "total", {get: function() { return this.busy_time + this.emit_time + this.idle_time; },});
+debugger;
+
+log("YALP: isRPi? %d, fb# %d, %'d x %'d, univ {# %d, len %'d, %'d max}, frame {intv %'d usec, fps %3.1f}, bkg running? %d, #att %d, seq# %'d, elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, isRPi, yalp.fbnum, yalp.xres, yalp.yres, yalp.NUM_UNIV, yalp.UNIV_LEN, yalp.UNIV_MAXLEN, yalp.frtime, 1e6 / yalp.frtime, yalp.bkgpid, yalp.num_att, yalp.seqnum, yalp.elapsed, (yalp.busy_time + yalp.emit_time + yalp.idle_time) / 1e3, yalp.numfr, yalp.elapsed? yalp.numfr * 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.busy_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.emit_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.idle_time / 1e3 / yalp.elapsed: 0);
+//log(Object.keys(yalp));
+//log("yalp init".brightGreen);
+//process.exit();
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -97,17 +153,18 @@ const ports = `
 //debug("ports", ports);
 
 
-//import models used by this layout:
-const {devpanel} = require("yalp21/models/devpanel");
+//models used by this layout:
+const {devpanel} = require("yalp/models/devpanel");
+const {all} = require("yalp/models/all");
 //const {nullpx} = require("yalp21/models/nullpx");
 //const ic = new model({w: 151, h: 10, port: [R0, R1], });
 //model({name: "nullpx-globe", w: 1, port: B0, });
 //const globes = Array.from({length: 4}).map((_, inx) => new model({name: `gl${inx + 1}`, w: 6*3, h: 1+12+1, port: B0});
 //const tree = new model({name: "tree", w: 2*12, h: 33, port: B2});
 
-//+ helpers:
-const {RGSWAP, GBR2RGB} = require("yalp21/incl/colors");
-const {nullpx} = require("yalp21/models/model");
+//model helpers:
+const {RGSWAP, GBR2RGB} = require("yalp/incl/colors");
+const {nullpx} = require("yalp/models/model");
 
 const BLACK = 0xFF000000;
 
@@ -117,16 +174,10 @@ const BLACK = 0xFF000000;
 //use ports.* consts to catch invalid port#s
 //debugger;
 //NOTE: bullets are always WS2811 (no rgswap)
-//NOTE: set max br for prop here, then use full br in fx
+//NOTE: set max br for prop here, then use full br in fx/seq
 const used_ports =
 [
-//dev props:
-//TODO: allow connect to any port?
-//    {model: minidev, port: [ports.IC1, ports.IC2, ports.IC3]},
-//    {model: nullpx(1), port: ports.R0},
-    {model: devpanel, port: ports.DEVPORT, RGSWAP, MAXBR: 1/10, init: BLACK}, //go eacy on the eyes :P
-//    {model: nullpx(1), port: ports.DEVPORT},
-//show props (other layouts):
+//real/show props:
 //    IC1 = 9, IC2 = 18,
 //    GLOBES = 8, //GLOBES = 23,
 //    LHCOL = 11, //COLS = G3,
@@ -151,6 +202,14 @@ const used_ports =
 //    {model: ic.segments[0], port: ports.IC1},
 //    {model: ic.segments[1], port: ports.IC2},
 //    {model: ic.segments[2], port: ports.IC3},
+//dev props:
+//put these *after* real/show props so they won't affect real/show prop node alloc
+//TODO: allow connect to any port?
+//    {model: minidev, port: [ports.IC1, ports.IC2, ports.IC3]},
+//    {model: nullpx(1), port: ports.R0},
+    {model: devpanel, port: ports.DEVPORT, RGSWAP, MAXBR: 1/10, init: BLACK}, //go eacy on the eyes :P
+//    {model: nullpx(1), port: ports.DEVPORT},
+    {model: all.bind(null, yalp), port: ports.DEVPORT, MAXBR: 1, init: BLACK}, //port# doesn't matter on this one
 //assign nodes/ports to models:
 ].reduce((retval, {model, port: portnum, init, RGSWAP, MAXBR}) =>
 {
@@ -159,6 +218,7 @@ const used_ports =
     if (!model.numpx) throwx(`model '${model.name}' has no physical nodes?`);
     const usedport = retval[portnum] || (retval[portnum] = {});
     model.portnum = portnum;
+//allocate port nodes:
     if (!isdef(model.firstpx)) model.firstpx = usedport.pxused || 0; //auto-allocate nodes to model
     usedport.pxused = Math.max(usedport.pxused || 0, model.firstpx + model.numpx); //track nodes used, allow overlap
 //    this.nodes1D = new Uint32Array(numpx);
@@ -211,7 +271,7 @@ if (!module.parent)
 //    txtout("dev lab layout:");
 //tODO    const colw = Object.
 //    rpt.forEach((line, inx) => txtout(Object.entries(line), inx));
-    rpt2csv(shortname(__file) + "-layout.csv", rpt);
+    rpt2csv("data/" + shortpath(__file) + "-layout.csv", rpt);
 }
 
 

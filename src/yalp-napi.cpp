@@ -214,6 +214,7 @@ NODE_API_MODULE(clock, Init)
 #include <stdio.h> //read()
 #include <utility> //std::declval<>
 #include <type_traits> //std::remove_reference<>
+#include <stdexcept> //std::runtime_error(), std::out_of_range()
 class YALP: public shmdata_t
 {
     using SUPER = shmdata_t;
@@ -234,9 +235,14 @@ class YALP: public shmdata_t
     int m_shminit = 1; //track shm init; CAUTION: must be !0 to detect shm init
 public: //ctor/dtor
     YALP() = delete; //don't allow implicit create (requires at least fb# to be meaningful) //: YALP(-1) {};
-    YALP(int fbnum = -1, const char* timing_ovr = 0, int want_debug = 0): shmdata_t(choosefb(fbnum, timing_ovr), timing_details(timing_ovr), want_debug) //, m_pxbuf(/*m_shdata.*/fbnum) //, gaplen(m_shdata.xtotal - m_shdata.xres)
+    YALP(int fbnum = -1, const char* timing_ovr = 0, int want_debug = 0): shmdata_t(choosefb(fbnum, timing_ovr), timing_details(timing_ovr), want_debug, NULLBITS * PPB) //, m_pxbuf(/*m_shdata.*/fbnum) //, gaplen(m_shdata.xtotal - m_shdata.xres)
     {
-        univlen(NULLBITS * PPB); //CAUTION: need to do this before using univlen()
+//        univlen(NULLBITS * PPB); //CAUTION: need to do this before using univlen()
+//need to set these before accessing shmdata_t::wsnodes[]:
+//        frbufnodes_t::m_limit = portnodes_t::m_limit = univnodes_t::m_limit = wsnodes_poolmax + NUMBUFS * NUMPORTS * univlen();
+//        frbufnodes_t::m_len = NUMBUFS;
+//        portnodes_t::m_len = NUMPORTS;
+        univnodes_t::m_len = univlen();
 //debug("yalp ctor op fb#%d", this->fbnum); //CAUTION: use shmdata copy > choose, not caller's < choose
 //        AutoFB pxbuf(this->fbnum); //, AutoFB<>::NO_MMAP);
         AutoFB<>::timing_t timing(xres, xtotal, yres, ytotal, pxclock, false, false);
@@ -350,7 +356,7 @@ debug("updloop start: bkg already? %d, pid %d, status '%c'", isRunning(), bkgpid
 if (fbptr->frnum) if (prevptr + 1 != fbptr && prevptr - 3 != fbptr) fatal("bad prevptr@ %p, fbptr@ %p, diff %d", prevptr, fbptr, fbptr - prevptr);
                 if (prevptr) //recycle previous frbuf; current frbuf will hold prev values for xparency next time
                 {
-                    memset(&wsnodes[prevptr - &frbufs[0]][0][0], XPARENT, NUMPORTS * univlen()); //sizeof(wsnodes[0]) / sizeof(wsnode_t));
+                    memset<wsnode_t>(&wsnodes[prevptr - &frbufs[0]][0][0], XPARENT, &wsnodes[1][0][0] - &wsnodes[0][0][0]); //NUMPORTS * univlen()); //sizeof(wsnodes[0]) / sizeof(wsnode_t)); //NUMPORTS * univlen()); //sizeof(wsnodes[0]) / sizeof(wsnode_t));
 //                fbptr->/*m_shdata.*/recycle();
 // /*frbuf_t::timestamp_t*/ elapsed_t svtimest = fbptr->timestamp();
 //                    fbptr->timestamp = frtime_msec(frnum(fbptr->timestamp) + NUMBUFS); //avoid cumulative drift by converting via fr#
@@ -423,10 +429,11 @@ private:
 //    const size_t gaplen; //#px during hblank; should be 1
     void pivot24/*_3ppb*/(AutoFB<gpubits_t>& pxbuf, frbuf_t* fbptr, int want_debug = 0)
     {
-        using wsnodes2D_t = std::remove_reference<decltype(wsnodes[0])>::type;
-        wsnodes2D_t& wsnodes2D = wsnodes[fbptr - &frbufs[0]]; //->fifo(this)];
-        wsnodes2D_t& previous2D = /*fbptr->frnum?*/ wsnodes[(fbptr - &frbufs[-3]) % NUMBUFS]; //: wsnodes;
-        if (wsnodes2D - previous2D != 1 * NUMPORTS && wsnodes2D - previous2D != -3 * NUMPORTS) fatal("prev nodes@ %p ofs %d bad, nodes@ %p", previous2D, wsnodes2D - previous2D, previous2D);
+        using wsnodes2D_t = portnodes_t; //std::remove_reference<decltype(wsnodes[0])>::type;
+        wsnodes2D_t& wsnodes2D = wsnodes[fbptr - &frbufs[0]]; //) * NUMPORTS * univlen()]; //wsnodes[fbptr - &frbufs[0]]; //->fifo(this)];
+        wsnodes2D_t& previous2D = /*fbptr->frnum?*/ wsnodes[(fbptr - &frbufs[-3]) % NUMBUFS]; //) * NUMPORTS * univlen()]; //[(fbptr - &frbufs[-3]) % NUMBUFS]; //: wsnodes;
+        if (&wsnodes2D[0] - &previous2D[0] != 1 * NUMPORTS * univlen() * sizeof(wsnode_t) && &wsnodes2D[0] - &previous2D[0] != -3 * NUMPORTS * univlen() * sizeof(wsnode_t)) fatal("prev nodes@ %p ofs %d bad, nodes@ %p", &previous2D[0], &wsnodes2D[0] - &previous2D[0], &previous2D[0]);
+//broken        if (wsnodes2D - previous2D != 1 * NUMPORTS && wsnodes2D - previous2D != -3 * NUMPORTS) fatal("prev nodes@ %p ofs %d %d bad, nodes@ %p", &previous2D[0], wsnodes2D - previous2D, &wsnodes2D[0] - &previous2D[0], &previous2D[0]);
 //#pragma message(PINK_MSG "REMOVE THIS")
 //usleep(2400); return;
 //static int debug2 = 0;
@@ -451,7 +458,7 @@ bool save_debug = want_debug-- > 0;
         if (pxbuf.dirty()) fatal("FB still dirty?"); //backlog or timing messed up?
         size_t want_xyofs = (NULLBITS + /*m_shdata.*/univlen() * WSBITS) * PPB;
         int want_y = want_xyofs / xtotal, want_x = want_xyofs % xtotal; //pxbuf.width();
-        if (/*want_xyofs*/ want_y * pxbuf.width() + want_x > pxbuf.width() * pxbuf.height()) fatal("xy ofs %'d => [y %'d, x %'d] will overshoot eo pxbuf[x %'d, y %'d] = '%'d", want_xyofs, want_y, want_x, pxbuf.width(), pxbuf.height(), pxbuf.width() * pxbuf.height());
+        if (/*want_xyofs*/ want_y * pxbuf.width() + want_x > pxbuf.width() * pxbuf.height()) fatal_type(std::out_of_range, "xy ofs %'d => [y %'d, x %'d] will overshoot eo pxbuf[x %'d, y %'d] = '%'d", want_xyofs, want_y, want_x, pxbuf.width(), pxbuf.height(), pxbuf.width() * pxbuf.height());
         for (int i = 0; i < NULLBITS * PPB; ++i) *bp24++ = BLACK; //NOTE: assumes NULLBITS < rowlen (no address gaps)
         for (int xy = 0; xy < /*m_shdata.*/univlen(); ++xy) //fill L2R, T2B
         {
@@ -535,7 +542,7 @@ static gpubits_t* svgapptr;
 //        int y = xyofs / /*m_shdata.*/xtotal, x = xyofs % /*m_shdata.*/xtotal;
 //        int want_y = want_xyofs / xtotal, want_x = want_xyofs % xtotal; //pxbuf.width();
         int got_y = (bp24 - &pxbuf[0][0]) / pxbuf.width(), got_x = (bp24 - &pxbuf[0][0]) % pxbuf.width(); //xres
-        if (got_y != want_y || got_x != want_x) fatal("bp24 @%p ('%'d) landed on px[y %'d][x %'d], expected px[y %'d][x %'d] @%p eoframe", bp24, bp24 - &pxbuf[0][0], got_y, got_x, want_y, want_x, &pxbuf[want_y][want_x]);
+        if (got_y != want_y || got_x != want_x) fatal_type(std::out_of_range, "bp24 @%p ('%'d) landed on px[y %'d][x %'d], expected px[y %'d][x %'d] @%p eoframe", bp24, bp24 - &pxbuf[0][0], got_y, got_x, want_y, want_x, &pxbuf[want_y][want_x]);
         if (save_debug) debug("pivot %'d nodes onto %'d+%d x %'d canvas took %'d usec, active 0x%x @eof", /*m_shdata.*/univlen(), xres, gap_adjust, pxbuf.height(), perf.elapsed() /*<(int)1e6>(started_usec)*/, WHITE); //active);
     }
 //limit brightness:
@@ -572,11 +579,13 @@ static gpubits_t* svgapptr;
     void memperf_check()
     {
         timer_t<(int)1e6> memperf;
-        int full_len = sizeof(wsnodes[0]) / sizeof(wsnodes[0][0][0]);
-        memset(&wsnodes[0][0][0], BLACK, full_len);
+        int full_len = SIZEOF(wsnodes_poolmax) / NUMBUFS; //sizeof(wsnodes[0]) / sizeof(wsnodes[0][0][0]);
+if (full_len != NUMPORTS * UNIV_MAXLEN) fatal("full len %s %'d (%d, %d) wrong, should be %'lu", std::remove_cvref_t<decltype(wsnodes[0])>::item_type, full_len, sizeof(wsnodes[0]), sizeof(wsnodes[0][0][0]), NUMPORTS * UNIV_MAXLEN);
+        memset<wsnode_t>(&wsnodes[0][0][0], BLACK, full_len);
         auto full_time = memperf.elapsed();
-        int part_len = NUMPORTS * univlen();
-        memset(&wsnodes[0][0][0], BLACK, part_len);
+        int part_len = &wsnodes[1][0][0] - &wsnodes[0][0][0]; //NUMPORTS * univlen();
+if (part_len != NUMPORTS * univlen()) warn("part len %'d wrong, should be %'lu", part_len, NUMPORTS * univlen());
+        memset<wsnode_t>(&wsnodes[0][0][0], BLACK, part_len);
         auto part_time = memperf.elapsed();
         debug("mem perf: full (%'d) took %'d usec, partial (%'d) took %'d usec", full_len, full_time, part_len, part_time);
     }
@@ -765,11 +774,12 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
     }
     Napi::Value frbufs_getter(const Napi::CallbackInfo &info)
     {
-        auto arybuf = Napi::ArrayBuffer::New(info.Env(), &m_shmptr->wsnodes[0], sizeof(m_shmptr->wsnodes)); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
+//debug("arybuf len %'lu", (char*)&m_shmptr->wsnodes[YALP::NUMBUFS][0][0] - (char*)&m_shmptr->wsnodes[0][0][0]);
+        auto arybuf = Napi::ArrayBuffer::New(info.Env(), &m_shmptr->wsnodes[0][0][0], (char*)&m_shmptr->wsnodes[YALP::NUMBUFS][0][0] - (char*)&m_shmptr->wsnodes[0][0][0]); //sizeof(m_shmptr->wsnodes)); //size in bytes //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
 //        Napi::Env env = info.Env();
 //        static bool init = false;
 //        debug("frbufs getter: this@ %p, shm ptr %p", this, &m_shmptr->m_first); //NOTE: can't refer simply to "m_shmptr" here (requires ctor args)
-        /*static*/ auto retary = Napi::Array::New(info.Env(), SIZEOF(m_shmptr->frbufs)); //NUMBUFS); //cached
+        /*static*/ auto retary = Napi::Array::New(info.Env(), YALP::NUMBUFS); //SIZEOF(m_shmptr->frbufs)); //NUMBUFS); //cached
 //            Napi::Value arg
 //            std::vector<Napi::Value> args;
 //        if (!init)
@@ -791,12 +801,14 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //debug("here2, cls %s %s %s", pcls, fcls, ycls);
             Napi::Object frbuf = ExportedClass<frbuf_shm>::NewInstance(info.Env()); //, args);
 //attach 2D nodes to frbuf object:
-            /*static*/ auto nodes2D = Napi::Array::New(info.Env(), SIZEOF(m_shmptr->wsnodes[0]));
-            for (size_t p = 0; p < SIZEOF(m_shmptr->wsnodes[0]); ++p)
-//            {
+//debug("2Dary len %'lu", &m_shmptr->wsnodes[1][0][0] - &m_shmptr->wsnodes[0][0][0]);
+            /*static*/ auto nodes2D = Napi::Array::New(info.Env(), YALP::NUMPORTS); //&m_shmptr->wsnodes[1][0][0] - &m_shmptr->wsnodes[0][0][0]); //YALP::NUMPORTS * univlen()); //SIZEOF(m_shmptr->wsnodes[0]));
+            for (size_t p = 0; p < /*SIZEOF(m_shmptr->wsnodes[0])*/ YALP::NUMPORTS; ++p)
+            {
 //                long pp = p; //RPi requires "long"
-                nodes2D[p] = Napi::TypedArrayOf</*shmdata_t::frbuf_t::port_t::*/ YALP::wsnode_t>::New(info.Env(), m_shmptr->univlen(), arybuf, (char*)&m_shmptr->wsnodes[i][p][0] - (char*)&m_shmptr->wsnodes[0][0][0], napi_uint32_array); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
-//            }
+//debug("uint ary ofs %'lu", (char*)&m_shmptr->wsnodes[i][p][0] - (char*)&m_shmptr->wsnodes[0][0][0]);
+                nodes2D[p] = Napi::TypedArrayOf</*shmdata_t::frbuf_t::port_t::*/ YALP::wsnode_t>::New(info.Env(), m_shmptr->univlen(), arybuf, (char*)&m_shmptr->wsnodes[i][p][0] - (char*)&m_shmptr->wsnodes[0][0][0], napi_uint32_array); //CAUTION: port nodes are packed within each frbuf; #elements, byte ofs; //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+            }
             frbuf.Set("wsnodes", nodes2D);
 //debug("js frbuf[%d]: seq# %'d, fr# %'d", i, napi2val<int>(frbuf.Get("seqnum")), napi2val<int>(frbuf.Get("frnum")));
             frbufs_js[i] = Napi::Persistent(frbuf); //ref count 1 to prevent gc
@@ -1254,11 +1266,14 @@ public:
         debug_noinfo("| stats@ %p: numfr, busytime, emittime, idletime, last updloop", &m_shmptr->stats.numfr);
         debug_noinfo("| port[0/%d]@ %p: brlimit", SIZEOF(m_shmptr->ports) - 1, &m_shmptr->ports[0]);
         for (int f = 0; f < SIZEOF(m_shmptr->frbufs); ++f)
-            debug_noinfo("| frbuf[%d]@ %p: seqnum, fr#/timestamp", f, &m_shmptr->frbufs[f]);
+            debug_noinfo("| frbuf[%d]@ %p: seqnum, fr#/timestamp, nodes@ %p", f, &m_shmptr->frbufs[f], &m_shmptr->wsnodes[f][0][0]);
 //        debug_noinfo("| sync@ %p: mtx, cv, init", &m_shmptr->m_shminit); //mtx);
-        int len = m_shmptr->univlen(), maxlen = SIZEOF(m_shmptr->wsnodes[0][0]);
-        debug_noinfo("| nodes@ %p, %d x %d x univ len %'d/%'d (%d%%)", &m_shmptr->wsnodes[0][0][0], SIZEOF(m_shmptr->frbufs), SIZEOF(m_shmptr->ports), len, maxlen, rdiv(100 * len, maxlen));
-        debug("| eoshm@ %p", &m_shmptr->m_first + sizeof(decltype(m_shmptr)::wrapped_t)); //&m_shmptr[1]);
+        int len = m_shmptr->univlen(), maxlen = YALP::UNIV_MAXLEN; //SIZEOF(m_shmptr->wsnodes[0][0]);
+        debug_noinfo("| nodes@ %p = %p, %d x %d x univ len %'d/%'d (%d%%)", &m_shmptr->wsnodes_poolmax[0], &m_shmptr->wsnodes[0][0][0], SIZEOF(m_shmptr->frbufs), SIZEOF(m_shmptr->ports), len, maxlen, rdiv(100 * len, maxlen));
+        debug("| eoshm@ %p = %p", &m_shmptr->m_first + sizeof(decltype(m_shmptr)::wrapped_t), m_shmptr + 1);
+//debug("nodes[0][0][0]@ %p vs %p %p %p %p", &m_shmptr->wsnodes_poolmax[0], &m_shmptr->wsnodes[0][0][0], &m_shmptr->wsnodes[0][0], &m_shmptr->wsnodes[0], m_shmptr->wsnodes);
+//debug("nodes[0][0][1]@ %p [0][1][0] %p [1][0][0] %p", &m_shmptr->wsnodes[0][0][1], &m_shmptr->wsnodes[0][1][0], &m_shmptr->wsnodes[1][0][0]);
+//debug("nodes[1][1][1]@ %p vs %p %p %p", &m_shmptr->wsnodes[1][1][1], &m_shmptr->wsnodes[1][1], &m_shmptr->wsnodes[1], m_shmptr->wsnodes + 1);
     }
     ~YALP_shm() {}
 #ifdef USING_NAPI
@@ -1279,11 +1294,12 @@ public:
         me.Set("pixclock", m_shmptr->pxclock);
         me.Set("ppb", m_shmptr->ppb());
         me.Set("frtime", m_shmptr->frtime_usec());
-        me.Set("NUM_UNIV", (int)YALP::NUMPORTS);
+        me.Set("NUM_UNIV", (int)YALP::NUMPORTS); //redundant
         me.Set("UNIV_LEN", m_shmptr->univlen());
 //misc/config:
         me.Set("spares", /*Napi::Persistent*/(/*m_ptr->*/spares_getter(info))); //TODO: when to unref?
 //ports:
+        me.Set("NUM_PORTS", /*Napi::Number::New(info.Env(),*/ (int)YALP::NUMPORTS); //redundant
         for (int i = 0; i < SIZEOF(m_shmptr->ports); ++i) //YALP::NUMPORTS
             m_shmptr->ports[i].brlimit = 3 * 255 * 5/6; //default 83%; caller can override
         me.Set("ports", /*Napi::Persistent*/(/*m_ptr->*/ports_getter(info))); //TODO: when to unref?
@@ -1292,7 +1308,7 @@ public:
         me.Set("UNIV_MAXLEN", (int)/*frbuf_t::port_t*/YALP::UNIV_MAXLEN);
 //shm:
         me.Set("SHMKEY", (int)SHMKEY);
-        me.Set("XPARENT", (int)YALP::XPARENT);
+        me.Set("XPARENT", (int)YALP::XPARENT); //redundant
     }
     static opts_t& opts_napi(const Napi::CallbackInfo& info)
     {
@@ -1359,6 +1375,39 @@ Napi::Value jsdebug(const Napi::CallbackInfo& info)
     return info.Length()? info[0]: info.Env().Undefined(); //allow inline debug()
 }
 
+
+//redirect debug output to file:
+//https://github.com/nodejs/node-addon-api/blob/master/doc/external.md
+//int debout = stdout;
+//decltype(debout) get_debout() { return debout; }
+//void set_debout(decltype(debout) newout) { ... }
+//#define NAPI_GETTER_3ARGS(cls, getter, wrapper_name)
+//define NAPI_SETTER_4ARGS(cls, getter, setter, wrapper_name)
+#include <stdio.h> //fdopen(), fileno()
+Napi::Value debout_getter(const Napi::CallbackInfo& info)
+{
+//    fprintf(stderr, "got debout = %d\n", fileno(debout)); fflush(stderr);
+    return Napi::Number::New(info.Env(), fileno(debout));
+}
+/*Napi::Value*/ void debout_setter(const Napi::CallbackInfo& info)
+{
+    if ((info.Length() != 1) || !info[0].IsNumber()) RETURN(err_napi(info.Env(), "1 number (file#) expected; got %d %s", info.Length(), NapiType(info.Length()? info[0]: info.Env().Undefined())));
+//    const /*auto*/ std::string str = info[0].As<Napi::String>();
+    int fd = info[0].As<Napi::Number>().Int32Value();
+//fprintf(stderr, "set debout = %d\n", fd);
+    FILE* fp = fdopen(fd, "a");
+    if (!fp) fatal("fdopen(%d) failed", fd);
+//fprintf(stderr, "debug output redirected: file# %d -> %d\n", fileno(debout), fd); fflush(stderr);
+    if (fflush(debout)) fatal("flush(%d) failed", fileno(debout)); //clean cut-over: flush output before changing destination
+    debout = fp;
+//    Napi::Env env = info.Env();
+//    prevout = printf("\n" BLUE_MSG "%s" BLUE_MSG "%s" "%s" ENDCOLOR_NEWLINE + (prevout > 0), str.c_str(), 
+//    return info[0];
+}
+
+
+//allow JS to use my elapsed/epoch:
+//allows consistent time base between JS and C++
 Napi::Value jselapsed(const Napi::CallbackInfo& info)
 {
     if ((info.Length() > 1) || (info.Length() && !info[0].IsNumber())) return err_napi(info.Env(), "1 optional number (msec) expected; got %d %s", info.Length(), NapiType(info.Length()? info[0]: info.Env().Undefined()));
@@ -1383,6 +1432,8 @@ static Napi::Object UsefulInfo(Napi::Env env, Napi::Object exports)
     exports.Set("isXWindows", Napi::Number::New(env, isXWindows));
 //config:
     exports.Set("NUM_PORTS", Napi::Number::New(env, YALP::NUMPORTS));
+//nodes:
+    exports.Set("XPARENT", Napi::Number::New(env, YALP::XPARENT));
 //debug info:
     exports.Set("ccp_ctr", Napi::Number::New(env, __COUNTER__)); //debug: show #recursive templates used
 //    exports.Set("thrinx", Napi::Number::New(env, thrinx())); //allow access to thread info without any object inst
@@ -1396,6 +1447,10 @@ static Napi::Object UsefulInfo(Napi::Env env, Napi::Object exports)
     exports.Set("version", Napi::String::New(env, TOSTR(VERSION))); //from node.gyp
     exports.Set("built", Napi::String::New(env, TOSTR(BUILT))); //from node.gyp  __TIMESTAMP__)); //from gcc
 //utils:
+    Napi::PropertyDescriptor pd = Napi::PropertyDescriptor::Accessor<debout_getter, debout_setter>("debout", my_napi_default_prop);
+    exports.DefineProperty(pd);
+//wrong    exports.DefineProperties({Napi::PropertyDescriptor::Accessor<debout_getter, debout_setter>("debout")});
+//    exports.SetAccessor("debout", debout_getter, debout_setter);
     exports.Set(/*Napi::String::New(env,*/ "jsdebug", Napi::Function::New(env, jsdebug)); //allow caller to use
     exports.Set(/*Napi::String::New(env,*/ "jselapsed", Napi::Function::New(env, jselapsed)); //allow caller to use
     return exports;
@@ -1481,7 +1536,8 @@ public:
 //max WS281X universe len with given screen resolution:
     inline size_t univlen(int reserved = -1) const
     {
-        static bool init = (reserved == -1)? fatal("univlen() missing req'd arg (first time only)"): true;
+        static int save_res = (reserved == -1)? fatal("univlen() missing req'd arg (first time only)"): reserved;
+        if ((reserved != -1) && (reserved != save_res)) warn("reserved %d mismatches initial value %d, ignored", reserved, save_res);
         static decltype(univlen()) cached = (xtotal * yres - reserved) / WSBITS / ppb(); //NOTE: hblank counts because it interleaves visible data (bits will be 0 during hblank); vblank !counted because occurs after all node data (reset period)
         static bool valid = univlen_check(); //use "static" to check 1x
         return cached;
@@ -1650,6 +1706,7 @@ debug("measured pix clock on fb#%d: %'u usec / %'d fr = %'u usec/fr = %'u psec/p
 //#include <sys/ipc.h> //IPC_*
 //#include <sys/shm.h> //shmget(), shmat(), shmctl(), shmdt()
 #include <type_traits> //std::remove_cvref<>
+//#include <functional> //std::reference_wrapper<>
 //#include <mutex> //std::mutex<>, std::unique_lock<>, std::lock_guard<>
 //#include <condition_variable> //std::condition_variable<>
 //template<int NUMBUF = 4> //, int UNIV_MAXLEN = scrinfo_t::fps2nodes(MIN_FPS), int MIN_FPS = 10>
@@ -1804,19 +1861,33 @@ fatal("frbuf_t (proxy) ctor @%p: unkn frbuf, shm @%p", this, &m_shdata);
     CONSTDEF(MIN_FPS, 10);
     CONSTDEF(UNIV_MAXLEN, scrinfo_t::fps2nodes(MIN_FPS));
     using wsnode_t = uint32_t; //need at least 24 bits
-    wsnode_t wsnodes[NUMBUFS][NUMPORTS][UNIV_MAXLEN]; //start of WS node data; TODO: dyn alloc size based on fps/univlen
+    using univnodes_t = ary<shmdata_t, wsnode_t>;
+    using portnodes_t = ary<shmdata_t, univnodes_t, wsnode_t>;
+    using frbufnodes_t = ary<shmdata_t, portnodes_t, wsnode_t>;
+//    wsnode_t wsnodes_max[NUMBUFS][NUMPORTS][UNIV_MAXLEN]; //start of WS node data; CAUTION: frbuf ports are packed to actual univlen(); TODO: dyn alloc size based on fps/univlen
+    wsnode_t wsnodes_poolmax[NUMBUFS * NUMPORTS * UNIV_MAXLEN]; //start of WS node data; CAUTION: frbuf ports are packed to actual univlen(); TODO: dyn alloc size based on fps/univlen
+//    wsnode_t wsnodes[NUMBUFS][NUMPORTS][UNIV_MAXLEN];
+//    using univ_t = wsnode_t[UNIV_MAXLEN];
+//    univ_t& wsnodes[NUMBUFS][NUMPORTS];
+//    std::reference_wrapper<univ_t> wsnodes[NUMBUFS][NUMPORTS] = {a,b,c};
+//    univ_t&[NUMBUFS][NUMPORTS]
+    frbufnodes_t& wsnodes; //3D pixel array access; at() bounds check, "[]" no bounds check
     CONSTDEF(XPARENT, 0); //use node color from previous frame
 public: //ctor/dtor
     static inline self_t* shm_singleton() { return (self_t*)SUPER::shm_singleton(); }
 //shm init to 0 when alloc; don't need ctor/dtor?
-    shmdata_t() { debug("shmdata_t def ctor: IGNORED"); } //= delete; //don't allow implicit create (requires at least fb# to be meaningful)
+    shmdata_t() = delete; //{ debug("shmdata_t def ctor: IGNORED"); } //= delete; //don't allow implicit create (requires at least fb# to be meaningful)
 //    struct NoInit {}; //kludge: special tag to instantiate without init
 //    shmdata_t(NoInit): SUPER(SUPER::NoInit{}) {}
-    shmdata_t(int fbnum, int want_debug = 0): shmdata_t(fbnum, NULL, want_debug) {}
-    shmdata_t(int fbnum, const char* timing_ovr, int want_debug = 0): SUPER(fbnum, timing_ovr, want_debug), debug_level(want_debug) {}
-//    {
+    shmdata_t(int fbnum, int want_debug = 0): shmdata_t(fbnum, NULL, want_debug) {} //, wsnodes(*(frbufnodes_t*)&wsnodes_poolmax[0])
+    shmdata_t(int fbnum, const char* timing_ovr, int want_debug = 0, int univres = 0): SUPER(fbnum, timing_ovr, want_debug), debug_level(want_debug), wsnodes(*(frbufnodes_t*)&wsnodes_poolmax[0])
+    {
+        univlen(univres); //CAUTION: need to do this before using univlen()
 //        if (m_mtx.islocked()) fatal("shm mtx failed to init?");
-//    }
+//CAUTION: need to set these before accessing wsnodes[]:
+        frbufnodes_t::m_limit = portnodes_t::m_limit = univnodes_t::m_limit = wsnodes_poolmax + NUMBUFS * NUMPORTS * univlen();
+        frbufnodes_t::m_len = NUMBUFS * (portnodes_t::m_len = NUMPORTS * (univnodes_t::m_len = univlen()));
+    }
 //    static shmdata_t*& singleton() { static shmdata_t* ptr = 0; debug(PINK_MSG "shmdata singleton@ %p", ptr); return ptr; }
 //#ifdef USING_NAPI
 //JS ctor
@@ -1884,11 +1955,22 @@ if (fbptr && fbptr != &frbufs[0] && fbptr != &frbufs[1] && fbptr != &frbufs[2] &
             frbuf.seqnum = seqnum;
 //            frbuf.timestamp = frtime_msec(i - svfifo); //* frtime / (int)1e3; //msec; rewind to start next seq
             frbuf.frnum = i - svfifo;
-            memset(&wsnodes[i % NUMBUFS][0][0], (i - svfifo == NUMBUFS - 1)? BLACK: XPARENT, NUMPORTS * univlen()); //sizeof(wsnodes[0]) / sizeof(wsnode_t)); //initialize to xparent; simulates node copy-on-write; TODO: let caller do this (or choose to preserve)?
+            memset<wsnode_t>(&wsnodes[i % NUMBUFS][0][0], (i - svfifo == NUMBUFS - 1)? BLACK: XPARENT, &wsnodes[1][0][0] - &wsnodes[0][0][0]); //NUMPORTS * univlen()); //sizeof(wsnodes[0]) / sizeof(wsnode_t)); //initialize to xparent; simulates node copy-on-write; TODO: let caller do this (or choose to preserve)?
 //debug("recycle[%d/%d]: seq# %'u => %'u, timest %'u => %'u", i, svfifo + NUMBUFS, oldseq, frbuf.seqnum.load(), oldtimest, frbuf.timestamp()); //NOTE: need to use .load() for atomics in printf()
         }
     }
 };
+//"c++filt <mangled_name>" to demangle
+//CAUTION: static class members need init value in order to be found; overwrite later
+template<> STATIC decltype(shmdata_t::univnodes_t::m_len) shmdata_t::univnodes_t::m_len = 0;
+template<> STATIC decltype(shmdata_t::univnodes_t::m_limit) shmdata_t::univnodes_t::m_limit = 0;
+template<> STATIC decltype(shmdata_t::univnodes_t::item_type) shmdata_t::univnodes_t::item_type = "univ nodes";
+template<> STATIC decltype(shmdata_t::portnodes_t::m_len) shmdata_t::portnodes_t::m_len = 0;
+template<> STATIC decltype(shmdata_t::portnodes_t::m_limit) shmdata_t::portnodes_t::m_limit = 0;
+template<> STATIC decltype(shmdata_t::portnodes_t::item_type) shmdata_t::portnodes_t::item_type = "port nodes";
+template<> STATIC decltype(shmdata_t::frbufnodes_t::m_len) shmdata_t::frbufnodes_t::m_len = 0;
+template<> STATIC decltype(shmdata_t::frbufnodes_t::m_limit) shmdata_t::frbufnodes_t::m_limit = 0;
+template<> STATIC decltype(shmdata_t::frbufnodes_t::item_type) shmdata_t::frbufnodes_t::item_type = "frbuf nodes";
 
 
 #elif _HOIST == HOIST_HELPERS
@@ -2468,6 +2550,57 @@ private: //emulate FB with SDL in XWindows: can't get XWindows FB driver to work
 };
 
 
+//wrapper for 2D addressing:
+//NOTE: doesn't use array of arrays but looks like it
+//parent manages all memory
+//2D singleton: data is in parent
+//instances are created in-place (overlaid onto target memory); requires instances to be 0 size
+//static data is used to avoid instance data (more efficient memory usage for large arrays); a tag parameter is used to allow multiple instances of static data
+#include <stdexcept> //std::runtime_error(), std::out_of_range()
+template <typename TAG_T, typename CHILD_T, typename DATA_T = CHILD_T>
+class ary
+{
+//TODO: drop 2nd arg, handle automatically
+//    using data_t = std::conditional<std::is_same<CHILD_T, DATA_T>::value, leaf_t, CHILD_T>::type::m_len; } //simpler than SFINAE
+    struct leaf_t { static const size_t m_len = 1; }; //kludge: proxy for data_t
+public: //data members
+//CAUTION: must not contain instance data due to address placement
+//TODO: use STATIC_WRAP?
+    static size_t m_len;
+    static DATA_T* m_limit; //allow index past end as long as memory is there
+    static const char* item_type;
+    static inline size_t child_size() { return std::conditional<std::is_same<CHILD_T, DATA_T>::value, leaf_t, CHILD_T>::type::m_len; } //simpler than SFINAE
+public: //ctor/dtor
+    ary() {}
+    ~ary() {}
+public: //operators
+//no bounds check:
+//CAUTION: overlayed on top of m_px mmap array
+    inline const CHILD_T& operator[](size_t inx) const
+    {
+        return *(const CHILD_T*)&((DATA_T*)this)[inx * child_size()];
+    }
+    inline CHILD_T& operator[](size_t inx) { return const_cast<CHILD_T&>(std::as_const(*this).operator[](inx));  } //non-const variant (DRY)
+//with bounds check:
+    inline const CHILD_T& at(size_t inx) const
+    {
+//debug("ary@ %p at limit check: %lu inx scrv. (limit %p - this %p) / chsize %lu", this, inx, m_limit, this, child_size());
+        return (inx < /*m_len*/ max_inx())? operator[](inx): oob(inx); //DRY
+    }
+    inline CHILD_T& at(size_t inx) { return const_cast<CHILD_T&>(std::as_const(*this).at(inx)); } //non-const variant (DRY)
+    inline ary& operator+(size_t ofs) /*const*/ { return this[ofs]; }
+    inline size_t operator-(const ary& that) const { return (this - &that) / CHILD_T::m_len; }
+//    inline CHILD_T* operator&() { return 
+private: //helpers
+    inline size_t max_inx() const { return (m_limit && child_size())? (m_limit - (DATA_T*)this) / child_size(): 0; } //allow indexing beyond this row as long as memory is there
+    const CHILD_T& oob(size_t inx) const //generate out of bounds error
+    {
+        fatal_type(std::out_of_range, "%s index %'lu out of range 0..%'lu", item_type, inx, max_inx()); //m_len);
+        return *NULL_OF(CHILD_T); //NULL;
+    }
+};
+
+
 #if 0
 //shared memory object base class:
 class shmobj
@@ -2516,6 +2649,7 @@ public:
 #include <sys/ipc.h> //IPC_*
 #include <sys/shm.h> //shmget(), shmat(), shmctl(), shmdt()
 template <typename WRAP_T, uint32_t SHMKEY>
+#include <stdexcept> //std::runtime_error(), std::out_of_range()
 class shmwrap
 {
 //    using self_t = shmwrap;
@@ -2554,6 +2688,10 @@ public: //ctor/dtor
     }
 public: //operators
     WRAP_T* operator->() { return m_ptr; }
+    inline const WRAP_T& operator[](size_t inx) const { return m_ptr[inx]; }
+    inline WRAP_T& operator[](size_t inx) { return const_cast<WRAP_T&>(std::as_const(*this).operator[](inx));  } //non-const variant (DRY)
+    inline WRAP_T* operator+(size_t ofs) /*const*/ { return m_ptr + ofs; } //&m_ptr[ofs]; }
+    inline size_t operator-(const WRAP_T* that) const { return m_ptr - that; }
 private: //static helpers
 //place all instances at same shm address:
 //    static void* operator new(size_t size, void* callerptr = 0) //...) //, int shmkey = 0, SrcLine srcline = 0)
@@ -2561,7 +2699,7 @@ private: //static helpers
     static wrapped_flag_t* shmalloc(size_t size)
     {
         static wrapped_flag_t* ptr = 0;
-        if (size != sizeof(wrapped_flag_t)) fatal("bad shmdata alloc size: %'u, expected %'u, sizeof wrapped_t %'lu", size, sizeof(wrapped_flag_t), sizeof(WRAP_T)); //don't allow derived classes; only inh final class (to avoid mixed memory sizes)
+        if (size != sizeof(wrapped_flag_t)) fatal_type(std::out_of_range, "bad shmdata alloc size: %'u, expected %'u, sizeof wrapped_t %'lu", size, sizeof(wrapped_flag_t), sizeof(WRAP_T)); //don't allow derived classes; only inh final class (to avoid mixed memory sizes)
 //        if (ptr != callerptr) fatal("shm new(%'lu): already have a shmdata instance: @%p, caller's @%p", size, ptr, callerptr); //only allow attach 1x per process; NOTE: first alloc calls here 2x (alloc + placement new)
         if (ptr) { debug(PINK_MSG "reuse prev shmdata @%p", ptr); return ptr; } //fatal("already have a shmdata instance");
         int shmid = ::shmget(SHMKEY, size /*+ sizeof(shmid)*/, 0666 | IPC_CREAT); //| IPC_EXCL: 0)); // | SHM_NORESERVE); //NOTE: clears to 0 upon creation
@@ -2570,7 +2708,7 @@ private: //static helpers
         if (shmid == -1) fatal("can't find shm key 0x%x", SHMKEY); //failed to create or attach
         shmid_ds_t shminfo;
         if (::shmctl(shmid, IPC_STAT, &shminfo) == -1) fatal("can't get shm status");
-        if (shminfo.shm_segsz < size) fatal("shm size %'lu too small (need at least %'lu); ipcrm and retry", shminfo.shm_segsz, size);
+        if (shminfo.shm_segsz < size) fatal_type(std::out_of_range, "shm size %'lu too small (need at least %'lu); ipcrm and retry", shminfo.shm_segsz, size);
         if (shminfo.shm_segsz > size) warn("shm size %'lu larger than expected (%'lu)", shminfo.shm_segsz, size);
         constexpr void* DONT_CARE = NULL; //CONSTDEF(DONT_CARE, NULL); //system chooses addr
         static constexpr int flags = 0; //read/write access
@@ -2903,11 +3041,14 @@ debug("shell '%s' output %'lu:'%s'", cmd, result.length(), result_esc.c_str());
 #endif
 
 
+//dummy keywords:
+//should use "static" or "void" but compiler doesn't like it
+//compiler doesn't like (void)expr either
+#define STATIC  //static
+#define VOID  //void
+
 //kludge: compiler doesn't like "return (void)expr" so fake it
 #define RETURN(...) { __VA_ARGS__; return; }
-
-//compiler doesn't like (void)expr either
-#define VOID
 
 
 //define a const symbol:
@@ -3009,7 +3150,7 @@ const char* strprintf(ARGS&& ... args)
     char* bufp = buf[ff++ % SIZEOF(buf)]; //allow nested messages
     int len = snprintf(bufp, sizeof(buf[0]), std::forward<ARGS>(args) ...); //perfect fwd args to sprintf()
     CONSTDEF(RESV_LEN, 15);
-    if (len >= sizeof(buf[0])) snprintf(bufp + sizeof(buf[0]) - RESV_LEN, RESV_LEN, " (+%'d) ...", len - sizeof(buf[0]) - RESV_LEN); //show continuation indicator + amount trimmed
+    if (len >= sizeof(buf[0])) snprintf(bufp + sizeof(buf[0]) - RESV_LEN, RESV_LEN, " (+%'d) ...", len - sizeof(buf[0]) - RESV_LEN); //show truncation indicator + amount trimmed
     return bufp;
 }
 
@@ -3077,29 +3218,31 @@ void memset(DATA_T* ary, DATA_T val, size_t len)
 
 
 //misc message functions:
-#include <stdio.h> //printf()
+#include <stdio.h> //FILE*, printf(), fprintf()
 //#include <cstdio> //printf()
-#include <stdexcept> //std::runtime_error()
+#include <stdexcept> //std::runtime_error(), std::out_of_range()
 #include <string.h> //strerror()
 #include <errno.h> //errno
 static int prevout = 0; //1; //true; //start with newline first time
 #define SRCLINE  "@" __FILE__ ":" TOSTR(__LINE__)
 #define SRCLINEF  strafter(SRCLINE, '/') //"/")
-#define RTI_FMT  " T+%4.3f $%d @%s"
-#define rti()  (double)epoch.elapsed() / (int)1e3, thrinx(), SRCLINEF
+#define RTI_FMT  " T+%4.3f $%d @%s" //f#%d
+#define rti()  (double)epoch.elapsed() / (int)1e3, thrinx(), SRCLINEF //fileno(debout),
 //#pragma message(YELLOW_MSG "add mutex to prevent msg interleave?")
 //NOTE: first arg must be lit str below (printf-style fmt)
 //#define warn(...)  (log(YELLOW_MSG __VA_ARGS__), 0)
 #define warn(...)  debug(YELLOW_MSG "WARNING: " __VA_ARGS__)
 #define error(...)  debug(PINK_MSG "ERROR: " __VA_ARGS__)
 //#define fatal()  throw std::runtime_error(std::string(strerror(errno)))
-#define fatal(...)  fatal_info(RED_MSG "FATAL: " __VA_ARGS__, strerror(errno), rti())
-#define fatal_info(fmt, ...)  throw std::runtime_error(strprintf(fmt "; last error: %s" RTI_FMT ENDCOLOR_NOLINE, __VA_ARGS__))
-#define debug_dedup(freq, ...)  (line_elapsed(__LINE__) < (freq))? 0: debug(__VA_ARGS__)
+#define fatal(...)  fatal_type(std::runtime_error, __VA_ARGS__)
+#define fatal_type(exctype, ...)  fatal_info(exctype, RED_MSG "FATAL: " __VA_ARGS__, strerror(errno), rti())
+#define fatal_info(exctype, fmt, ...)  throw *(new exctype(strprintf(fmt "; last error: %s" RTI_FMT ENDCOLOR_NOLINE, __VA_ARGS__)))
+#define debug_dedup(limit, ...)  ((line_elapsed(__LINE__) < (limit))? 0: debug(__VA_ARGS__))
 #define debug(...)  debug_info(true, BLUE_MSG __VA_ARGS__, rti()) //NOTE: adds run-time info *and* ensures >= 2 args before splitting off first arg
+FILE* debout = stdout;
 #define debug_noinfo(...)  debug_info(false, BLUE_MSG __VA_ARGS__, "") //ensures >= 2 args before splitting off
-#define debug_info(want_info, fmt, ...)  prevout = printf(want_info? "\n" fmt RTI_FMT ENDCOLOR_NEWLINE + (prevout > 0): "\n" fmt "%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
-//TODO: fix color spread
+#define debug_info(want_info, fmt, ...)  prevout = fprintf(debout, want_info? "\n" fmt RTI_FMT ENDCOLOR_NEWLINE + (prevout > 0): "\n" fmt "%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
+//TODO: fix color spread, threading, allow turn on/off
 //#define debug_1ARG(msg)  prevout = printf("\n" BLUE_MSG "%s" msg ENDCOLOR_ATLINE_INFO + (prevout > 0), DebugScope::top(": "), rti())
 //#define debug_MORE_ARGS(msg, ...)  prevout = printf("\n" BLUE_MSG "%s" msg ENDCOLOR_ATLINE_INFO + (prevout > 0), DebugScope::top(": "), __VA_ARGS__, rti())
 //#define rti()  strprintf("$%d T+%4.3f", thrinx(), (double)elapsed<(int)1e3>() / (int)1e3) //(now_msec() - started) / (int)1e3)
