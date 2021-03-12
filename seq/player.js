@@ -13,11 +13,15 @@ const Path = require("path");
 //const models = require("./models");
 //const layout = require("./layout");
 //const {isdef, elapsed, srcline} = require("gpuport");
-const {my_exports, find_files, json_fixup, revive_re, shortpath, isRE, sleep, elapsed, plural, isdef} = require("yalp/incl/utils");
+const {my_exports, find_files, json_fixup, revive_re, shortpath, isRE, /*lazy_load,*/ sleep, elapsed, plural, isdef, throwx} = require("yalp/incl/utils");
 const {debug, warn, log, errlog, fmtstr, TODO, srcline} = require("yalp/incl/msgout");
 //const {stats: color_stats} = require("yalp/incl/colors");
 //const {TODO} = require("yalp/incl/utils");
 //srcline.me = Path.basename(__file); //kludge: show "me" in debug msgs
+
+
+//obj.defineProperty attrs:
+const enumerable = true, configurable = true;
 
 
 //suggested installation:
@@ -130,19 +134,25 @@ function active(date)
 debugger;
 
 
+my_exports({runfx}); //allow seq to use; CAUTION: must export before loading seq (circular dep)
+
+
 //kludge: redirect layout/seq debug output to file:
 const addon = require("yalp");
 const fd = fs.openSync("data/loader.log", "w"); //"a"
-    
+
+//NOTE: can't create+destroy+recreate YALP shm ctlr due to node.js "Check failed: result.second" problem
+//work-around: delay loading layout/ctlr until needed; feasible if relatively few layouts
 addon.debout = fd; //redirect debug output to file
 const layouts = choices(find_files(cfg.layout || "../layouts/**/!(bkup|*-bk*)/**/*.js") || [], "layout");
 addon.debout = process.stdout.fd; //send debug output back to console
-debug(layouts.length, "layouts found:", layouts.map(layout => layout.filepath)); //shortpath(layout.filepath)));
+debug("%d layout%s found: %s", plural(layouts.length), plural(), layouts.map(layout => layout.name).join(", ")); //.map(layout => layout.filepath)); //shortpath(layout.filepath)));
 
+//find + cache seq files ahead of time: (could be many seq and they are played multiple times)
 addon.debout = fd; //redirect debug output to file
 const seqfiles = choices(find_files(playlist.folder || __dirname) || [], "seq");
 addon.debout = process.stdout.fd; //send debug output back to console
-debug(seqfiles.length, "seq found:", seqfiles.map(seq => seq.filepath)); //shortpath(seq.filepath)));
+debug(seqfiles.length, "seq found:", seqfiles.map(seq => seq.name).join(", ")); //.map(seq => seq.filepath)); //shortpath(seq.filepath)));
 
 debug("(see data/loader.log for additional debug info)");
 fs.closeSync(fd);
@@ -153,89 +163,99 @@ require.quietResolve = function(...args) { try { return require.resolve(...args)
 
 //start seq playback:
 //seq is responsible for mp3/mp4 playback
-//seq must export {seq, layout, ctlr}
+//seq .js must export seq; also layout, ctlr if they are custom
+//caller can pass in func or pre-instantiated seq instead of file name
 //short-form/partial seq names can be used as long as unique within seq folder
 my_exports({player}); //allow reuse by custom code
 async function player(seqname)
 {
-//debug.max_arg_len = 500;
-    const seq /*{name: seqname, exports: {layout: layname}}*/ = //lazy_load(seqmatch[0].exports.seq); //{seq/*, audiopath, duration*/, layout}, filepath} = seqmatch[0];
-        (typeof seqname == "function")? seqname(): //lazy load
-        (typeof seqname == "object" && !isRE(seqname))? seqname: //as-is
-        (() => //use IIFE to find file
-        {
-            const seqmatch = ((!seqname || isRE(seqname) || !require.quietResolve(seqname))? seqfiles: //find within folder
-                choices([seqname])) //allow path to anywhere
-//        .map((filepath, inx, all) => (debug("file[%'d/%'d] '%s': check name against %s", inx, all.length, filepath, seqname.source || seqname), filepath))
-                .filter(({filepath}) => isRE(seqname)? filepath.match(seqname): ~filepath.indexOf(seqname)) || []; //choose file
-//debug("player matches:", seqmatch.map(({name}) => name));
-//debug(typeof seqmatch[0], seqmatch[0]);
-            if (seqmatch.length == 1) return require(seqmatch[0].filepath);
-            errlog("seq '%s' %s (%'d matches): %s".brightRed, (seqname || {}).source || seqname, !seqmatch.length? "!found".brightRed: "ambiguous".brightYellow, seqmatch.length, seqmatch.map(({name}) => name).join(", ") || "(none)");
-//            await sleep(5e3); //wait 5 sec to reduce log diarrhea
-        })();
-    if (!seq) return await sleep(5e3); //wait 5 sec to reduce log diarrhea
-    const layout =
-        (typeof seq.layout == "function")? seq.layout(): //lazy load
-        (typeof seq.layout == "object" && !isRE(seq.layout))? seq.layout: //as-is
-        (() => //use IIFE to find file
-        {
-            const layoutname = seq.layout;
-            const layoutmatch = ((!layoutname || isRE(layoutname) || !require.quietResolve(layoutname))? layouts: //find within folder
-                choices([layoutname])) //allow path to anywhere
-                .filter(({filepath}) => isRE(layoutname)? filepath.match(layoutname): ~filepath.indexOf(layoutname)) || []; //choose file
-            if (layoutmatch.length == 1) return require(layoutmatch[0].filepath);
-            errlog("layout '%s' %s (%'d matches): %s".brightRed, (layoutname || {}).source || layoutname, !layoutmatch.length? "!found".brightRed: "ambiguous".brightYellow, layoutmatch.length, layoutmatch.map(({name}) => name).join(", ") || "(none)");
-//            await sleep(5e3); //wait 5 sec to reduce log diarrhea
-        })();
-    if (!layout) return await sleep(5e3); //wait 5 sec to reduce log diarrhea
-    const ctlr = seq.ctlr || layout.ctlr; //allow seq to override layout controller
-debug("loading seq '%s', layout '%s', ctlr '%s' ...".brightCyan, seq.name, layout.name, ctlr.name);
-//        log("start seq[%'d vs %d] '%s', audio '%s'".brightCyan, yalp.seqnum, newseqnum, seqpath[0], seq.audiopath);
-//debug("seq ent pts", Object.keys(seq));
-//    const bkg = 
-//    if (!yalp.open(OPTS)) //open FB if not already open
-//    {
-//        log("failed to open FB".brightRed);
-//        return await sleep_msec(5e3); //minimum wait to reduce log diarrhea
-//    }
-//    const seqdata = /*workerize*/(seqfiles[0].entpt()); //delegate seq to use wkers if needed
-    ++player.count || (player.count = 1);
-    const seqnum = ctlr.recycle(); //cancel prev playback; reset frbuf timestamps + invalidate frbuf cache
-    ctlr.seqname = seq.name || seq.filepath; //seqfiles[0].name; // || seqfiles[0].name; //Path.basename(seqpath[0], Path.extname(seqpath[0])); //seqname;
-//TODO("add re-sync logic if seq drifts too far from mp3 timestamp?"); //not needed if use mp3 for time base
-    log("playing seq[%'d] '%s', layout '%s'".brightGreen, seqnum, seq.name, layout.name); //, duration %'d msec, audio '%s'", name, duration || 0, audiopath || "(none)");
-//NOTE: this gives seq() ~0.4 sec lead time for setup + pre-render; if !enough, add delay here
-//    const numfr = await new Promise(async function(resolve, reject)
-//    {
-//        const tscheck = setInterval(() => debug("seq[%'d] ts: render time %'d, mp3 time %'d, delta %'d msec, bkgpid %d, #fr %'d", newseqnum, yalp.timestamp, mp3play.timestamp, yalp.timestamp - mp3play.timestamp, yalp.bkgpid, yalp.numfr), 5e3);
-//try/catch: the show must go on :P
-//        /*try*/ { await Promise.all([runfx({fx: seq}), mp3play(audiopath, () => resolve(yalp.updloop()))]); } //start sequence pre-render, music decode; trigger bkg frbuf pivot+update process when audio starts
-//        /*catch*/ function c (exc) { log("playback error: %s".brightRed, exc); }
-//TODO("re-instate try/catch");
-//        clearInterval(tscheck);
-//        yalp.cancel(); //upd loop no longer needed, seq + mp3 have completed
-//    });
-//    debug("seq/audio completed after %'d msec, expected %'d msec, %'d fr proc".brightGreen, elapsed(), duration || -1, numfr);
-//    debug("playback done".brightGreen);
-//try/catch: the show must go on :P
-TODO("re-instate try/catch");
 debugger;
+    const seq = loadfile(seqname, seqfiles, false);
+    if (!seq) return await sleep(5e3); //reduce log diarrhea
+    ++player.count || (player.count = 1);
+//pkg seq cfg options to pass to seq:
+//some props must be lazy-loaded; layout unknown until seq starts
+    const args = Object.defineProperties({seq},
+    {
+        layout: //if seq asks for layout it likely doesn't have its own custom layout
+        {
+            set: function(layoutname)
+            {
+//NOTE: caller must get/set layout in order to get/set seqnum/seqname correctly
+                if (this.has_layout) throwx("layout '%s' already set", this.has_layout.name); //layout can't change during seq; allow set 1x only
+debug("seq args: get/set layout '%s'", layoutname);
+//get all layout/ctlr info here to avoid recursion into seqnum getter
+//CAUTION: avoid using "this.layout" (causes recursion)
+                Object.defineProperty(this, "has_layout", {value: loadfile(layoutname, layouts)}); //lazy load, !enum, !writable
+//NOTE: caller is responsible for below if using its own custom layout:
+                this.has_layout.use_seqnum = this.has_layout.ctlr.recycle(); //start new seq
+                this.has_layout.ctlr.seqname = this.seq.name; //seqfiles[0].name; // || seqfiles[0].name;
+//debug("set/get seq# %'d, name '%s'", this.has_layout.use_seqnum, this.has_layout.ctlr.seqname);
+            },
+            /*async*/ get: function()
+            {
+                if (!this.has_layout) this.layout = ""; //use setter to get default layout + seq#
+//debug("set/get default layout '%s'", this.has_layout.name);
+                return this.has_layout; //|| await sleep(5e3); //reduce log diarrhea
+            },
+            enumerable,
+//no worky            writable: true, //allow lazy-load to overwrite self
+        },
+//other props dependent on layout or ctlr:
+        seqnum: { get: function() { return this.layout.use_seqnum; }, enumerable, },
+        fps: { get: function() { return 1e6 / this.layout.ctlr.frtime; }, enumerable, },
+    });
+//    if (opts.ctlr) runfx.ctlr = opts.ctlr;
+//    if (opts.layout) runfx.layout = opts.layout;
+//    runfx.seqnum = runfx.ctlr.seqnum;
+//    const seqdata = /*workerize*/(seqfiles[0].entpt()); //delegate seq to use wkers if needed
 //    runfx.ctlr = ctlr;
 //    runfx.seqnum = ctlr.seqnum;
 //    runfx.layout = layout;
-    /*try*/ { await runfx({fx: seq, ctlr, layout}).retval; }
-//    const ret = runfx({fx: seq, model: seq}); //.retval;
-//debug(typeof ret.got_frbuf);
-//debug(ret.got_frbuf({seqnum: 5, timestamp: 5}));
-//debug(typeof ret, Object.keys(ret), typeof ret.retval);
-//debug(!!ret.retval.then);
-//    await ret.retval;
-//    await seq({await_frame: });
+//try/catch: the show must go on :P
+TODO("re-instate try/catch");
+    /*try*/ { await runfx(args).await4done; }
     /*catch*/async function nocatch (exc) { errlog("playback error: %s".brightRed, exc); await sleep(5e3); } //wait 5 sec to reduce log diarrhea
 //debug("player finish".brightGreen);
 //TODO("append seq stats to csv file");
-    log("playback done: elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightGreen, ctlr.elapsed, (ctlr.busy_time + ctlr.emit_time + ctlr.idle_time) / 1e3, ctlr.numfr, ctlr.elapsed? ctlr.numfr * 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.busy_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.emit_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.idle_time / 1e3 / ctlr.elapsed: 0);
+    const ctlr = args.layout.ctlr;
+    log("playback done: elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightGreen, ctlr.elapsed, Math.round((ctlr.busy_time + ctlr.emit_time + ctlr.idle_time) / 1e3), ctlr.numfr, ctlr.elapsed? ctlr.numfr * 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.busy_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.emit_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.idle_time / 1e3 / ctlr.elapsed: 0);
+}
+
+
+//add name prop if !already there:
+//try to append if already there
+function addname(obj, name)
+{
+    const has_name = (obj || {}).name;
+debug("add name '%s'? %d", name, +!has_name); //(obj || {}).name);
+    try { return Object.assign(obj /*|| {}*/, {name: /*(obj || {}).name*/ has_name? obj.name + " " + name: name}); }
+    catch (exc) { debug("nope, name was read-only"); return obj; }
+}
+
+
+/*async*/ function loadfile(name, files, want_func)
+{
+//    const defname = "seq" + srcline(+1);
+    const type = (files == seqfiles)? "seq": (files == layouts)? "layout": "file";
+    const as_is = (typeof name == "function" || (typeof name == "object" && !isRE(name)));
+//    if (type == "layout" && !files) files = 
+    const matches =
+//allow external caller to pass seq obj/func:
+        as_is? [name]:
+//don't allow        (typeof seqname == "object" && !isRE(seqname)) [addname(seqname, "seq" + srcline(+1))]: //NOTE: caller reponsible for passing correct args
+//select .js file by name/re:
+        ((!name || isRE(name) || !require.quietResolve(name))? files: choices([name])) //find within folder or allow path to anywhere
+//            .map((fileinfo, inx, all) => (debug("file[%'d/%'d] '%s': check name against '%s'", inx, all.length, fileinfo.filepath, seqobj.source || seqobj), fileinfo))
+            .filter(({filepath}) => isRE(name)? filepath.match(name): name? ~filepath.indexOf(name): true); //choose file
+    if (matches.length != 1)
+    {
+        errlog("%s '%s' %s (%'d matches): %s".brightRed, type, (name || {}).source || name || desc + srcline(+1), !matches.length? "!found".brightRed: "ambiguous".brightYellow, matches.length, matches.map(({name}) => name).join(", ") || "(none)");
+        return; //await sleep(5e3); //reduce log diarrhea
+    }
+    const [retval, retname] = as_is? [matches[0], type + srcline(+1)]: [require(matches[0].filepath)[type], matches[0].name];
+debug("load %s '%s', want_func? %s, typeof %s", type, retname, JSON.stringify(want_func), typeof retval);
+    return addname((want_func !== false && typeof retval == "function")? retval(): retval, retname);
 }
 
 
@@ -258,19 +278,20 @@ function choices(files, expname)
 //    const modout = fs.createWriteStream("modout.txt");
 //    [process.svout, process.sverr] = [process.stdout.write, process.stderr.write];
 //    process.stdout.write = process.stderr.write = modout.write.bind(modout);
-debug(files.length, expname, "files");
+    const want_unload = (expname == "seq");
+debug(files.length, expname, "files, unload?", want_unload);
 //https://nodejs.org/api/modules.html#modules_require_resolve_request_options
     const retval = files
         .map(filepath => require.resolve(filepath))
         .map(filepath => ({wasloaded: require.cache[filepath], filepath})) //CAUTION: need extra "()"
         .map(modinfo => Object.assign(modinfo, {exports: require(/*DEVTEST ||*/ modinfo.filepath)})) //load seq exports
-        .map(modinfo => Object.assign(modinfo, (expname in modinfo.exports)? {name: modinfo.exports[expname].name || shortpath(modinfo.filepath)}: {})) //kludge: use "in" to avoid "Accessing non-existent property" warning
-        .map(modinfo => (!modinfo.wasloaded && delete require.cache[modinfo.filepath], modinfo)) //don't leave it loaded (ctlr settings might conflict with other layouts)
+        .map(modinfo => (expname in modinfo.exports)? Object.assign(modinfo, {name: (modinfo.exports[expname].name || "").replace(new RegExp("^" + expname + "$", ""), "") || shortpath(modinfo.filepath)}): modinfo) //kludge: use "in" to avoid "Accessing non-existent property" warning
+        .map(modinfo => (want_unload && !modinfo.wasloaded && delete require.cache[modinfo.filepath], modinfo)) //don't leave it loaded (ctlr settings might conflict with other layouts)
         .filter(({exports}) => expname in exports) //~exports.indexOf(expname)) //&& exports.layout && exports.ctlr) //check for exported seq, layout + ctlr; //kludge: use "in" to avoid "Accessing non-existent property" warning
         .map(modinfo => (debug(Object.keys(modinfo.exports), modinfo.filepath), modinfo));
 //    .filter(({exports}) => typeof exports.seq == "function") //check for exported seq() function
 //    .map(({exports, filepath}) => ({exports, filepath, name: shortpath(filepath), })); //audio: exports.audio}));
-debug(retval.length, expname, "files remaining");
+debug(plural(retval.length), expname, `file${plural()} remaining`);
 //debug(modout);
 //    [process.stdout.write, process.stderr.write] = [process.svout, process.sverr];
     return retval;
@@ -283,36 +304,46 @@ debug(retval.length, expname, "files remaining");
 //NOTE: seq is just another (composite) fx, uses same frbuf/evt framework as fx
 //can't sync GPU to external events, so use GPU frames as primary timing source
 //evt emitter + promise seems like less overhead than async wker per frame, uses fewer threads
-my_exports({runfx}); //allow seq to use
+//my_exports({runfx}); //allow seq to use
 /*NOT! async*/ function runfx(opts)
 {
-debug("runfx opts", opts);
-    if (opts.ctlr) runfx.ctlr = opts.ctlr;
-    if (opts.layout) runfx.layout = opts.layout;
-    runfx.seqnum = runfx.ctlr.seqnum;
+//debug("runfx opts", Object.keys(opts)); //, opts.seqnum, opts.fps);
+//    if (opts.ctlr) runfx.ctlr = opts.ctlr;
+//    if (opts.layout) runfx.layout = opts.layout;
+//    runfx.seqnum = runfx.ctlr.seqnum;
 //    yalp.on("frame", got_frbuf);
-    opts.await_frame = await_frame;
-//    if (!opts.fx) throwx("no fx to run");
-    if (!opts.model) opts.model = opts.fx; //use fx/seq as model
+    if (!(opts.fx || opts.seq)) throwx("no fx/seq to run");
+    if (!opts.model) opts.model = opts.fx || opts.seq; //use fx/seq as model?
+    Object.assign(opts, {await_frame, got_frbuf}); //make these available to fx/seq
+    if (!opts.start) opts.start = 0; //default (immediate)
+    if (!opts.duration) opts.duration = 1e3; //default?
+    if (opts.seq) runfx.seq_opts = opts; //save seq info to pass along to fx
+//    else Object.defineProperties(opts, {layout, seqnum, fps}); //give fx access to seq layout/ctlr info; CAUTION: lazy load
+    else Object.keys(runfx.seq_opts) //"inherit" seq opts by fx
+        .filter(prop => !(prop in opts))
+//        .map(prop => debug(prop))
+        .forEach(prop => opts[prop] = runfx.seq_opts[prop]);
+//    if (!opts.fps) opts.fps = opts
 //    /*const*/ opts.model.pending = {seqnum: yalp.seqnum}; //model should only have 1 fx, so put pending frbuf req there
 //    if (!opts.start) opts.start = 0;
 //    if (!opts.duration) opts.duration = ??;
 //    if (!opts.fps) opts.fps = yalp.fps || 1;
 //    if (!opts.seqnum) opts.seqnum = yalp.seqnum;
 //    opts.model.timestamp = elapsed();
-    runfx.latest = {got_frbuf}; //kludge: allow seq to incl self evth; CAUTION: must be set < calling fx()
+//    runfx.latest = {got_frbuf}; //kludge: allow seq to incl self evth; CAUTION: must be set < calling fx()
 //    const retval = opts.fx(opts); //promise to wait for fx/seq to finish
 //debug("here1");
 //    opts.model.stats = 0;
-    const retval = new Promise(async (resolve, reject) => resolve(await opts.fx(opts)));
+//debug("run %s '%s'", opts.fx? "fx": opts.seq? "seq": "??", (opts.fx || opts.seq).name || "thing" + srcline(+1));
+    const await4done = /*new Promise(async (resolve, reject) => resolve(await*/ (opts.fx || opts.seq)(opts);
     opts.model.idle = true;
 //    const now = elapsed();
 //    opts.model.busy_time += now - opts.model.timestamp; //opts.model.timestamp = now;
-debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.stats);
+//debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.stats || {});
 //debug("here2", !!retval.then);
 //    yalp.off("frame", got_frbuf);
 //    return retval; //in case caller wants retval
-    return {got_frbuf, retval}; //return frbuf evt handler + fx promise
+    return {got_frbuf, await4done}; //return frbuf evt handler + fx promise
 //debug("here3", typeof ret, Object.keys(ret), typeof ret.retval, !!ret.retval.then);
 //    return ret;
 
@@ -325,7 +356,7 @@ debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.sta
         if (!pending.promise) return; //caller !waiting for frbuf
 //if (!pending.resolve) throwx("no pending resolve");
 //        const now = elapsed();
-        if (!frbuf || frbuf.seqnum != pending.seqnum) { opts.model.busy = true; return pending.resolve(); } //eof or cancel; TODO: figure out why must return here for seq to exit correctly
+        if (!frbuf || frbuf.seqnum != opts.seqnum) { opts.model.busy = true; return pending.resolve(); } //eof or cancel; TODO: figure out why must return here for seq to exit correctly
         pending.got_time = frbuf.timestamp;
         if (frbuf.timestamp >= pending.want_time) { opts.model.busy = true; return pending.resolve(frbuf); } //got desired frame
 //debug("exit got_frbuf");
@@ -335,9 +366,10 @@ debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.sta
 //        const now = elapsed();
         opts.model.idle = true; //busy_time += now - opts.model.timestamp; opts.model.timestamp = now;
         const pending = opts.model.pending || (opts.model.pending = {}); //model should only have 1 fx, so put pending frbuf req there
-        [pending.seqnum, pending.want_time] = [runfx.seqnum, want_time];
+        [pending.seqnum, pending.want_time] = [opts.seqnum, want_time];
 //debug("await_frame {%'d, %'d}", seqnum, want_time);
-        const frbuf = runfx.ctlr.newer(runfx.seqnum, want_time); //non-blocking
+//debug(Object.keys(opts));
+        const frbuf = opts.layout.ctlr.newer(opts.seqnum, want_time); //non-blocking
         if (frbuf) return frbuf; //no need to wait; allow fx to pre-render
         return pending.promise = new Promise((resolve, reject) => { [pending.resolve, pending.reject] = [resolve, reject]; });
     }

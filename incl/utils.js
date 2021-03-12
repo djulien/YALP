@@ -60,7 +60,7 @@ function my_exports(thing) //, rename)
 //else console.log("exp name/vals", ...Object.entries(thing), caller.where);
     if (typeof thing != "object")
     {
-        const name = thing.name || "export@" + caller.where;
+        const name = thing.name || "export@" + caller.where; //TODO: append srcline to thing.name also?
         if (caller.exports.hasOwnProperty(name) && caller.exports[name] != thing) fatal("dupl export: " + name, caller.where);
         return caller.exports[name] = thing;
     }
@@ -93,7 +93,11 @@ function re_export(obj)
 
 //lazy-load:
 my_exports({lazy_load});
-function lazy_load(val) { return (typeof val == "function")? val(): val; }
+function lazy_load(val)
+{
+    lazy_load.loaded_name = (val || {}).name; //remember what was loaded
+    return (typeof val == "function")? val(): val;
+}
 
 
 //const UINT32_MAX = -1 >>> 0; //(() => (new Uint32Array(1))[0] = -1)();

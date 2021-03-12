@@ -234,27 +234,31 @@ if (want_debug)
         this.dirty = true;
     }
 
-//dummy frame:
-//mainly for debug/test
     const self = this;
-    this.nofrbuf = //dummy frbuf for testing/debug
-    {
-        seqnum: -1,
-        get timestamp() { return (self.pending || {want_time: -1e3}).want_time; },
-        set timestamp(fxtime) { return (self.pending || (self.pending = {})).want_time = fxtime; },
-        get wsnodes() //need getter; port# unknown until later
-        {
-            const retval =
-            {
-                [self.portnum]: new Uint32Array(self.firstpx + self.numpx), //CAUTION: new each time
-            };
-            return retval;
-        },
-    };
-
-//perf (render) stats:
+//    this.nofrbuf = //dummy frbuf for testing/debug
     Object.defineProperties(this,
     {
+//dummy frame:
+//mainly for debug/test
+        nofrbuf:
+        {
+            seqnum: -1,
+            get timestamp() { return (self.pending || {want_time: -1e3}).want_time; },
+            set timestamp(fxtime) { return (self.pending || (self.pending = {})).want_time = fxtime; },
+            get wsnodes() //need getter; port# unknown until later
+            {
+                const retval =
+                {
+                    [self.portnum]: new Uint32Array(self.firstpx + self.numpx), //CAUTION: new each time
+                };
+                return retval;
+            },
+            enumerable: false, //cleaner debug
+        },
+//    };
+//perf (render) stats:
+//    Object.defineProperties(this,
+//    {
         perf:
         {
             value:
@@ -298,7 +302,7 @@ if (want_debug)
 //TODO: !define .out() for models not in layout?
     this.out = function(frbuf, comment) //, force)
     {
-//debug("model '%s' out: dirty? %d, force? %d, dump? %d", this.name, +!!this.dirty, +!!force, +!!this.want_dump);
+//debug("model '%s' out: dirty? %d, force? %d, trace? %d", this.name, +!!this.dirty, +!!force, +!!this.want_trace);
 //caller wouldn't call if !dirty        if (!this.dirty && !force) return;
 //debug(frbuf);
         ++this.perf.numfr;
@@ -313,24 +317,25 @@ if (want_debug) debug("'%s' out: dirty? %d, force? %d, copying %'d nodes of %'dx
 //        const port = frbuf.ports[this.portnum];
         const portnodes = frbuf.wsnodes[this.portnum];
 //        port.brlimit = Math.min(port.brlimit, this.MAXBR); //API limitation: must set on each frame
-        const dumpout = this.want_dump && [];
-        dumpout.pushrow = pushrow.bind(dumpout, this);
-        const outfile = this.want_dump && "data/" + this.name + "-dump.csv";
-        if (this.want_dump && !fs.existsSync(outfile)) //show mapping
+//        const [traceout, outfile] = this.want_trace && [(function(retval = []){ return Object.assign(retval, {pushrow: pushrow.bind(retval, this)}); })(), "data/" + this.name + "-trace.csv"];
+        pushrow.that = this;
+        const [traceout, outfile] = this.want_trace? [Object.assign([], {pushrow/*: pushrow.bind(null, this)*/}), "data/" + this.name + "-trace.csv"]: [];
+//        const outfile = this.want_trace && "data/" + this.name + "-trace.csv";
+        if (this.want_trace && !fs.existsSync(outfile)) //show mapping
         {
 //            if (fs.existsSync(outfile)) break; //header already written
-            dumpout.pushrow(`${commas(this.width)} x ${commas(this.height)} (${commas(this.numpx)})`, "frtime", "fxtime", "comment", ([hwofs]) => `[${commas(hwofs)}]:`);
-            dumpout.pushrow("mapped from:", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => `[${commas(x)}, ${commas(y)}]`).join(", ")}`);
+            traceout.pushrow(`${commas(this.width)} x ${commas(this.height)} (${commas(this.numpx)})`, "frtime", "fxtime", "comment", ([hwofs]) => `[${commas(hwofs)}]:`);
+            traceout.pushrow("mapped from:", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => `[${commas(x)}, ${commas(y)}]`).join(", ")}`);
         }
-        if (this.want_dump && !this.out_count++) //show initial node values
+        if (this.want_trace && !this.out_count++) //show initial node values
         {
 //            const outnodes = port.wsnodes;
-            if (fs.existsSync(outfile)) dumpout.pushrow("", "", "", "", n => ""); //session separator
-            dumpout.pushrow("wsnodes", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(portnodes[this.firstpx + hwofs], "0xFF"), this).join(", ")}`); //NOTE: post-RGSWAP
-            dumpout.pushrow("model", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(this.nodes2D[x][y], "0xFF"), this).join(", ")}`); //NOTE: pre-RGSWAP
+            if (fs.existsSync(outfile)) traceout.pushrow("", "", "", "", n => ""); //session separator
+            traceout.pushrow("wsnodes", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(portnodes[this.firstpx + hwofs], "0xFF"), this).join(", ")}`); //NOTE: post-RGSWAP
+            traceout.pushrow("model", "", "", "", ([hwofs, xylist]) => `${xylist.map(({x, y}) => hex(this.nodes2D[x][y], "0xFF"), this).join(", ")}`); //NOTE: pre-RGSWAP
             this.out_count = 1;
         }
-        const svnodes = this.want_dump && portnodes.slice(this.firstpx, this.firstpx + this.numpx); //NOTE: creates new (typed) ary, not ref
+        const svnodes = this.want_trace && portnodes.slice(this.firstpx, this.firstpx + this.numpx); //NOTE: creates new (typed) ary, not ref
 TODO("check perf, optimize?");
 //        if (this.RGSWAP)
         const rgswap = this.RGSWAP || ((nop) => nop);
@@ -342,14 +347,14 @@ TODO("check perf, optimize?");
 TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
             if (hwofs == UNMAPPED) continue;
             const newval = rgswap(this.nodes1D[n]); //uint32
-//            if (this.want_dump && outnodes[this.firstpx + hwofs] == newval) continue;
-//if (this.want_dump) (log_changes[this.firstpx + hwofs] || (log_changes[this.firstpx + hwofs] = [])).push({hwofs, n, before: hex(outnodes[this.firstpx + hwofs]), after: hex(newval)});
+//            if (this.want_trace && outnodes[this.firstpx + hwofs] == newval) continue;
+//if (this.want_trace) (log_changes[this.firstpx + hwofs] || (log_changes[this.firstpx + hwofs] = [])).push({hwofs, n, before: hex(outnodes[this.firstpx + hwofs]), after: hex(newval)});
             portnodes[this.firstpx + hwofs] = newval;
 //            changed = true;
         }
 //        port.dirtylen = Math.max(port.dirtylen, this.firstpx + this.numpx); //no point in optimizing this; ws refresh time won't change
         this.dirty = false;
-        if (!this.want_dump) return;
+        if (!this.want_trace) return;
 //        const newnodes = port.wsnodes.slice(this.firstpx, this.firstpx + this.numpx); //NOTE: creates new ary, not ref
         const outnodes = portnodes.slice(this.firstpx, this.firstpx + this.numpx);
         const RGBbits = 0xFFFFFF; //A bits are ignored during wsnode formatting; TODO: use for alpha/blend?
@@ -358,19 +363,19 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
 //        const delta = this.outary.map(([hwofs, xylist]) => (rgswap(this.nodes2D[xylist.top.x][xylist.top.y]) != svnodes[hwofs])? `"${hex(this.nodes2D[xylist.top.x][xylist.top.y])}"`: `"="`).join(","); //show value(s) sent from caller (before rgswap)
         if (delta.join(",").match(/\d/) || frbuf == this.nofrbuf) //something changed or caller wants debug
 //        {
-//            dumpout.push(`"update",` + delta + "\n");
-//            dumpout.push(`"T+${/*time2str() elapsed()*/ frbuf.timestamp / 1e3}",` + this.outary.map(([hwofs]) => (outnodes[this.firstpx + hwofs] != svnodes[hwofs])? `"${hex(outnodes[this.firstpx + hwofs])}"`: `"="`).join(",") + "\n"); //show resulting values (post-RGSWAP)
-            dumpout.pushrow(`T+${commas((elapsed() / 1e3).toFixed(3))}`, commas((frbuf.timestamp / 1e3).toFixed(3)), commas(((this.pending || {}).want_time / 1e3).toFixed(3)), comment, ([hwofs]) => delta[hwofs]); //show resulting values
+//            traceout.push(`"update",` + delta + "\n");
+//            traceout.push(`"T+${/*time2str() elapsed()*/ frbuf.timestamp / 1e3}",` + this.outary.map(([hwofs]) => (outnodes[this.firstpx + hwofs] != svnodes[hwofs])? `"${hex(outnodes[this.firstpx + hwofs])}"`: `"="`).join(",") + "\n"); //show resulting values (post-RGSWAP)
+            traceout.pushrow(`T+${commas((elapsed() / 1e3).toFixed(3))}`, commas((frbuf.timestamp / 1e3).toFixed(3)), commas(((this.pending || {}).want_time / 1e3).toFixed(3)), comment, ([hwofs]) => delta[hwofs]); //show resulting values
 //        }
-//        dumpout.push(`"aka",` + this.hwmap.filter((hwofs) => (hwofs != UNMAPPED)).map((hwofs) => `"${hex(this.nodes1D[hwofs])}"`).join(",") + "\n");
-        if (!dumpout.length) return;
-//        fs.appendFileSync(outfile, dumpout.map(v_f => (typeof v_f == "function")? this.outary.map(v_f).map(str => '"' + str + '"').join(",") + "\n": '"' + v_f + '",').join("")); //TODO: async for better perf?
-        fs.appendFileSync(outfile, dumpout.join("")); //TODO: async for better perf?
+//        traceout.push(`"aka",` + this.hwmap.filter((hwofs) => (hwofs != UNMAPPED)).map((hwofs) => `"${hex(this.nodes1D[hwofs])}"`).join(",") + "\n");
+        if (!traceout.length) return;
+//        fs.appendFileSync(outfile, traceout.map(v_f => (typeof v_f == "function")? this.outary.map(v_f).map(str => '"' + str + '"').join(",") + "\n": '"' + v_f + '",').join("")); //TODO: async for better perf?
+        fs.appendFileSync(outfile, traceout.join("")); //TODO: async for better perf?
 
-        function pushrow(that, rowhdr, frtime, fxtime, comment, fmtvals) //need to fmt vals before they change
+        function pushrow(/*that,*/ rowhdr, frtime, fxtime, comment, fmtvals) //need to fmt vals before they change
         {
             const hdrcols = [rowhdr, frtime, fxtime, comment];
-            return this.push(hdrcols.map(val => quote(tostr(val || "").replace(/"/g, '""'))).join(",") + "," + that.outary.map(fmtvals).map(val => quote(val)).join(",") + "\n");
+            return this.push(hdrcols.map(val => quote(tostr(val || "").replace(/"/g, '""'))).join(",") + "," + pushrow.that.outary.map(fmtvals).map(val => quote(val)).join(",") + "\n");
         }
         function quote(val, quo) { return (quo || '"') + val.toString() + (quo || '"'); }
     }

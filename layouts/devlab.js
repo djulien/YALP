@@ -53,8 +53,8 @@ const OPTS = cfg.fbopts ||
 
 
 //elapsed();
-const yalp = new YALP(OPTS);
-my_exports({ctlr: yalp}); //allow seq to access controller (shouldn't really need to, though)
+const ctlr = new YALP(OPTS);
+my_exports({ctlr}); //allow seq to access controller directly (shouldn't really need to, though)
 //debug("here9");
 //addon.debout = process.stdout.fd; //send debug output back to console
 //fs.closeSync(fd);
@@ -63,9 +63,9 @@ my_exports({ctlr: yalp}); //allow seq to access controller (shouldn't really nee
 //const [numfr, busy, emit, idle] = [yalp.numfr, yalp.busy_time, yalp.emit_time, yalp.idle_time];
 //const total = busy + emit + idle;
 //Object.defineProperty(yalp, "total", {get: function() { return this.busy_time + this.emit_time + this.idle_time; },});
-debugger;
+//debugger;
 
-log("YALP: isRPi? %d, fb# %d, %'d x %'d, univ {# %d, len %'d, %'d max}, frame {intv %'d usec, fps %3.1f}, bkg running? %d, #att %d, seq# %'d, elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, isRPi, yalp.fbnum, yalp.xres, yalp.yres, yalp.NUM_UNIV, yalp.UNIV_LEN, yalp.UNIV_MAXLEN, yalp.frtime, 1e6 / yalp.frtime, yalp.bkgpid, yalp.num_att, yalp.seqnum, yalp.elapsed, (yalp.busy_time + yalp.emit_time + yalp.idle_time) / 1e3, yalp.numfr, yalp.elapsed? yalp.numfr * 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.busy_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.emit_time / 1e3 / yalp.elapsed: 0, yalp.elapsed? 100 * yalp.idle_time / 1e3 / yalp.elapsed: 0);
+log("YALP: isRPi? %d, fb# %d, %'d x %'d, univ {# %d, len %'d, %'d max}, frame {intv %'d usec, fps %3.1f}, bkg running? %d, #att %d, seq# %'d, elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightCyan, isRPi, ctlr.fbnum, ctlr.xres, ctlr.yres, ctlr.NUM_UNIV, ctlr.UNIV_LEN, ctlr.UNIV_MAXLEN, ctlr.frtime, 1e6 / ctlr.frtime, ctlr.bkgpid, ctlr.num_att, ctlr.seqnum, ctlr.elapsed, (ctlr.busy_time + ctlr.emit_time + ctlr.idle_time) / 1e3, ctlr.numfr, ctlr.elapsed? ctlr.numfr * 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.busy_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.emit_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.idle_time / 1e3 / ctlr.elapsed: 0);
 //log(Object.keys(yalp));
 //log("yalp init".brightGreen);
 //process.exit();
@@ -113,13 +113,13 @@ YALP ctlr break-out: TOP= 3(R3) 2(R2) 22(B6) 10(G2) 21(B5) 7(R7) 11(G3) 14(G6) 1
 */
 
 
-//dpi24 ports + my aliases:
+//dpi24 ports + custom aliases:
 const ports = `
 //primary port names:
     R0,R1,R2,R3,R4,R5,R6,R7, //red pins 0-7 = ports 0-7
     G0,G1,G2,G3,G4,G5,G6,G7, //green pins 0-7 = ports 8-15
     B0,B1,B2,B3,B4,B5,B6,B7, //blue pins 0-7 = ports 16-23
-//aliases:
+//xmas aliases:
     IC1 = 9, IC2 = 18,
     GLOBES = 8, //GLOBES = 23,
     LHCOL = 11, //COLS = G3,
@@ -152,10 +152,11 @@ const ports = `
 //my_exports(ports, "ports");
 //debug("ports", ports);
 
-
+      
 //models used by this layout:
 const {devpanel} = require("yalp/models/devpanel");
-const {all} = require("yalp/models/all");
+const {all_mirror} = require("yalp/models/all-mirror");
+//const {all_ports} = require("yalp/models/all-ports");
 //const {nullpx} = require("yalp21/models/nullpx");
 //const ic = new model({w: 151, h: 10, port: [R0, R1], });
 //model({name: "nullpx-globe", w: 1, port: B0, });
@@ -209,7 +210,9 @@ const used_ports =
 //    {model: nullpx(1), port: ports.R0},
     {model: devpanel, port: ports.DEVPORT, RGSWAP, MAXBR: 1/10, init: BLACK}, //go eacy on the eyes :P
 //    {model: nullpx(1), port: ports.DEVPORT},
-    {model: all.bind(null, yalp), port: ports.DEVPORT, MAXBR: 1, init: BLACK}, //port# doesn't matter on this one
+//port# doesn't matter on these:
+    {model: all_mirror.bind(null, ctlr), port: ports.DEVPORT, MAXBR: 1, init: BLACK},
+//    {model: all_ports.bind(null, ctlr), port: ports.DEVPORT, MAXBR: 1, init: BLACK},
 //assign nodes/ports to models:
 ].reduce((retval, {model, port: portnum, init, RGSWAP, MAXBR}) =>
 {
@@ -226,11 +229,22 @@ const used_ports =
     (usedport.models || (usedport.models = [])).push(model);
     return retval;
 }, {});
+Object.defineProperty(used_ports, "ctlr", {value: ctlr}); //!enum, !writable
 my_exports({layout: used_ports});
 //my_exports({used_ports});
-debug("used ports", Object.keys(used_ports)); //, used_ports);
+debug("used ports", used_ports); //Object.keys(used_ports)); //, used_ports);
 
 
+//do this *after* collecting used ports above:
+const {model, grid, mapall} = require("yalp/models/model");
+const all_ports = Array.from({length: ctlr.NUM_PORTS})
+    .map((_, portnum) => model(Object.assign({name: `port[${portnum}]: ALL`, portnum, firstpx: 0}, mapall(grid(ctlr.UNIV_LEN)))));
+//    .map(portnum => Object.assign(nullpx(ctlr.UNIV_LEN), {name: `port[${portnum}]: ALL`}));
+//my_exports({all_ports});
+Object.defineProperty(used_ports, "all_ports", {value: all_ports, enumerable: false});
+debug("all_ports", all_ports);
+
+      
 //CLI/test:
 //show layout info + generate .csv
 if (!module.parent)

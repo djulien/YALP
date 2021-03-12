@@ -25,45 +25,57 @@ const {stats: color_stats} = require("yalp/incl/colors");
 //srcline.me = Path.basename(__file); //kludge: show "me" in debug msgs
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 ////
 /// example seq
 //
 
-
 //const {layout, ctlr} = require(cfg.layout || "yalp/layouts/devlab.js");
+//fx:
+const {runfx} = require("yalp/seq/player");
+const {pin_finder} = require("yalp/fx/pin-finder");
+
 
 my_exports({seq}); //, layout, xctlr: ctlr}); //allow player to use it
 async function seq(opts)
 {
-    const {await_frame, layout} = opts;
-    const my_fx = [];
-    my_fx.push(runfx.latest); //kludge: allow seq to use its own evth; caller didn't have access to my_fx[]
-    const bkg = yalp.updloop(frbuf => (/*debug("evth {%'d, %'d} => %'d evth", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, my_fx.length),*/ my_fx.map(fx => (/*debug(typeof fx, typeof fx.got_frbuf),*/ fx.got_frbuf(frbuf))))); //fx.pending.resolve(frbuf));
+    const {await_frame, got_frbuf, layout, seqnum, fps} = opts; //use default (player/cfg-selected) layout
+debug("port-test seq starting ..."); //, opts.seqnum, opts.fps);
+    const start = 0, duration = 10e3; //run for 1 minute
+    const my_fx = layout.all_ports.slice(10, 1).map(model => runfx({fx: pin_finder, model, duration}));
+    layout.all_ports[0].want_trace = layout.all_ports.at(-1).want_trace = true;
+    my_fx.push({got_frbuf}); //runfx.latest); //kludge: allow seq to use its own evth; caller didn't have access to my_fx[]
+//if (false)
+    const bkg = layout.ctlr.updloop(frbuf => (/*debug("evth {%'d, %'d} => %'d evth", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, my_fx.length),*/ my_fx.map(fx => (/*debug(typeof fx, typeof fx.got_frbuf),*/ fx.got_frbuf(frbuf))))); //fx.pending.resolve(frbuf));
 //    const seqnum = yalp.seqnum;
-log("seq[%'d] start".brightCyan, runfx.seqnum); //, Object.keys(yalp));
-    const DURATION = 60e3; //run for 1 minute
-    for (let time = 0; time < DURATION; time += steplen)
+log("seq[%'d] start".brightCyan, seqnum); //, Object.keys(yalp));
+async function not_needed()
+{
+    for (let seqtime = 0; seqtime < duration; seqtime = (Math.trunc(seqtime / steplen) + 1) * steplen)
     {
-        const frbuf = await await_frame(time);
-//debugger;
-//debug(typeof frbuf, frbuf.constructor.name, frbuf);
-debug("seq[%'d]: got frbuf {%'d, %'d}", runfx.seqnum, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
-        if (!frbuf) break; //seq completed or cancelled
+//debug("fade await seq# %d, time %'d msec", seqnum, Math.trunc(fxtime));
+        const frbuf = await await_frame(seqtime);
+debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
+        if (!frbuf) { debug("seq complete/cancel".brightRed); break; } //seq completed or cancelled
+        if (frbuf.timestamp > duration) { debug("seq eof %'d msec".brightGreen, frbuf.timestamp); break; } //eoseq
 //        if (evt.strict && frbuf.timestamp > evt.start + evt.duration) continue; //skip this evt
-        my_fx.push(/*evt.fx.call(null,*/ runfx(evt)); //, frbuf)); //start next async fx; start even if late
+//        my_fx.push(/*evt.fx.call(null,*/ runfx(evt)); //, frbuf)); //start next async fx; start even if late
+//if (false)
+        seqtime = frbuf.timestamp; //adaptive
     }
-    debug("waiting for seq + %'d evts to finish, last frbuf was {%d, %'d}".brightGreen, my_fx.length - 1, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
-    await Promise.all(my_fx.map(fx => fx.retval));
-    debug("seq + %'d evts finished", my_fx.length - 1);
-    yalp.cancel(); //exit from frame upd loop
+}
+    const frbuf = await await_frame(duration); //wait for seq duration
+    debug("waiting for seq + %'d fx to finish, last frbuf was {%d, %'d}".brightGreen, my_fx.length - 1, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
+    await Promise.all(my_fx.map(fx => fx.await4done));
+    debug("seq + %'d fx finished", my_fx.length - 1);
+    layout.ctlr.cancel(); //exit from frame upd loop
 //debug("here0", typeof bkg, !!bkg.then);
 //    await sleep(5e3);
     const numfr = await bkg;
-    debug("%'d evt%s, %'d frame%s processed (%'d msec)", plural(evts.length), plural(), plural(numfr), plural(), Math.round(Math.max(numfr, 0) * 1e3 / yalp.frtime));
+    debug("%'d fx, %'d frame%s processed (%'d msec)", my_fx.length - 1, plural(numfr), plural(), Math.round(numfr * 1e3 / fps));
 //    await sleep(5e3);
     debug("color stats", color_stats);
+//debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.stats || {});
 }
 
 

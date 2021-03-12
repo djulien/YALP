@@ -392,7 +392,7 @@ if (fbptr->frnum) if (prevptr + 1 != fbptr && prevptr - 3 != fbptr) fatal("bad p
 //            VOID m_cv.notify_all(); //wake render/wker threads waiting for more frbufs
         }
         didfr = /*m_shdata.*/ /*SUPER::*/stats.numfr - didfr;
-debug("updloop exit: bkgpid %d status '%c', %d frames processed (%'d msec)", bkgpid.load(), proc_status(bkgpid), didfr, frtime_msec(didfr));
+debug("updloop exit: bkgpid %d status '%c', %'d frames processed (%'d msec)", bkgpid.load(), proc_status(bkgpid), didfr, frtime_msec(didfr));
         return didfr; //#frames processed
     }
 private:
