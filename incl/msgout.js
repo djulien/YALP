@@ -32,7 +32,7 @@ const {jsdebug/*, thrinx*/} = require("yalp"); //"bindings")("gpuport"); //"../"
 //module.exports.debug_limit = debug_limit;
 //module.exports.srcline = srcline;
 //console.log("msgout: loading utlis");
-const {my_exports, auto_obj, tostr, time2str, truncate, commas, isdef} = require("yalp/incl/utils"); //NOTE: also adds __stack and console colors
+const {my_exports, auto_obj, tostr, time2str, truncate, commas, isdef/*, throwx*/} = require("yalp/incl/utils"); //NOTE: also adds __stack and console colors
 //console.log("msgout: loaded utlis", my_exports, elapsed);
 //console.log("imports", my_exports, elapsed, tostr, truncate, commas, isdef);
 
@@ -106,44 +106,58 @@ function myprintf(dest, ...args)
         (dest == MSGTYPE.TODO)? "TODO: ".brightYellow:
         (dest == MSGTYPE.warn)? "WARNING: ".brightYellow:
         (dest == MSGTYPE.log)? "LOG: ":
-        "DEBUG: ".brightBlue; //`DEBUG ${args.length}: `;
+        "DEBUG: "; //.brightBlue; //`DEBUG ${args.length}: `;
     const info = srcline(/*(debug.depth || 0)*/ depth + 1); // + ` T+${elapsed() / 1e3}`;
 //    const [fmt, ] = args;
 //console.log(dest, label, info);
 //console.log(dest, escnp(label, {colors: false, newlines: false, spaces: false}), info);
 
+    const UNDEF = "undefined".brightRed.brightBlue; //kludge: don't make entire debug msg red
+//    const undefs = Object.entries(args).filter(([inx, arg]) => !isdef(arg));
+//    if (undefs.length) console.log(("undefined args: " + undefs.map(([inx,]) => inx).join(", ") + srcline(+1)).brightRed);
 //    if (!extensions.installed) console.log(...args);
     if (debug.enabled === false); //default (undef) on
     else if (limit && ++(myprintf.count || (myprintf.count = auto_obj({}, 0)))[info] > limit);
     else
     {
 //        const fmt = tostr(args[0]);
-        const has_fmt = tostr(args[0]).match(/(?<!%)%/) && (args.length > 1); //look for printf-style fmt ("%X")
+        const has_fmt = (args.length > 1) && Array.from(tostr(args[0]).matchAll(/(^|[^%])%([^%]|$)/g)).length; // /(?<!%)%/g)).length; //look for printf-style fmts ("%X")
+//console.log(args.length, typeof has_fmt, has_fmt, !!tostr(args[0]).match(/%%/));
         let argcount = 0;
 //console.log(want_printf, srcline());
         if (has_fmt) args[0] = args[0] //fix up args to work around sprintf.js limitations
             .replace(/(?<!%)%lu/g, "%u") //%lu not supported by sprintf.js :(
-            .replace(/(?<!%)%('d)?/g, (argfmt, want_commas) => want_commas? (++argcount, args[argcount] = commas(args[argcount]), /*console.log(JSON.stringify(`arg[${argcount}] ${argfmt} -> %s`), srcline()),*/ "%s"): (++argcount, /*console.log(JSON.stringify(`arg[${argcount}] as-is ${argfmt}`), srcline()),*/ argfmt)); //kludge: convert "%'d" to strings; sprintf.js doesn't handle comma separators
+            .replace(/(?<!%)%(('[udf])|[\d.]*[^%])/g, (argfmt, want_commas) => !isdef(args[++argcount])? (args[argcount] = UNDEF, "%s"): want_commas? (args[argcount] = commas(args[argcount]), "%s"): argfmt); //kludge: convert "%'d" to strings; sprintf.js doesn't handle comma separators; also refmt undef args
+//if (has_fmt == 8) console.log(args[0]);
 //console.log(want_printf, JSON.stringify(args[0]), srcline());
 //console.log(args, srcline());
-        const valstr = 
-            has_fmt? //(tostr(args[0]).match(/%/) && (args.length > 1))?
-                sprintf(...args): //sprintf-style: first arg = fmt string
-                args.map((arg) => truncate(fmt(arg), isdef(debug.max_arg_len, +debug.max_arg_len, 100))).join(" "); //!isNaN(debug.max_arg_len)? debug.max_arg_len: 100)).join(" ");
+        const valstr = //append sprintf result + remaining non-sprintf args
+            (has_fmt? //(tostr(args[0]).match(/%/) && (args.length > 1))?
+                [sprintf(...args)].concat(args.slice(has_fmt + 1)): //sprintf-style: first arg = fmt string
+                args).map((arg) => isdef(arg)? truncate(fmt(arg), isdef(debug.max_arg_len, +debug.max_arg_len, 100)): UNDEF).join(" "); //!isNaN(debug.max_arg_len)? debug.max_arg_len: 100)).join(" ");
 //        if (!blue[0].length) console.log(label, ...args.map((arg) => fmt(arg)), caller);
 //        else console.log(label.brightBlue.slice(0, -blue[1].length), ...args.map((arg) => replaceAll(fmt(arg), blue[1], blue[0])), caller.brightBlue.slice(blue[0].length));
 //console.log(typeof outstr, typeof outstr.color_nest);
         if (dest == MSGTYPE.fmtstr) return valstr;
+//const escnp_debug = color_nest.want_debug = srcline(+1).match(/@player\.js:(97|525)/);
+//if (escnp_debug) console.log("orig", label + valstr + info);
+//if (escnp_debug) console.log("orig-esc", escnp(label + valstr + info, {colors: false, newlines: false, xspaces: false}));
         const outstr = color_nest(label + valstr + info) //.brightBlue;
-            .replace(/\r(.*)$/, `$1 ${CLREOL} \r`); //issue clear to end-of-line sequence + move \r to end of line
+            .replace(/\r(.*)$/, `$1 ${CLREOL()} \r`); //issue clear-to-eol + move \r to end of line
 //      if (!isMainThread) parentPort.postMessage(outstr); //kludge: worker threads can't use console; delegate to main thread
 //      else if (outstr_fixup != outstr) process.stderr.write(outstr_fixup); //kludge: preserve \r
 //      else console.log(outstr); //label + msg + caller);
-        const outbuf = jsdebug(outstr); //add-on will append thread/elapsed time info
+//if (escnp_debug) console.log(outstr.replace(/[^\x20-\x7e]/g, ch => "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0")));
+//if (escnp_debug) console.log(">nest", outstr);
+//if (escnp_debug) console.log(">nest-esc", escnp(outstr, {colors: false, newlines: false, xspaces: false}));
+        const outbuf = color_nest(jsdebug(outstr)); //add-on will append thread/elapsed time info; add color if none
+//if (escnp_debug) console.log(">jsdeb", outbuf);
+//if (escnp_debug) console.log(">jsdeb-esc", escnp(outbuf, {colors: false, newlines: false, xspaces: false}));
+//color_nest.want_debug = false;
         if (dest == MSGTYPE.errlog || dest == MSGTYPE.log) //insert timestamp
         {
             const first = !myprintf[dest + "_init"]; myprintf[dest + "_init"] = true;
-            const has_color = outbuf.match(ANSI_re);
+            const has_color = outbuf.match(ANSI_re());
             const ofs = has_color? has_color.index + has_color[0].length: 0; //where to insert timestamp
 //            outbuf.replace(ANSI_re, "$&" + logtime);
             const logbuf = outbuf.slice(0, ofs) + "[" + time2str(null, first) + "] " + outbuf.slice(ofs);
@@ -252,10 +266,11 @@ function unit_test()
 
 //esc codes:
 //https://en.wikipedia.org/wiki/ANSI_escape_code#Escape_sequences
-const CLREOL = "\x1B[0K"; //CSI 0 K 
-const ANSI_re = /\x1B\[([\d;]+)m/; //ANSI color codes
+//kludge: these are functions to allow hoisting
+/*const*/ function CLREOL() { return "\x1B[0K"; } //CSI 0 K 
+/*const*/ function ANSI_re() { return /\x1B\[([\d;]+)m/g; } //ANSI color codes
 //const all_ANSI_re = new RegExp(ANSI_re.source, "g");
-const EOCOLOR = "39"; //"0"; //used with ANSI color code
+/*const*/ function EOCOLOR() { return "39"; } //"0"; //used with ANSI color code
 
 
 //esc non-printable chars:
@@ -264,7 +279,7 @@ my_exports({escnp});
 function escnp(str, opts) //{colors: true, newlines: false, spaces: true})
 {
     const keeps = [];
-    if ((opts || {}).colors !== false) keeps.push(ANSI_re.source);
+    if ((opts || {}).colors !== false) keeps.push(ANSI_re().source);
     if ((opts || {}).newlines !== false) keeps.push("\n");
     if ((opts || {}).spaces !== false) keeps.push(" ");
 //    const specialchar_re = new RegExp(`[^\x20-${!spaces? "\\xb6\\xb8": ""}\x7e\r${!newlines? "\\n": ""}]`, "g"); //match non-printable chars but preserve (capture) ANSI color codes
@@ -304,16 +319,24 @@ function escsp(str)
 my_exports({color_nest});
 function color_nest(str)
 {
+//    const retval = str
+//        .replace(ANSI_re(), (cmd, color) => (color != EOCOLOR())?
+//             (stack.push(cmd), cmd):
+//             (stack.pop(), stack.at(-1) || cmd))
+//        .replace(new RegExp(`^(.*?)(${ANSI_re().source})`, ""), (_, prefix, color) => color + prefix)
+//        .replace(abc(?!.*abc)
 //prefix broken    const prefixANSI_re = new RegExp(`(^.*?)?(${ANSI_re.source})`, "g"); ///(^.*?)?(\x1B\[([\d;]+)m)/g,
-    const prefixANSI_re = new RegExp(`(^[^\x1B]*|)(${ANSI_re.source})`, "g"); ///(^.*?)?(\x1B\[([\d;]+)m)/g,
-    const stack = [];
+//    const prefixANSI_re = new RegExp(`(^[^\x1B]*|)(${ANSI_re().source})`, "g"); ///(^.*?)?(\x1B\[([\d;]+)m)/g,
+    const aroundANSI_re = new RegExp(`(^[^\x1B]*|)(${ANSI_re().source})(|[^\x1B]*$)`, "g"); ///(^.*?)?(\x1B\[([\d;]+)m)/g,
+    const stack = []; //, save = [];
+    const deb = color_nest.want_debug || ""; //? str => str: str => "";
 //console.log(prefixANSI_re.source);
 //console.log("color_nest", escnp(str, {colors: false, newlines: false, spaces: false}));
 //console.log("color nest", prefixANSI_re.source, str.replace(/[^\x20-\x7e]/g, ch => "\\x" + ch.charCodeAt(0).toString(16)));
     const retval = str
-        .replace(prefixANSI_re, (_, prefix, keep, code) => (code == EOCOLOR)?
-            (stack.pop(), /*`POP[${stack.length} '${code}']` +*/ (stack.slice(-1)[0] || "")): //end color
-            (stack.push(keep), /*`PUSH[${stack.length} '${code}']`+*/ keep + (prefix || ""))); //start color
+        .replace(aroundANSI_re, (_, prefix, cmd, color, suffix) => (color != EOCOLOR())?
+            (stack.push(cmd), (deb && `PUSH[${stack.length} '${color}']`) + cmd + (prefix || "")): //start color < prefix
+            (stack.at(-2) && stack.pop(), (deb && `POP[${stack.length} '${color}']`) + stack.at(-1) + (suffix? suffix + cmd: ""))); //pop color or end color > suffix
 //console.log(prefANSI_re.source, srcline());
 //console.log(JSON.stringify(str), srcline());
 //console.log(JSON.stringify(retval), srcline());
@@ -335,14 +358,15 @@ function srcline(nested)
 //    const srcline = `  @${Path.basename(caller.getFileName().replace(__filename, "me"))}:${caller.getLineNumber()}`;
 //    const info = __stack.map(caller => ` @${Path.basename((caller.getFileName() || NOFILE).replace(srcline.me || __filename, "me"))}:${caller.getLineNumber()}`).map((srcline, inx) => (inx == 1)? srcline.brightCyan: srcline).join("");
     const callers = __stack; //getter has overhead; save in temp
-    const NOFILE = "noframe?"; //TODO: find out why
+//    const NOFILE = "noframe?"; //TODO: find out why
+    const NOSTKFR = {getFileName: () => `??DEPTH${nested}??`, getLineNumber: () => -1};
     const level = !isdef(nested)? 0+1: //default = next level up
         (nested == Math.trunc(nested))? nested + 1: //caller-specified depth
-        (callers[Math.floor(nested)].getFileName() == callers[Math.ceil(nested)].getFileName())? Math.ceil(nested) + 1: //caller optional 1 more level
+        ((callers[Math.floor(nested)] || NOSTKFR).getFileName() == (callers[Math.ceil(nested)] || NOSTKFR).getFileName())? Math.ceil(nested) + 1: //caller optional 1 more level
         Math.floor(nested) + 1; //caller
-//    const caller = __stack[nested_fixup] || {getFileName: () => `??DEPTH${nested}??`, getLineNumber: () => -1};
+//    const caller = __stack[nested_fixup] || NOFR;
 //console.log(nested, level, callers.length);
-    const retval = ` @${Path.basename((callers[level].getFileName() || NOFILE)/*.replace(srcline.me || __filename, "me")*/)}:${callers[level].getLineNumber()}`;
+    const retval = ` @${Path.basename((callers[level] || NOSTKFR).getFileName()/*.replace(srcline.me || __filename, "me")*/ || "?lambda?")}:${(callers[level] || NOSTKFR).getLineNumber()}`;
 //    if (~retval.indexOf("@loader.js")) //TODO: fix this
 //    return `  @${nested +1 || 1}` + __stack/*.slice(nested + 1 || 1)*/.map((frame, inx) => `[${inx}]${Path.basename((frame.getFileName() || NOFILE).replace(srcline.me || __filename, "me"))}:${frame.getLineNumber()}`).join(" -> "); //TODO: fix this
     return retval;

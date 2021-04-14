@@ -74,14 +74,18 @@ const BLACK = 0xFF000000;
 //    [WHITE_dim, 7+2],
 //];
 
+//dummy frbuf (mainly for debug):
+const NOFR = {seqnum: -1, frnum: -1, timestamp: -99, latency: -1};
+
 
 //pin-finder:
 //generate different 1-of-N R/G/B pattern on each GPIO pin
 //fps + duration determine smoothness and speed of fade; fps can be different from main seq 
 my_exports({pin_finder});
-async function pin_finder(opts)
+/*async*/ function* pin_finder(opts, wait4frame) //generator allows *synchronous* yields
 {
-    const {model, start, duration, fps, await_frame} = opts;
+//debug("pin-finder ...");
+    const {model, start, duration, fps} = opts;
 //    const fps = opts.fps || yalp.fps || 1;
     const steplen = 1e3 / fps; //(fps - 1); //msec
     const dim = opts.dimff / 255 || opts.dim1 || 1.0;
@@ -89,24 +93,47 @@ async function pin_finder(opts)
     const [color, repeat] = [colors[model.portnum >> 3], (model.portnum & 7) + 1];
 //debug("pin finder ...", opts, model);
 debug("pin-finder: model '%s', port# %d, color %s, repeat %d, start %'d, duration %'d, steplen %'d msec => #steps %'d".brightGreen, model.name, model.portnum, hex(color, "0xFF"), repeat, start, duration, steplen, Math.trunc(duration / steplen));
-    for (let fxtime = start; fxtime < start + duration; fxtime = (Math.trunc(fxtime / steplen) + 1) * steplen)
+let previous = -1;-312
+    for (let fxtime = start, nxtime; fxtime < start + duration; fxtime = nxtime) //Math.trunc(fxtime / steplen + 1) * steplen)
     {
-if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: port %d, await seq# %'d, time %'d msec", model.portnum, opts.seqnum, Math.trunc(fxtime));
-        const frbuf = await await_frame(fxtime); //seqnum,
-if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: port %d, got fr seq# %'d, time %'d msec", model.portnum, (frbuf || model.nofrbuf).seqnum, (frbuf || model.nofrbuf).timestamp);
-        if (!frbuf) { debug("pin-finder complete/cancel".brightRed); break; } //seq completed or cancelled
+if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: port %d, await seq# %'d, time %'d msec", model.portnum, opts.seqnum, fxtime);
+        const frbuf = /*await*/ yield wait4frame(fxtime);
+//debug(JSON.stringify(frbuf));
+        if (frbuf && frbuf.timestamp == previous) throwx("dupl frbuf {%d, %d=%'d}", frbuf.seqnum, frbuf.frnum, frbuf.timestamp);
+        previous = (frbuf || NOFR).timestamp;
+if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: port %d, got fr seq# %'d, fr# %d = time %'d msec, waited %'d msec", model.portnum, (frbuf || NOFR).seqnum, (frbuf ||NOFR).frnum, (frbuf || NOFR).timestamp, (frbuf || NOFR).latency);
+        if (!frbuf) break; //{ debug("pin-finder complete/cancel".brightRed); break; } //seq completed or cancelled
         if (frbuf.timestamp > start + duration) { debug("pin-finder eof %'d msec".brightGreen, frbuf.timestamp); break; } //eofx
 //if (false)
-        fxtime = frbuf.timestamp; //adaptive
-        const step = Math.trunc(frbuf.timestamp / steplen);
+//        fxtime = frbuf.timestamp; //adaptive
+        const step = Math.round(frbuf.timestamp / steplen); //current ani fr# to render; CAUTION: frbuf time could be slightly < steplen (if fractional msec); round to avoid dupl next frame
+        nxtime = (step + 1) * steplen;
+//crlr: 0, 33, 66, 99, 133, 166, 199, 233
+//fx: 0, 33.3, 66.6 99.9, 133.3, 166.6, 199.9, 233.3
         for (let n = 0; n < model.nodes1D.length; ++n)
 //            model.nodes1D[n] = RGBblend((fxtime - start) / duration, from[n], to[n]); //TODO: fx-local cache
             model.nodes1D[n] = ((n - step) % repeat)? BLACK: step? color: colors.at(-1); //[] must be int; first one white for easier recognition of repeating pattern on larger props
 //debug(model.name, step);
-if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: port %d, out node ofs %'d", model.portnum, -step % repeat);
-        model.out(frbuf, `${(0 - step) % repeat} of ${repeat}`);
+if (~[0, 23].indexOf(model.portnum)) debug("pin-finder: render port %d, step/fr# %'d, first node %'d, next time %'d", model.portnum, step, -step % repeat, nxtime);
+        model.out(frbuf, `${step % repeat} of ${repeat}`);
     }
-    debug("pin-finder: completed".brightGreen);
+    debug("pin-finder: fx completed".brightGreen);
+}
+
+function* dummy_pin_finder(opts, wait4frame) //generator allows *synchronous* yields
+{
+    const {start, duration, fps} = opts;
+    const steplen = 1e3 / fps; //(fps - 1); //msec
+    debug("fx start: %'d..%'d(+%'d), steplen %'d, then wait4frame %'d", start, start + duration, duration, steplen, start);
+    for (let fxtime = start, frbuf; fxtime < start + duration; fxtime = frbuf.timestamp + steplen)
+    {
+//        debug("fx wait4frame", fxtime);
+        frbuf = yield wait4frame(fxtime);
+        debug("fx got frbuf %'d msec, next wait4frame %'d? %d", frbuf.timestamp, Math.trunc(frbuf.timestamp + steplen), +(frbuf.timestamp + steplen < start + duration));
+//        fxtime = frbuf.timestamp + 1;
+    }
+    debug("fx done");
+    return 456;
 }
 
 //eof

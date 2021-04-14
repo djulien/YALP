@@ -13,7 +13,7 @@ const Path = require("path");
 //const models = require("./models");
 //const layout = require("./layout");
 //const {isdef, elapsed, srcline} = require("gpuport");
-const {my_exports, find_files, json_fixup, revive_re, shortpath, isRE, /*lazy_load,*/ sleep, elapsed, plural, isdef, throwx} = require("yalp/incl/utils");
+const {my_exports, find_files, tostr, json_fixup, revive_re, shortpath, isRE, /*lazy_load,*/ sleep, elapsed, plural, isdef, throwx} = require("yalp/incl/utils");
 const {debug, warn, log, errlog, fmtstr, TODO, srcline} = require("yalp/incl/msgout");
 //const {stats: color_stats} = require("yalp/incl/colors");
 //const {TODO} = require("yalp/incl/utils");
@@ -21,7 +21,7 @@ const {debug, warn, log, errlog, fmtstr, TODO, srcline} = require("yalp/incl/msg
 
 
 //obj.defineProperty attrs:
-const enumerable = true, configurable = true;
+const enumerable = true, configurable = true, writable = true;
 
 
 //suggested installation:
@@ -89,6 +89,7 @@ const playlist = cfg.playlist ||
 //plays intro, then loops playlist until scheduled stop
 //plays closing then exits; ext proc mgr can restart it for next day
 //daily restart allows file changes/bug fixes to be pulled in
+//this is async to allow player/seq/fx to run in parallel; async overhead doesn't matter here
 my_exports({scheduler}); //allow reuse by custom code
 /*await*/ async function scheduler()
 {
@@ -132,9 +133,14 @@ function active(date)
 //seq can override
 //const layouts = require(cfg.layout || "../layouts/dev-lab");
 debugger;
+process.once('exit', () => debug("exit".brightCyan));
 
+//my_exports({runfx}); //allow seq to use; CAUTION: must export before loading seq (circular dep)
+//don't show error if module !exists:
+require.quietResolve = function(...args) { try { return require.resolve(...args); } catch (exc) {}; };
 
-my_exports({runfx}); //allow seq to use; CAUTION: must export before loading seq (circular dep)
+//dummy frbuf (mainly for debug):
+const NOFR = {seqnum: -1, frnum: -1, timestamp: -99};
 
 
 //kludge: redirect layout/seq debug output to file:
@@ -156,9 +162,6 @@ debug(seqfiles.length, "seq found:", seqfiles.map(seq => seq.name).join(", ")); 
 
 debug("(see data/loader.log for additional debug info)");
 fs.closeSync(fd);
-
-//don't show error if module !exists:
-require.quietResolve = function(...args) { try { return require.resolve(...args); } catch (exc) {}; };
 
 
 //start seq playback:
@@ -183,7 +186,7 @@ debugger;
             {
 //NOTE: caller must get/set layout in order to get/set seqnum/seqname correctly
                 if (this.has_layout) throwx("layout '%s' already set", this.has_layout.name); //layout can't change during seq; allow set 1x only
-debug("seq args: get/set layout '%s'", layoutname);
+//debug("seq args: get/set layout '%s'", layoutname);
 //get all layout/ctlr info here to avoid recursion into seqnum getter
 //CAUTION: avoid using "this.layout" (causes recursion)
                 Object.defineProperty(this, "has_layout", {value: loadfile(layoutname, layouts)}); //lazy load, !enum, !writable
@@ -195,7 +198,7 @@ debug("seq args: get/set layout '%s'", layoutname);
             /*async*/ get: function()
             {
                 if (!this.has_layout) this.layout = ""; //use setter to get default layout + seq#
-//debug("set/get default layout '%s'", this.has_layout.name);
+//debug("get layout '%s'", this.has_layout.name, srcline(+1), srcline(+2), srcline(+3));
                 return this.has_layout; //|| await sleep(5e3); //reduce log diarrhea
             },
             enumerable,
@@ -204,33 +207,298 @@ debug("seq args: get/set layout '%s'", layoutname);
 //other props dependent on layout or ctlr:
         seqnum: { get: function() { return this.layout.use_seqnum; }, enumerable, },
         fps: { get: function() { return 1e6 / this.layout.ctlr.frtime; }, enumerable, },
+//dedault values for misc other props:
+//        start: 0,
+//        duration: 10e3,_finder.nex
     });
-//    if (opts.ctlr) runfx.ctlr = opts.ctlr;
-//    if (opts.layout) runfx.layout = opts.layout;
-//    runfx.seqnum = runfx.ctlr.seqnum;
-//    const seqdata = /*workerize*/(seqfiles[0].entpt()); //delegate seq to use wkers if needed
-//    runfx.ctlr = ctlr;
-//    runfx.seqnum = ctlr.seqnum;
-//    runfx.layout = layout;
+    await sleep(5e3); //async test
 //try/catch: the show must go on :P
 TODO("re-instate try/catch");
-    /*try*/ { await runfx(args).await4done; }
-    /*catch*/async function nocatch (exc) { errlog("playback error: %s".brightRed, exc); await sleep(5e3); } //wait 5 sec to reduce log diarrhea
+//    /*try*/ { await runfx(args).await4done; } //(); }
+//    /*try*/ { yield runfx(args).yield2done; } //(); }
+    const seqstart = Date.now();
+debugger;
+    const retval = await runfx(args).complete;
+//    debug("seq retval", retval);
+    /*catch*/async function not_catch (exc) { errlog("playback error: %s".brightRed, exc); await sleep(5e3); } //wait 5 sec to reduce log diarrhea
 //debug("player finish".brightGreen);
 //TODO("append seq stats to csv file");
     const ctlr = args.layout.ctlr;
-    log("playback done: elapsed %'d vs %'d msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightGreen, ctlr.elapsed, Math.round((ctlr.busy_time + ctlr.emit_time + ctlr.idle_time) / 1e3), ctlr.numfr, ctlr.elapsed? ctlr.numfr * 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.busy_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.emit_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.idle_time / 1e3 / ctlr.elapsed: 0);
+    log("playback done: elapsed %'d js vs %'d ctlr vs %'d frloop msec, #fr %'d (%2.1f fps), %%busy %2.1f, %%emit %2.1f, %%idle %2.1f".brightGreen, Date.now() - seqstart, ctlr.elapsed, Math.round((ctlr.busy_time + ctlr.emit_time + ctlr.idle_time) / 1e3), ctlr.numfr, ctlr.elapsed? ctlr.numfr * 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.busy_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.emit_time / 1e3 / ctlr.elapsed: 0, ctlr.elapsed? 100 * ctlr.idle_time / 1e3 / ctlr.elapsed: 0);
 }
 
 
-//add name prop if !already there:
-//try to append if already there
-function addname(obj, name)
+/*async*/ function runfx(opts)
 {
-    const has_name = (obj || {}).name;
-debug("add name '%s'? %d", name, +!has_name); //(obj || {}).name);
-    try { return Object.assign(obj /*|| {}*/, {name: /*(obj || {}).name*/ has_name? obj.name + " " + name: name}); }
-    catch (exc) { debug("nope, name was read-only"); return obj; }
+    const caller_opts = Object.getOwnPropertyNames/*Descriptors*/(opts); //save names before adding any
+//debug(caller_opts);
+//attach run-time props to caller's opts, !enum (quasi-hidden), !wr:
+    if (!(opts.fx || opts.seq)) throwx("no fx/seq to run?");
+    if (!opts.model) opts.model = {}; //opts.fx || opts.seq; //NO (might be >1)- use fx/seq as model?
+//    Object.assign(opts, {/*await_frame, runfx,*/ got_frbuf}); //make these available to fx/seq
+    if (!opts.start) opts.start = 0; //default (immediate)
+    if (!opts.duration) opts.duration = 1e3; //default?
+//put frbuf rcv stats on model for easier trace stats:
+    if (opts.model.pending) throwx(`model '${opts.model.name}' is already running ${opts.model.pending.fxname}`);
+    opts.model.pending = {get fxname() { return `${opts.type} '${(opts.fx || opts.seq).name || srcline(+1)}'`; }}; //Object.defineProperties({}, //only 1 fx should run on model, attach pending frbuf req
+//    {
+//        caller_waited: {value: 0, writable}, //explicit (override) value from caller
+//        waited:
+//        {
+//            get() { debug("%s latency: rcv@ %'d, wait@ %'d", opts.type, this.rcvtime - Date.now(), this.startwait - Date.now()); return this.caller_waited || this.rcvtime - this.startwait; }, //kludge: allows latency of 0 for future value
+//            set(newval) { this.caller_waited = newval; }, //kludge: allow override
+//            enumerable,
+//        },
+//    });
+//add hidden options:
+    Object.defineProperties(opts,
+    {
+        type: {value: opts.fx? "fx": "seq", enumerable},
+        children: {value: []},
+        names: {value: caller_opts}, //remember props to inherit by children (clean state)
+        got_frbuf: {value: got_frbuf}, //allow seq to step fx
+//        wait4frame: {value: wait4frame},
+//        runfx: {value: (opts) => runfx(Object.defineProperty(opts, "runfx", {val}))},
+        complete: {value: /*await*/ wrap(new Promise(value => Object.defineProperty(opts, "resolve", {value}))), enumerable}, //promise to complete + resolver; CAUTION: must exist < running fx/seq
+        gen: {value: (opts.fx || opts.seq)(opts, wait4frame, nested_runfx)}, //generator func (sync); NOTE: doesn't run fx/seq yet
+    });
+//    return new Promise((resolve, reject) => { [pending.resolve, pending.waited] = [resolve, Date.now()]; }); //blocking
+debug("runfx %s opts:", opts.type, Object.keys(opts).reduce((cat, name) => (cat[(~(opts.inh_debug || []).indexOf(name)? "inh": !~caller_opts.indexOf(name)? "def": "arg")].push(name), cat), {arg: [], def: [], inh: []})); ///*Object.keys*/(opts.inh).filter(name => !(name in opts)));
+//start running fx/seq:
+    opts.gen.next(); //allow fx/seq to init + pre-render < first frame
+//    return !opts.seq /*|| runfx.bkg)*/? retval: //fx or bkg already running, just return fx/seq promise
+    return opts;
+
+//wrapper to start/stop bkg loop around seq:
+    function wrap(complete)
+    {
+        if (/*!opts.seq*/ opts.fx) return complete; //CAUTION: seq inherits; need to check fx
+        return new Promise(async function wrapper(resolve) //=>
+        {
+//            const bkg = setInterval(bkg_shim, 0.4e3, {numfr: 0, started: Date.now() + 0.4e3}); //start bkg loop
+            if (true)
+            {
+                const bkg_state = {numfr: 0, started: Date.now() + 0.4e3};
+                opts.layout.ctlr.updloop = got_frbuf => setInterval(state => bkg_shim(state, got_frbuf), 0.4e3, bkg_state);
+                opts.layout.ctlr.cancel = () => (/*debug("cancel", opts.layout.ctlr.bkg),*/ clearInterval(opts.layout.ctlr.bkg), bkg_state.numfr);
+            }
+            opts.layout.ctlr.got_frbuf = got_frbuf;
+            const seq_complete = await complete; //Promise.all([complete, opts.children.map(fx => fx.complete)]);
+//debug("seq resolved, wait for %d fx", opts.children.length);
+            await Promise.all(opts.children.map(fx => fx.complete)); //wait for active children @eo seq
+//debug(opts.children.length, "fx resolved");
+//            clearInterval(bkg); //stop bkg loop
+            const retval = opts.layout.ctlr.cancel(); //opts.layout.ctlr.bkg? debug("stop bkg loop > seq", retval) && opts.layout.ctlr.cancel(): 0; opts.layout.ctlr.bkg = null;
+            resolve(seq_complete);
+
+            /*async*/ function bkg_shim(state, got_frbuf)
+            {
+//                const timestamp = state.started? Date.now() - state.started: (state.started = Date.now(), 0); //msec
+//debug("bkg_shim");
+                const now = Date.now();
+                const frbuf =
+                {
+                    seqnum: opts.seqnum,
+                    frnum: state.numfr++,
+                    timestamp: /*!state.started? (state.started = now, 0):*/ now - state.started, //msec
+//wrong place:                    get latency() { return opts.model.pending.waited; },
+                    wsnodes: Array.from({length: 24}).map(_ => new Uint32Array(100)),
+                };
+//debug("frbuf", frbuf);
+                /*await*/ got_frbuf(frbuf);
+            }
+        });
+    }
+    function nested_runfx(nested_opts)
+    {
+//        [retval.layout, retval.seqnum, retval.fps] = [opts.layout, opts.seqnum, opts.fps]; //inherited props
+//        /*Object.entries*/(opts.inh) //Object.getOwnPropertyDescriptors(opts))
+        const inh = opts.names.filter(name => !(name in nested_opts));
+//        if (inh.length) debug("inh props:", inh);
+        Object.defineProperty(nested_opts, "inh_debug", {value: inh}); //debug info
+//        opts.inh
+//            .forEach(/*([name, propdesc])*/ name => !(name in more_opts) && /*debug("inh prop", name, typeof opts[name], (JSON.stringify(opts[name]) || opts[name].toString() || "(none)").slice(0, 100)) &&*/ Object.defineProperty(more_opts, name, {get() { return opts[name]; }})); //propdesc)); //inherit props, don't eval getters yet
+        inh.forEach(name => Object.defineProperty(nested_opts, name, {get() { return opts[name]; }, enumerable})); //propdesc)); //inherit props, don't eval getters yet
+        const retval = runfx(nested_opts);
+        opts.children.push(retval);
+        return retval;
+    }
+//minimal function to encapsulate wait info:
+    function wait4frame(want_msec)
+    {
+        opts.model.busy = false;
+        const pending = opts.model.pending; //|| {};
+        [pending.seqnum, pending.want_msec, pending.startwait] = [opts.seqnum, Math.max(Math.trunc(want_msec), (pending.gottime + 1) || 0), elapsed()]; //Date.now()]; //CAUTION: caller might want fractional msec; round down to get closest frame, but get frame later than previous
+//        if (opts.seq) //seq should fwd all frbuf to fx; only seq needs to read ahead
+        if (want_msec && !opts.layout.ctlr.bkg) //start bkg loop > initial frame pre-render
+        {
+            opts.layout.ctlr.bkg = opts.layout.ctlr.updloop(frbuf => (/*debug("evth {%'d, %d=%'d} => evth".brightCyan, (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp),*/             opts.layout.ctlr.got_frbuf(frbuf))); //launch bkg upd loop to wake evth when frbuf available
+debug("%s start bkg loop > pre-render: bkg", opts.type, opts.layout.ctlr.bkg);
+        }
+        const frbuf = opts.layout.ctlr.newer(pending.seqnum, pending.want_msec); //non-blocking
+//debug("await4frame %'d msec %s: found newer {%d, %d=%'d}"[frbuf? "brightGreen": "brightRed"], want_time, srcline(+1), (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp);
+        if (frbuf) got_frbuf(frbuf); //no need to wait; allows fx to pre-render
+//debug("%s wait4frame: seqnum %d, %'d msec, start wait %'d", opts.type, pending.seqnum, pending.want_msec, pending.startwait - elapsed()); //Date.now());
+//        (opts.model || {}).pending = msec;
+//        opts.startwait = Date.now();
+//        opts.wait4msec = msec;
+//        return `wait4frame(${msec})`; // return dummy value (for debug)
+    }
+//frbuf event handler (synchronous):
+    /*async*/ function got_frbuf(frbuf)
+    {
+        opts.model.busy = true;
+        const pending = opts.model.pending; //|| {};
+        [pending.rcvtime, pending.gottime] = [/*Date.now()*/ elapsed(), (frbuf || NOFR).timestamp];
+        const latency = pending.rcvtime - pending.startwait;
+        const want_wake = (frbuf || NOFR).timestamp >= (pending.want_msec || 0); //opts.wait4msec);
+//debug("%s got frbuf T+%'d, wanted %'d msec, has gen? %d, wake? %d, #children %d, latency %'d", opts.type, (frbuf || NOFR).timestamp, pending.want_msec, +!!opts.gen, +want_wake, opts.children.length, latency);
+//?        opts.model.busy = false;
+TODO("prune children?");
+        opts.children
+            .filter(fx => fx.model.pending) //send only to children waiting for frbuf (actiev fx)
+            .forEach(fx => fx.got_frbuf(frbuf)); //dispatch to child fx first?
+//        opts.model.busy = false;
+        if (!opts.gen || !want_wake) { opts.model.busy = false; return; } //"(still sleeping)";
+//        opts.model.busy = true;
+        if ((frbuf || NOFR).seqnum != pending.seqnum) { debug("got_frbuf: '%s' !frbuf/cancel %'d".brightRed, opts.model.name, (frbuf || NOFR).seqnum); opts.model.busy = false; return; } //pending.resolve(); } //eof or cancel; TODO: why must return here for seq to exit correctly?
+        pending.want_msec = 1e6 - 1; //kludge: prevent wake up for next frame unless seq/fx wants it
+//        opts.model.busy = false;
+        const child_frbuf = Object.assign({latency}, frbuf); //each fx could have different latency
+        const step = /*await*/ opts.gen.next(child_frbuf); //need "await" because seq is async (returns promise)? fx is not
+//        opts.model.busy = true;
+//debug("%s step result: val %s, done? %s", opts.type, tostr(step.value), tostr(step.done));
+        if (step.done) { if (opts.fx) opts.model.pending = null; opts.resolve(step.value); } //free up model for more fx, allow seq wrapper to finish
+//        opts.model.busy = false;
+        return step;
+    }
+}
+//const x = {}; debug(typeof x.y + 1, (x.y + 1) || 123); process.exit();
+//const something = (function()
+//{
+//    let nextval;
+const ignore_something =
+{
+    [Symbol.iterator]: function() { return this; }, //allows generator to be used in for..of
+    next: function()
+    {
+        this.nextval = this.nextval? 3 * this.nextval + 6: 1;
+        return {done: this.nextval >= 50, value: this.nextval};
+    },
+};
+//})();
+
+
+//run async fx or seq:
+//NOTE: only 1 fx per model (else conflicting updates), but allow mult model per fx
+//=> list of model+fx waiting for frbufs; attach promise to model + await
+//NOTE: seq is just another (hierarchical, composite) fx, uses same frbuf/evt framework as fx
+//can't sync GPU to external events, so use GPU frames as primary timing source
+//evt emitter + promise seems like less overhead than async wker per frame, uses fewer threads
+//moved up: my_exports({runfx}); //allow seq to use
+//NOTE: promises are resolved on the next time thru the event loop, making them slower; use generators instead
+/*NOT! async*/ function prev_runfx(opts)
+{
+debug("runfx opts", Object.keys(opts)); //, opts.seqnum, opts.fps);
+debugger;
+//    yalp.on("frame", got_frbuf);
+    if (!(opts.fx || opts.seq)) throwx("no fx/seq to run?");
+    if (!opts.model) opts.model = opts.fx || opts.seq; //use fx/seq as model?
+//    Object.assign(opts, {/*await_frame, runfx,*/ got_frbuf}); //make these available to fx/seq
+    if (!opts.start) opts.start = 0; //default (immediate)
+    if (!opts.duration) opts.duration = 1e3; //default?
+    opts.model.pending = Object.defineProperties({}, //only 1 fx can run on model, put pending frbuf req there
+    {
+        caller_waited: {value: 0, writable}, //explicit waited value from caller
+        waited:
+        {
+            get() { return this.caller_waited || this.rcvtime; }, //kludge: allows latency of 0 for future value
+            set(newval) { this.caller_waited = newval; }, //kludge: allow override
+            enumerable,
+        },
+    });
+//debug(JSON.stringify(Object.getOwnPropertyDescriptor(pending, "waited"))); wr, enum, cfg
+    const retval = Object.assign(opts, {got_frbuf, yield2done: yield2done()}); //await4done: await4done()}); //return frbuf evt handler + fx/seq promise
+//debug("runfx ret opts", Object.keys(retval), typeof opts.await4done);
+    return retval;
+
+    async function await4done()
+    {
+//        new Promise(async (resolve, reject) => resolve(await(
+//debug("await4done ...");
+        opts.runfx = function(child_opts)
+        {
+            Object.keys(opts) //"inherit" seq opts by fx
+                .filter(prop => !(prop in child_opts) && !~["fx", "seq"].indexOf(prop))
+//        .map(prop => debug(prop))
+                .forEach(prop => child_opts[prop] = opts[prop]);
+            return runfx(child_opts); //async retval; caller can await
+        }
+debug("await4done %s", opts.fx? "fx".brightCyan: opts.seq? "seq".brightCyan: "(unknown)".brightRed);
+        const retval = await (opts.fx || opts.seq)(opts, await4frame);
+debug("awaited %s, kill bkg? %d", opts.fx? "fx": opts.seq? "seq": "(unknown)", +!!opts.layout.ctlr.bkg);
+        if (opts.layout.ctlr.bkg)
+        {
+            opts.layout.ctlr.cancel(); //exit from frame upd loop
+//debug("here0", typeof bkg, !!bkg.then);
+//    await sleep(5e3);
+            const numfr = await opts.layout.ctlr.bkg;
+debug("%'d frame%s processed (%'d msec)", plural(numfr), plural(), Math.round(numfr * 1e3 / opts.fps));
+            opts.layout.ctlr.bkg = null;
+        }
+        return retval;
+    }
+    async function await4frame(want_time)
+    {
+        opts.model.busy = false;
+        const pending = opts.model.pending; //|| {};
+        [pending.seqnum, pending.want_time] = [opts.seqnum, Math.max(Math.trunc(want_time), isdef(pending.gottime, pending.gottime + 1, 0))]; //CAUTION: caller might want fractional msec; round down to get closest frame, but get frame later than previous
+        if (opts.seq) //seq should fwd all frbuf to fx; only seq needs to read ahead
+        {
+            const frbuf = opts.layout.ctlr.newer(pending.seqnum, pending.want_time); //non-blocking
+debug("await4frame %'d msec %s: found newer {%d, %d=%'d}"[frbuf? "brightGreen": "brightRed"], want_time, srcline(+1), (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp);
+            if (frbuf)
+            {
+                [pending.resolve, pending.waited] = [(buf) => buf, 0];
+                return got_frbuf(frbuf); //no need to wait; allows fx to pre-render
+            }
+        }
+        if (!opts.layout.ctlr.bkg) opts.layout.ctlr.bkg = opts.layout.ctlr.updloop(frbuf => (debug("evth {%'d, %d=%'d} => evth".brightCyan, (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp), got_frbuf(frbuf))); //launch bkg upd loop to wake evth when frbuf available
+        return new Promise((resolve, reject) => { [pending.resolve, pending.waited] = [resolve, Date.now()]; }); //blocking
+    }
+    function got_frbuf(frbuf)
+    {
+        opts.model.busy = true;
+        const pending = opts.model.pending; //|| {};
+        if (!pending.resolve) return debug("got_frbuf: '%s' no frbuf req pending".brightRed, opts.model.name); //caller !waiting for frbuf?
+        [pending.rcvtime, pending.gottime] = [Date.now(), (frbuf || NOFR).timestamp];
+//debug("pending", pending.rcvtime, pending.waited);
+        if (!frbuf || frbuf.seqnum != pending.seqnum) { debug("got_frbuf: '%s' !frbuf/cancel %'d".brightRed, opts.model.name, (frbuf || NOfr).seqnum); return pending.resolve(); } //eof or cancel; TODO: why must return here for seq to exit correctly?
+//debug(typeof pending.rcvtime, typeof pending.waited, typeof frbuf.seqnum, typeof frbuf.frnum, typeof frbuf.timestamp, typeof frbuf.wsnodes, typeof Object.assign({latency: 0}, frbuf).frnum, Object.keys(Object.assign({latency: 0}, frbuf))); //TODO: why undefs?
+        if (frbuf.timestamp >= pending.want_time) { debug("got_frbuf: '%s' found %d=%'d, latency = %'d msec".brightGreen, opts.model.name, frbuf.frnum, frbuf.timestamp, pending.rcvtime - pending.waited); return pending.resolve(/*broken: Object.assign({latency: pending.rcvtime - pending.waited}, frbuf)*/ {seqnum: frbuf.seqnum, frnum: frbuf.frnum, timestamp: frbuf.timestamp, wsnodes: frbuf.wsnodes, latency: pending.rcvtime - pending.waited}); } //, frbuf}); } //got desired frame
+debug("got_frbuf: '%s' ignore %'d", opts.model.name, frbuf.timestamp);
+        opts.model.busy = false;
+    }
+}
+
+
+//file filter:
+//looks for exported property
+function choices(files, expname)
+{
+    const want_unload = (expname == "seq");
+debug(files.length, expname, "files, unload?", want_unload);
+//https://nodejs.org/api/modules.html#modules_require_resolve_request_options
+    const retval = files
+        .map(filepath => require.resolve(filepath))
+        .map(filepath => ({wasloaded: require.cache[filepath], filepath})) //CAUTION: need extra "()"
+        .map(modinfo => Object.assign(modinfo, {exports: require(/*DEVTEST ||*/ modinfo.filepath)})) //load seq exports
+        .map(modinfo => (expname in modinfo.exports)? Object.assign(modinfo, {name: (modinfo.exports[expname].name || "").replace(new RegExp("^" + expname + "$", ""), "") || shortpath(modinfo.filepath)}): modinfo) //kludge: use "in" to avoid "Accessing non-existent property" warning
+        .map(modinfo => (want_unload && !modinfo.wasloaded && delete require.cache[modinfo.filepath], modinfo)) //don't leave it loaded (ctlr settings might conflict with other layouts)
+        .filter(({exports}) => expname in exports) //~exports.indexOf(expname)) //&& exports.layout && exports.ctlr) //check for exported seq, layout + ctlr; //kludge: use "in" to avoid "Accessing non-existent property" warning
+        .map(modinfo => (debug(Object.keys(modinfo.exports), modinfo.filepath), modinfo));
+debug(plural(retval.length), expname, `file${plural()} remaining`);
+    return retval;
 }
 
 
@@ -254,125 +522,19 @@ debug("add name '%s'? %d", name, +!has_name); //(obj || {}).name);
         return; //await sleep(5e3); //reduce log diarrhea
     }
     const [retval, retname] = as_is? [matches[0], type + srcline(+1)]: [require(matches[0].filepath)[type], matches[0].name];
-debug("load %s '%s', want_func? %s, typeof %s", type, retname, JSON.stringify(want_func), typeof retval);
+debug("load %s '%s', want_func? %s, typeof %s", type, retname, JSON.stringify(want_func), typeof retval, srcline(+1), srcline(+2), srcline(+3));
     return addname((want_func !== false && typeof retval == "function")? retval(): retval, retname);
 }
 
 
-//file filter:
-//looks for exported property
-function choices(files, expname)
+//add name prop if !already there:
+//try to append if already there
+function addname(obj, name)
 {
-//    .map(filepath => ({exports: require(filepath), filepath})) //load layout exports
-//    .filter(({exports}) => exports.layout) //check for exported layout
-//    .filter(({exports}) => exports.seq && exports.layout && exports.ctlr) //check for exported seq, layout + ctlr
-//    .map(({exports, filepath}) => ({exports, filepath, name: shortpath(filepath), }));
-//    .map(info => Object.assign(info, {name: info.exports.layout.name || shortpath(info.filepath)}));
-//    const seqmatch = ((!isRE(seqname) && fs.existsSync(seqname))? [seqname]: seqfiles)
-//        .map((filepath, inx, all) => (debug("file[%'d/%'d] '%s': check name against %s", inx, all.length, filepath, seqname.source || seqname), filepath))
-//        .filter(filepath => isRE(seqname)? filepath.match(seqname): ~filepath.indexOf(seqname)) //choose file within nested folders
-//        .map((filepath, inx, all) => (debug("match[%'d/%'d] '%s': try to load seq() entpt", inx, all.length, filepath), filepath))
-//debug(files);
-//    const modout = [];
-//    process.stdout.once("data", buf => modout.push(buf));
-//    const modout = fs.createWriteStream("modout.txt");
-//    [process.svout, process.sverr] = [process.stdout.write, process.stderr.write];
-//    process.stdout.write = process.stderr.write = modout.write.bind(modout);
-    const want_unload = (expname == "seq");
-debug(files.length, expname, "files, unload?", want_unload);
-//https://nodejs.org/api/modules.html#modules_require_resolve_request_options
-    const retval = files
-        .map(filepath => require.resolve(filepath))
-        .map(filepath => ({wasloaded: require.cache[filepath], filepath})) //CAUTION: need extra "()"
-        .map(modinfo => Object.assign(modinfo, {exports: require(/*DEVTEST ||*/ modinfo.filepath)})) //load seq exports
-        .map(modinfo => (expname in modinfo.exports)? Object.assign(modinfo, {name: (modinfo.exports[expname].name || "").replace(new RegExp("^" + expname + "$", ""), "") || shortpath(modinfo.filepath)}): modinfo) //kludge: use "in" to avoid "Accessing non-existent property" warning
-        .map(modinfo => (want_unload && !modinfo.wasloaded && delete require.cache[modinfo.filepath], modinfo)) //don't leave it loaded (ctlr settings might conflict with other layouts)
-        .filter(({exports}) => expname in exports) //~exports.indexOf(expname)) //&& exports.layout && exports.ctlr) //check for exported seq, layout + ctlr; //kludge: use "in" to avoid "Accessing non-existent property" warning
-        .map(modinfo => (debug(Object.keys(modinfo.exports), modinfo.filepath), modinfo));
-//    .filter(({exports}) => typeof exports.seq == "function") //check for exported seq() function
-//    .map(({exports, filepath}) => ({exports, filepath, name: shortpath(filepath), })); //audio: exports.audio}));
-debug(plural(retval.length), expname, `file${plural()} remaining`);
-//debug(modout);
-//    [process.stdout.write, process.stderr.write] = [process.svout, process.sverr];
-    return retval;
-}
-
-
-//run async fx:
-//NOTE: 1 fx/model (else conflicting updates), but allow mult model/fx
-//=> list of model+fx waiting for frbufs; attach promise to model + await
-//NOTE: seq is just another (composite) fx, uses same frbuf/evt framework as fx
-//can't sync GPU to external events, so use GPU frames as primary timing source
-//evt emitter + promise seems like less overhead than async wker per frame, uses fewer threads
-//my_exports({runfx}); //allow seq to use
-/*NOT! async*/ function runfx(opts)
-{
-//debug("runfx opts", Object.keys(opts)); //, opts.seqnum, opts.fps);
-//    if (opts.ctlr) runfx.ctlr = opts.ctlr;
-//    if (opts.layout) runfx.layout = opts.layout;
-//    runfx.seqnum = runfx.ctlr.seqnum;
-//    yalp.on("frame", got_frbuf);
-    if (!(opts.fx || opts.seq)) throwx("no fx/seq to run");
-    if (!opts.model) opts.model = opts.fx || opts.seq; //use fx/seq as model?
-    Object.assign(opts, {await_frame, got_frbuf}); //make these available to fx/seq
-    if (!opts.start) opts.start = 0; //default (immediate)
-    if (!opts.duration) opts.duration = 1e3; //default?
-    if (opts.seq) runfx.seq_opts = opts; //save seq info to pass along to fx
-//    else Object.defineProperties(opts, {layout, seqnum, fps}); //give fx access to seq layout/ctlr info; CAUTION: lazy load
-    else Object.keys(runfx.seq_opts) //"inherit" seq opts by fx
-        .filter(prop => !(prop in opts))
-//        .map(prop => debug(prop))
-        .forEach(prop => opts[prop] = runfx.seq_opts[prop]);
-//    if (!opts.fps) opts.fps = opts
-//    /*const*/ opts.model.pending = {seqnum: yalp.seqnum}; //model should only have 1 fx, so put pending frbuf req there
-//    if (!opts.start) opts.start = 0;
-//    if (!opts.duration) opts.duration = ??;
-//    if (!opts.fps) opts.fps = yalp.fps || 1;
-//    if (!opts.seqnum) opts.seqnum = yalp.seqnum;
-//    opts.model.timestamp = elapsed();
-//    runfx.latest = {got_frbuf}; //kludge: allow seq to incl self evth; CAUTION: must be set < calling fx()
-//    const retval = opts.fx(opts); //promise to wait for fx/seq to finish
-//debug("here1");
-//    opts.model.stats = 0;
-//debug("run %s '%s'", opts.fx? "fx": opts.seq? "seq": "??", (opts.fx || opts.seq).name || "thing" + srcline(+1));
-    const await4done = /*new Promise(async (resolve, reject) => resolve(await*/ (opts.fx || opts.seq)(opts);
-    opts.model.idle = true;
-//    const now = elapsed();
-//    opts.model.busy_time += now - opts.model.timestamp; //opts.model.timestamp = now;
-//debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.stats || {});
-//debug("here2", !!retval.then);
-//    yalp.off("frame", got_frbuf);
-//    return retval; //in case caller wants retval
-    return {got_frbuf, await4done}; //return frbuf evt handler + fx promise
-//debug("here3", typeof ret, Object.keys(ret), typeof ret.retval, !!ret.retval.then);
-//    return ret;
-
-    function got_frbuf(frbuf)
-    {
-//debug("got frbuf {%'d, %'d}", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
-        const pending = opts.model.pending || {};
-//if (!pending) throwx("no pending");
-//debug("got frbuf {%'d, %'d}, pending {%'d, %'d}", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, (pending || NOFR).seqnum, (pending || NOFR).want_time);
-        if (!pending.promise) return; //caller !waiting for frbuf
-//if (!pending.resolve) throwx("no pending resolve");
-//        const now = elapsed();
-        if (!frbuf || frbuf.seqnum != opts.seqnum) { opts.model.busy = true; return pending.resolve(); } //eof or cancel; TODO: figure out why must return here for seq to exit correctly
-        pending.got_time = frbuf.timestamp;
-        if (frbuf.timestamp >= pending.want_time) { opts.model.busy = true; return pending.resolve(frbuf); } //got desired frame
-//debug("exit got_frbuf");
-    }
-    async function await_frame(want_time) //seqnum,
-    {
-//        const now = elapsed();
-        opts.model.idle = true; //busy_time += now - opts.model.timestamp; opts.model.timestamp = now;
-        const pending = opts.model.pending || (opts.model.pending = {}); //model should only have 1 fx, so put pending frbuf req there
-        [pending.seqnum, pending.want_time] = [opts.seqnum, want_time];
-//debug("await_frame {%'d, %'d}", seqnum, want_time);
-//debug(Object.keys(opts));
-        const frbuf = opts.layout.ctlr.newer(opts.seqnum, want_time); //non-blocking
-        if (frbuf) return frbuf; //no need to wait; allow fx to pre-render
-        return pending.promise = new Promise((resolve, reject) => { [pending.resolve, pending.reject] = [resolve, reject]; });
-    }
+    const has_name = (obj || {}).name;
+//debug("add name '%s'? %d", name, +!has_name); //(obj || {}).name);
+    try { return Object.assign(obj /*|| {}*/, {name: /*(obj || {}).name*/ has_name? obj.name + " " + name: name}); }
+    catch (exc) { return obj; } //debug("nope, name '%s' was read-only", name); return obj; }
 }
 
 
@@ -384,11 +546,19 @@ debug(plural(retval.length), expname, `file${plural()} remaining`);
 //request or cancel run after current I/O completes:
 //inline debug/unit test can cancel scheduler
 my_exports({run});
-function run(main)
+async function run(main)
 {
     if (run.what) clearImmediate(run.what); //cancel previous
-    run.what = main && !run.what /*hasOwnProperty("what")*/ && setImmediate(main); //allow inline init and I/O to finish first, but only if not already decided
+    if (main && typeof main != "function") throwx("expected function: " + typeof main);
+    run.what = main /*&& !run.what /*hasOwnProperty("what")*/ && setImmediate(async function() { await main(); }); //allow inline init and I/O to finish first, but only if not already decided
 //    else run.what = null; //Object.defineProperty(run, "what", {value: null}); //kludge: prevent other calls
+    
+    function stepper()
+    {
+        for (const nextval of main) //generator
+//    for (let nextval; !(nextval = main.next("pass back val")).done; )
+            debug(`'${main.name}' stepper nextval:`, nextval);
+    }
 }
 
 //eof

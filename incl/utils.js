@@ -8,6 +8,7 @@ const fs = require("fs");
 const glob = require("glob");
 const Path = require("path");
 const {sprintf} = require('sprintf-js'); //https://www.npmjs.com/package/sprintf-js
+const JSON = require('circular-json'); //CAUTION: replaces std JSON with circular-safe version
 //slow! const assert = require('assert').strict; //https://nodejs.org/api/assert.html
 //don't load until needed (circ dep): const {debug, debug_limit, srcline/*, isdef, commas, plural*/} = re_export(require("yalp21/incl/debug"));
 //delay load until needed (circ dep and hoist):
@@ -20,7 +21,8 @@ const {sprintf} = require('sprintf-js'); //https://www.npmjs.com/package/sprintf
 //module.exports.commas = commas;
 //module.exports.isdef = isdef;
 //const {jselapsed} = require("yalp21"); //"bindings")("gpuport"); //"../"); //npm link allows real module 
-my_exports({my_exports, auto_obj, tostr, time2str, truncate, commas, isdef}); //circ dep: any exports used by msgout.js must be defined before including msgout
+my_exports({my_exports, auto_obj, tostr, time2str, truncate, commas, isdef, throwx}); //circ dep: any exports used by msgout.js must be defined before including msgout
+extensions(); //ditto
 //console.log("utlis: loading msgout");
 const {debug, debug_limit, debug_nested, fatal, srcline} = require("yalp/incl/msgout");
 const {jselapsed} = require("yalp"); //"bindings")("gpuport"); //"../"); //npm link allows real module 
@@ -32,7 +34,7 @@ const {jselapsed} = require("yalp"); //"bindings")("gpuport"); //"../"); //npm l
 //const {PassThrough} = require('stream');
 //const Sound = require('node-mpg123');
 
-extensions();
+//extensions();
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +132,7 @@ my_exports({commas});
 function commas(val)
 {
 //number.toLocaleString('en-US', {minimumFractionDigits: 2})
+    if (!isdef(val)) return "undefined"; //kludge: don't throw exc; allow caller to continue
     return val.toLocaleString();
 }
 //module.exports.commas = commas;
@@ -674,7 +677,7 @@ function extensions()
     addprop(RegExp.prototype, { toJSON: { value: RegExp.prototype.toString, }, }); //work-around from https://stackoverflow.com/questions/12075927/serialization-of-regexp
     addprop(Array.prototype,
     {
-        at: { value: function(inx) { return this[(inx < 0) * this.length + inx % (this.length || 1)]; }, },
+        at: { value: function(inx) { return this[+(inx < 0) * this.length + inx /*% (this.length || 1)*/]; }, }, //CAUTION: need (); -1 % 1 == -0, not 0
         top: { get() { return this[this.length - 1]; }, }, //NOTE: undef when array is empty; use "last" instead?
         push_fluent: { value: function(...args) { this.push(...args); return this; }, },
 //        pop_fluent: { value: function(...args) { this.pop(...args); return this; }, },

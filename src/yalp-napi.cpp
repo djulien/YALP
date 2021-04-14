@@ -327,7 +327,7 @@ public: //gpu loop methods
     {
 //debug("here1");
         numfr_t didfr = /*SUPER::*/stats.numfr;
-debug("updloop start: bkg already? %d, pid %d, status '%c'", isRunning(), bkgpid.load(), proc_status(bkgpid));
+debug("updloop start: bkg already? %d, pid %d, status '%c', frbufs %d: %d/%'d, %d/%'d, %d/%'d, %d/%'d", isRunning(), bkgpid.load(), proc_status(bkgpid), fifo.load(), fbptr(0)->seqnum.load(), fbptr(0)->timestamp(), fbptr(1)->seqnum.load(), fbptr(1)->timestamp(), fbptr(2)->seqnum.load(), fbptr(2)->timestamp(), fbptr(3)->seqnum.load(), fbptr(3)->timestamp());
         while (isRunning()) usleep(10e3); //poll until other instance completes; TODO: use mutex/cond_var/signal?
         if (stats.numfr == didfr) //bkg job !running; start new loop
         {
@@ -335,7 +335,7 @@ debug("updloop start: bkg already? %d, pid %d, status '%c'", isRunning(), bkgpid
 //          { //extra scope to close FB < final emit
             AutoFB<>::timing_t timing(xres, xtotal, yres, ytotal, pxclock, true, true);
             AutoFB pxbuf(fbnum, timing); //*this); //{xres, xtotal, yres, ytotal, pxclock}
-            debug("updloop %s: pid %d, fbnum %d open? %d", didfr? "resume": "start", bkgpid.load(), fbnum, pxbuf.isOpen());
+            debug(CYAN_MSG "updloop %s: pid %d, fbnum %d open? %d, frbuf# %d frtime %'d", didfr? "resume": "start", bkgpid.load(), fbnum, pxbuf.isOpen(), fifo.load(), oldest()->timestamp());
             if (!didfr) stats.clear(); //fresh start: clear stats
 //debug("bkgpid %d, previous numfr %'d", bkgpid.load(), stats.numfr.load());
             timer_t<(int)1e6> perf; //now_usec; elapsed<(int)1e6>(now_usec);
@@ -653,6 +653,7 @@ class frbuf_shm
 //TODO:    NAPI_DELEGATE_EXPORTS(self_t, m_ptr); napi helper macro to delegate props + methods
     NAPI_START_EXPORTS(self_t); //, CLS_T);
     NAPI_EXPORT_PROPERTY(self_t, "seqnum", m_ptr->seqnum.load); //JS read-only
+    NAPI_EXPORT_PROPERTY(self_t, "frnum", m_ptr->frnum.load); //JS read-only
 //no; don't even give fr# to JS (fr rate likely differs)    NAPI_EXPORT_PROPERTY(self_t, "frnum", m_ptr->frnum()); //.load); //JS read-only
     NAPI_EXPORT_PROPERTY(self_t, "timestamp", m_ptr->timestamp); //.load); //JS read-only
 //    Napi::Value ports_getter(const Napi::CallbackInfo &info) { return m_ptr->ports_getter(info); }
@@ -863,6 +864,7 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
         const timestamp_t want_time = napi2val<timestamp_t>(info[1]);
         auto fbptr = m_shmptr->newer(want_seq, want_time);
 //        return fbptr2napi(info.This().As<Napi::Object>(), fbptr);
+//debug("newer %'d: found frbuf# %d, latest %d, others: %'d, %'d, %'d, %'d", want_time, fbptr - &m_shmptr->frbufs[0], m_shmptr->fifo.load(), m_shmptr->frbufs[0].timestamp(), m_shmptr->frbufs[1].timestamp(), m_shmptr->frbufs[2].timestamp(), m_shmptr->frbufs[3].timestamp());
         return fbptr2napi(info.Env(), fbptr); //fbptr *can* be null here
     }
 #endif //def USING_NAPI
@@ -887,12 +889,12 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //https://github.com/nodejs/node-addon-api/blob/main/doc/async_worker_variants.md
 //https://github.com/mika-fischer/napi-thread-safe-callback/issues/10
 //https://github.com/SurienDG/NAPI-Thread-Safe-Promise
-//NOTE: don't really need Queue wker; doesn't need *all* evts as long as main JS thread wakes periodically
-    template<typename QUE_T = uint32_t>
+//CAUTION: *Queue* wker needed if renderers need to rcv all frames on main JS thread
+    template<typename QUE_T = uint32_t, class SUPER = Napi::/*AsyncProgressWorker*/AsyncProgressQueueWorker<QUE_T>>
 //    using que_t = uint32_t; //shmdata_t::frbuf_t; //kludge: napi only allows simple types
-    class UpdloopAsyncWker: public Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>
+    class UpdloopAsyncWker: public SUPER
     {
-        using SUPER = Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>;
+//        using SUPER = Napi::AsyncProgressWorker/*AsyncProgressQueueWorker*/<QUE_T>;
 //        Napi::FunctionReference m_cb;
         self_t* m_ptr;
         numfr_t m_retval;
@@ -1907,10 +1909,11 @@ public: //fifo methods:
 //find first frbuf !older than specified time for given seq#:
     frbuf_t* newer(typename frbuf_t::seqnum_t want_seq, typename frbuf_t::timestamp_t min_time) const
     {
-//debug("newer: look for seq = %'u, time >= %'u", want_seq, min_time);
+//debug("newer: look for seq# %'d, time >= %'d, frbufs %d: %d/%d, %d/%d, %d/%d, %d/%d", want_seq, min_time, fifo.load(), fbptr(0)->seqnum.load(), fbptr(0)->timestamp(), fbptr(1)->seqnum.load(), fbptr(1)->timestamp(), fbptr(2)->seqnum.load(), fbptr(2)->timestamp(), fbptr(3)->seqnum.load(), fbptr(3)->timestamp());
         for (int svfifo = fifo, i = svfifo; i < svfifo + NUMBUFS; ++i) //CAUTION: fifo could change during loop; use saved fifp head
         {
             frbuf_t* frbuf = fbptr(i); //= &frbuf[i % NUMBUFS];
+//if ((frbuf->seqnum != want_seq) || (frbuf->timestamp() >= min_time)) debug("use %d? %d %d", i, frbuf->seqnum != want_seq, frbuf->timestamp() >= min_time);
             if (frbuf->seqnum != want_seq) return frbuf; //allow caller to detect stale seq# (no more bufs)
             if (frbuf->timestamp() >= min_time) return frbuf; //first (oldest) match
         }

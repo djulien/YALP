@@ -240,9 +240,11 @@ if (want_debug)
     {
 //dummy frame:
 //mainly for debug/test
+/*
         nofrbuf:
         {
             seqnum: -1,
+            latency: -1,
             get timestamp() { return (self.pending || {want_time: -1e3}).want_time; },
             set timestamp(fxtime) { return (self.pending || (self.pending = {})).want_time = fxtime; },
             get wsnodes() //need getter; port# unknown until later
@@ -255,6 +257,7 @@ if (want_debug)
             },
             enumerable: false, //cleaner debug
         },
+*/
 //    };
 //perf (render) stats:
 //    Object.defineProperties(this,
@@ -287,7 +290,7 @@ if (want_debug)
             {
                 const now = elapsed();
                 this.stats[newbusy? "wait_time": "busy_time"] += now - this.stats.timestamp;
-                if (newbusy) this.stats.latency += this.pending.got_time - now;
+                if (newbusy) this.stats.latency += this.pending.gottime - now;
                 this.stats.timestamp = now;
             },
             enumerable: true,
@@ -361,7 +364,7 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
         const delta = Array.from(svnodes, (oldval, n) => !((outnodes[n] ^ oldval) & RGBbits)? hex(oldval, "0xFF") + "=" + hex(outnodes[n], "0xFF"): hex(oldval, "0xFF") + "!=" + hex(outnodes[n], "0xFF")); //CAUTION: no intermediate array (doesn't truncate values)
 //if ((++this.dcount || (this.dcount = 1)) < 4) debug(delta.join(","));
 //        const delta = this.outary.map(([hwofs, xylist]) => (rgswap(this.nodes2D[xylist.top.x][xylist.top.y]) != svnodes[hwofs])? `"${hex(this.nodes2D[xylist.top.x][xylist.top.y])}"`: `"="`).join(","); //show value(s) sent from caller (before rgswap)
-        if (delta.join(",").match(/\d/) || frbuf == this.nofrbuf) //something changed or caller wants debug
+        if (delta.join(",").match(/\d/) || /*frbuf == this.nofrbuf*/frbuf.want_debug) //something changed or caller wants debug
 //        {
 //            traceout.push(`"update",` + delta + "\n");
 //            traceout.push(`"T+${/*time2str() elapsed()*/ frbuf.timestamp / 1e3}",` + this.outary.map(([hwofs]) => (outnodes[this.firstpx + hwofs] != svnodes[hwofs])? `"${hex(outnodes[this.firstpx + hwofs])}"`: `"="`).join(",") + "\n"); //show resulting values (post-RGSWAP)
@@ -375,7 +378,7 @@ TODO("perf: use flip(firstpx, UNIV_LEN) for UNMAPPED and skip check?");
         function pushrow(/*that,*/ rowhdr, frtime, fxtime, comment, fmtvals) //need to fmt vals before they change
         {
             const hdrcols = [rowhdr, frtime, fxtime, comment];
-            return this.push(hdrcols.map(val => quote(tostr(val || "").replace(/"/g, '""'))).join(",") + "," + pushrow.that.outary.map(fmtvals).map(val => quote(val)).join(",") + "\n");
+            return this.push(hdrcols.map(val => quote(tostr(val || "").replace(/"/g, '""'))).join(",") + "," + pushrow.that.outary.map(fmtvals).map(val => quote(val || "??")).join(",") + "\n");
         }
         function quote(val, quo) { return (quo || '"') + val.toString() + (quo || '"'); }
     }

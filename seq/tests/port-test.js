@@ -32,21 +32,92 @@ const {stats: color_stats} = require("yalp/incl/colors");
 
 //const {layout, ctlr} = require(cfg.layout || "yalp/layouts/devlab.js");
 //fx:
-const {runfx} = require("yalp/seq/player");
+//const {runfx} = require("yalp/seq/player");
 const {pin_finder} = require("yalp/fx/pin-finder");
+
+//dummy frbuf (mainly for debug):
+const NOFR = {seqnum: -1, frnum: -1, timestamp: -99};
 
 
 my_exports({seq}); //, layout, xctlr: ctlr}); //allow player to use it
-async function seq(opts)
+/*async*/ function* x_seq(opts, wait4frame, runfx) //generator allows *synchronous* yields to fx (keeps frames in step)
+{
+debug("port-test seq starting ...".brightGreen, opts.seqnum, Number(opts.fps).toFixed(3));
+    const {layout, seqnum, fps} = opts; //use default (player/cfg-selected) layout
+    const [start, duration] = [/*opts.start ||*/ 0, /*opts.duration ||*/ 60e3 -55e3]; //run for 1 minute
+    const steplen = 1e3 / fps; //(fps - 1); //msec
+//if (false)
+    /*const my_fx =*/ layout
+        .all_ports
+        .slice(23, 23+1)
+        .map(model => runfx({fx: pin_finder, model, start: 2e3, duration: 3e3}));
+    layout.all_ports[0].want_trace = layout.all_ports.at(-1).want_trace = true;
+//    const seqnum = yalp.seqnum;
+log("seq[%'d] start".brightCyan, seqnum); //, Object.keys(yalp));
+//    for (let seqtime = start; seqtime < duration; seqtime = Math.trunc(seqtime / steplen + 1) * steplen)
+async function unneeded()
+{
+    let previous = -1;
+    for (;;)
+    {
+        const seqtime = my_fx.reduce((soonest, fx) => Math.min(soonest, (fx.model.pending || {}).want_time), duration);
+debug("seq await frbuf {%d, %'d}, %d fx", seqnum, Math.trunc(seqtime), my_fx.length);
+        const frbuf = await await4frame(seqtime); //NOTE: need to rcv frame here to dispatch to fx below
+        if (frbuf && frbuf.timestamp == previous) throwx("dupl frbuf {%d, %d=%'d}", frbuf.seqnum, frbuf.frnum, frbuf.timestamp);
+        previous = (frbuf || NOFR).timestamp;
+//debug(typeof frbuf, typeof seqnum, typeof (frbuf || NOFR).seqnum, typeof (frbuf || NOFR).frnum, typeof (frbuf || NOFR).timestamp);
+debug("seq[%'d]: got frbuf {%'d, %d=%'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp);
+        my_fx.map(fx => fx.got_frbuf(frbuf)); //send to all fx; frbuf might be < next requested
+        if (!frbuf) { debug("seq complete/cancel".brightRed); break; } //seq completed or cancelled
+        if (frbuf.timestamp >= duration) { debug("seq eof %'d msec".brightGreen, frbuf.timestamp); break; } //eoseq
+    }
+}
+    /*await*/ yield wait4frame(duration);
+//    my_fx.push({await4done: await4frame(duration)}); //wait entire seq duration in case fx finish earlier
+//    debug("waiting for seq + %'d fx to finish, longest is %'d msec".brightGreen, my_fx.length, my_fx.reduce((latest, fx) => Math.max(latest, fx.model.pending.want_time), 0));
+//    await Promise.all(my_fx.map(fx => fx.await4done)); //fx.running)); //fx.await4done()));
+//    debug("seq + %'d fx finished", my_fx.length);
+    debug("seq finished, color stats", color_stats);
+//debug(`'${opts.model.name || srcline(+1)}' fx perf: `.brightCyan, opts.model.stats || {});
+}
+
+
+/*async*/ function* seq(opts, wait4frame, runfx) //generator allows *synchronous* yields to fx (keeps frames in step)
+{
+//    const {start, duration} = opts;
+    const {/*start, duration,*/ layout, fps} = opts;
+    const [start, duration] = [0, 60e3 - 55e3]; //run for 1 minute
+    const steplen = 1e3 / fps; //(fps - 1); //msec
+//    const my_fx = [];
+    /*my_fx.push*/(runfx({fx: pin_finder, model: layout.all_ports[0], start: 2e3 - 2e3, duration: 3e3}));
+    /*my_fx.push*/(runfx({fx: pin_finder, model: layout.all_ports[23], start: 2.5e3, duration: 3e3}));
+    debug("seq start: %'d..%'d(+%'d), steplen %d, then wait4frame %'d", start, start + duration, duration, steplen, duration);
+function* ignore()
+{
+    for (let seqtime = start, frbuf; seqtime < start + duration; seqtime = frbuf.timestamp + steplen)
+    {
+//        debug("seq wait4frame", seqtime);
+        /*const*/ frbuf = yield wait4frame(seqtime);
+        debug("seq got frbuf %'d msec, next wait4frame %'d? %s", frbuf.timestamp, Math.trunc(frbuf.timestamp + steplen), +(frbuf.timestamp + steplen < start + duration));
+//        my_fx.forEach((fx, inx) => /*debug("todo: fx[%d].got_frbuf", inx) &&*/ fx.got_frbuf(frbuf));
+//        seqtime = frbuf.timestamp + 1;
+    }
+}
+    yield wait4frame(duration);
+//    const retvals = await Promise.all(my_fx.map(fx => fx.complete));
+    debug("seq done, wait for children:", opts.children.length); //, opts.children);
+    return 123;
+}
+async function broken_seq(opts)
 {
     const {await_frame, got_frbuf, layout, seqnum, fps} = opts; //use default (player/cfg-selected) layout
-debug("port-test seq starting ..."); //, opts.seqnum, opts.fps);
-    const start = 0, duration = 10e3; //run for 1 minute
-    const my_fx = layout.all_ports.slice(10, 1).map(model => runfx({fx: pin_finder, model, duration}));
+debug("port-test seq starting ...".brightGreen); //, opts.seqnum, opts.fps);
+    const start = 0, duration = 3e3; //60e3; //run for 1 minute
+    const my_fx = layout.all_ports.slice(23, 23+1).map(model => runfx({fx: pin_finder, model, duration}));
     layout.all_ports[0].want_trace = layout.all_ports.at(-1).want_trace = true;
     my_fx.push({got_frbuf}); //runfx.latest); //kludge: allow seq to use its own evth; caller didn't have access to my_fx[]
 //if (false)
-    const bkg = layout.ctlr.updloop(frbuf => (/*debug("evth {%'d, %'d} => %'d evth", (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp, my_fx.length),*/ my_fx.map(fx => (/*debug(typeof fx, typeof fx.got_frbuf),*/ fx.got_frbuf(frbuf))))); //fx.pending.resolve(frbuf));
+    const bkg = layout.ctlr.updloop(frbuf => (debug("evth {%'d, %d=%'d} => %'d evth".brightCyan, (frbuf || NOFR).seqnum, (frbuf || NOFR).frnum, (frbuf || NOFR).timestamp, my_fx.length), my_fx.map(fx => (/*debug(typeof fx, typeof fx.got_frbuf),*/ fx.got_frbuf(frbuf))))); //fx.pending.resolve(frbuf));
 //    const seqnum = yalp.seqnum;
 log("seq[%'d] start".brightCyan, seqnum); //, Object.keys(yalp));
 async function not_needed()
@@ -65,7 +136,7 @@ debug("seq[%'d]: got frbuf {%'d, %'d}", seqnum, (frbuf || NOFR).seqnum, (frbuf |
     }
 }
     const frbuf = await await_frame(duration); //wait for seq duration
-    debug("waiting for seq + %'d fx to finish, last frbuf was {%d, %'d}".brightGreen, my_fx.length - 1, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
+    debug("waiting %'d fx to finish, last frbuf was {%d, %'d}".brightGreen, my_fx.length - 1, (frbuf || NOFR).seqnum, (frbuf || NOFR).timestamp);
     await Promise.all(my_fx.map(fx => fx.await4done));
     debug("seq + %'d fx finished", my_fx.length - 1);
     layout.ctlr.cancel(); //exit from frame upd loop
@@ -114,10 +185,6 @@ debug("models", Object.keys(models));
 const {fx_fade} = require("yalp21/fx/fade");
 const {mp3play} = require("yalp21/fx/mp3play");
 //async function pxscan(
-
-
-//dummy frbuf (mainly for debug):
-const NOFR = {seqnum: -1, timestamp: -99};
 
 
 //example seq:
