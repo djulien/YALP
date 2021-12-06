@@ -1,11 +1,15 @@
 {
-  "name": "yalp",
-  "version": "4.21.2",
-  "description": "Node.js addon + framework for 24-bit parallel GPU port (to drive WS281X LEDs on a RPi)",
+  "name": "yalp21js",
+  "version": "0.21.12",
+  "description": "Node.js framework for 24-bit parallel GPU port (to drive WS281X LEDs on a RPi)",
   "author": "djulien",
   "license": "TODO",
   "main": "./index.js",
   "scripts": {
+    "build-addon-verbose": "node-gyp rebuild --verbose  &&  ls -l build/Release",
+    "build-addon": "node-gyp rebuild  &&  ls -l build/Release"
+  },
+  "old-scripts": {
     "TODO-test": "node-gyp rebuild && mocha --reporter spec",
     "sdl2-inst": "sudo apt install libsdl2-2.0-0  #libsdl2-2.0-0-dev?",
     "notpi-preinstall": "run-s sdl2-inst",
@@ -50,10 +54,18 @@
     "YALP"
   ],
   "dependencies": {
+    "colors": "^1.4.0",
+    "magic-globals": "^0.9.1",
+    "node-addon-api": "^3.0.0",
+    "node-framebuffer": "git+https://github.com/djulien/node-framebuffer.git",
+    "sprintf-js": "^1.1.2"
+  },
+  "complex-dependencies": {
     "bindings": "^1.2.1",
     "circular-json": "^0.5.9",
     "colors": "^1.4.0",
     "colorsys": "^1.0.22",
+    "comlink": "^4.3.1",
     "glob": "^7.1.6",
     "lame": "git+https://github.com/suldashi/node-lame.git",
     "magic-globals": "^0.9.1",
@@ -61,10 +73,12 @@
     "nan": "^2.2.0",
     "node-addon-api": "^3.0.0",
     "node-inline-worker": "^1.0.0",
+    "node-ipc": "^9.1.4",
     "npm-run-all": "^4.1.5",
     "pnglib": "0.0.1",
     "speaker": "^0.5.2",
     "sprintf-js": "^1.1.2",
+    "wtfnode": "^0.8.4",
     "xmldoc": "^1.1.2"
   },
   "OLD-devDependencies": {

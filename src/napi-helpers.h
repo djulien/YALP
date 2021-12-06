@@ -134,25 +134,26 @@ Napi::Value err_napi(const Napi::Env& env, const char* fmt, ...)
 //use value.Env() to get env associated with a Value
 const char* NapiType(Napi::Value napvalue)
 {
+//TODO: use map on Type()
     const char* fmt =
-        napvalue.IsUndefined()? "Undefined (t %d)":
-        napvalue.IsNull()? "Null (t %d)":
-        napvalue.IsBoolean()? "Boolean (t %d)":
-        napvalue.IsNumber()? "Number (t %d)":
-        napvalue.IsBigInt()? "BigInt (t %d)": //NAPI_VERSION > 5
-        napvalue.IsDate()? "Date (t %d)": //NAPI_VERSION > 4
-        napvalue.IsString()? "String (t %d)":
-        napvalue.IsSymbol()? "Symbol (t %d)":
-        napvalue.IsArray()? "Array (t %d)":
-        napvalue.IsArrayBuffer()? "ArrayBuffer (t %d)":
-        napvalue.IsTypedArray()? "TypedArray (t %d)":
-        napvalue.IsObject()? "Object (t %d)":
-        napvalue.IsFunction()? "Function (t %d)":
-        napvalue.IsPromise()? "Promise (t %d)":
-        napvalue.IsDataView()? "DataView (t %d)":
-        napvalue.IsBuffer()? "Buffer (t %d)":
-        napvalue.IsExternal()? "External (t %d)":
-        "unknown (t %d)";
+        napvalue.IsUndefined()? "Undefined (type %d)":
+        napvalue.IsNull()? "Null (type %d)":
+        napvalue.IsBoolean()? "Boolean (type %d)":
+        napvalue.IsNumber()? "Number (type %d)":
+        napvalue.IsBigInt()? "BigInt (type %d)": //NAPI_VERSION > 5
+        napvalue.IsDate()? "Date (type %d)": //NAPI_VERSION > 4
+        napvalue.IsString()? "String (type %d)":
+        napvalue.IsSymbol()? "Symbol (type %d)":
+        napvalue.IsArray()? "Array (type %d)":
+        napvalue.IsArrayBuffer()? "ArrayBuffer (type %d)":
+        napvalue.IsTypedArray()? "TypedArray (type %d)":
+        napvalue.IsObject()? "Object (type %d)":
+        napvalue.IsFunction()? "Function (type %d)":
+        napvalue.IsPromise()? "Promise (type %d)":
+        napvalue.IsDataView()? "DataView (type %d)":
+        napvalue.IsBuffer()? "Buffer (type %d)":
+        napvalue.IsExternal()? "External (type %d)":
+        "unknown (type %d)";
     static char buf[30];
     snprintf(buf, sizeof(buf), fmt, napvalue.Type());
     return buf;
@@ -182,6 +183,35 @@ const char* NapiValue2str(Napi::Value napvalue)
 //                 !NAPI_OK(napi_get_value_string_utf8(that.env, that.value, str_val, sizeof(str_val) - 1, &str_len), that.env, "Get string value failed");
     return buf;
 }
+
+
+class NapiBufInfo
+{
+//special tags to distinguish type (for overloading):
+//    struct TypedArray {};
+//    struct ArrayBuffer {};
+//    struct Buffer {};
+public:
+    void* data;
+    size_t bytelen;
+public: //ctors/dtors:
+    NapiBufInfo(): data(0), bytelen(0) {}
+//    NapiBufInfo(void* ptr, size_t buflen): data(ptr), bytelen(buflen) {}
+    NapiBufInfo(Napi::TypedArrayOf<uint32_t>/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
+    NapiBufInfo(Napi::ArrayBuffer/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
+    NapiBufInfo(Napi::Buffer<uint8_t>/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
+    NapiBufInfo(Napi::Value/*&*/ buf): NapiBufInfo() //data(0), bytelen(0)
+    {
+        if (buf.IsUndefined()) return;
+        if (buf.IsTypedArray()) new(this) NapiBufInfo(buf.As<Napi::TypedArrayOf<uint32_t>>());
+        else if (buf.IsArrayBuffer()) new(this) NapiBufInfo(buf.As<Napi::ArrayBuffer>());
+        else if (buf.IsBuffer()) new(this) NapiBufInfo(buf.As<Napi::Buffer<uint8_t>>());
+        else err_napi(buf.Env(), "unhandled buf type: %s", NapiType(buf));
+    }
+    ~NapiBufInfo() {}
+public: //helpers
+    static bool IsOK(Napi::Value val) { return val.IsTypedArray() || val.IsArrayBuffer() || val.IsBuffer(); }
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -447,7 +477,7 @@ inline Napi::Value val2napi(const Napi::Env& env, float n) //, const char* which
 //    return Napi::Number::New(env, n);
 //}
 #endif //1
-inline Napi::Value val2napi(const Napi::Env& env, const char* s) //, const char* which)
+inline Napi::Value val2napi(const Napi::Env& env, std::string s) //const char* s) //, const char* which)
 {
 //debug("%s val2napi(str) %d:'%s'", which, strlen(nvl(s)), nvl(s));
     return Napi::String::New(env, s);
@@ -600,6 +630,20 @@ NAPI_ADD_EXPORT(cls, name, Accessor, &WrapType::getter, &WrapType::THISLINE(cls_
 NAPI_GETTER(cls_ignored, getter);  \
 NAPI_SETTER(cls_ignored, getter, setter);  \
 Napi::PropertyDescriptor name ## _propdesc = Napi::PropertyDescriptor::Accessor<THISLINE(cls_getter_napi), THISLINE(cls_setter_napi)>(#name)
+
+//TODO: check attrs to select rd-only vs rd-wr?
+#define NAPI_EXPORT_RDONLY_PROPERTY(...)  UPTO_3ARGS(__VA_ARGS__, NAPI_EXPORT_RDONLY_PROPERTY_3ARGS, NAPI_EXPORT_RDONLY_PROPERTY_2ARGS, missing_args) (__VA_ARGS__)
+#define NAPI_EXPORT_RDONLY_PROPERTY_2ARGS(cls, prop)  NAPI_EXPORT_RDONLY_PROPERTY_3ARGS(cls, prop, prop)
+#define NAPI_EXPORT_RDONLY_PROPERTY_3ARGS(cls, name, prop)  \
+    GETTER(get_ ## name, prop, cls); \
+    NAPI_EXPORT_PROPERTY(cls, #name, get_ ## name)
+
+#define NAPI_EXPORT_RDWR_PROPERTY(...)  UPTO_3ARGS(__VA_ARGS__, NAPI_EXPORT_RDWR_PROPERTY_3ARGS, NAPI_EXPORT_RDWR_PROPERTY_2ARGS, missing_args) (__VA_ARGS__)
+#define NAPI_EXPORT_RDWR_PROPERTY_2ARGS(cls, prop)  NAPI_EXPORT_RDWR_PROPERTY_3ARGS(cls, prop, prop)
+#define NAPI_EXPORT_RDWR_PROPERTY_3ARGS(cls, name, prop)  \
+    GETTER(get_ ## name, prop); \
+    SETTER(set_ ## name, prop); \
+    NAPI_EXPORT_PROPERTY(cls, #name, get_ ## name, set_ ## name)
 
 
 //for "disconnected" members:
@@ -1060,6 +1104,8 @@ NAPI_EXPORT_CLASS(PARENT);
 #else //stand-alone compile; no Javascript
  #define NAPI_START_EXPORTS(...)  //noop
  #define NAPI_EXPORT_PROPERTY(...)  //noop
+ #define NAPI_EXPORT_RDONLY_PROPERTY(...)  //noop
+ #define NAPI_EXPORT_RDWR_PROPERTY(...)  //noop
  #define NAPI_EXPORT_WRAPPED_PROPERTY(...)  //noop
  #define NAPI_EXPORT_METHOD(...)  //noop
  #define NAPI_STOP_EXPORTS(...)  //noop
@@ -1067,6 +1113,42 @@ NAPI_EXPORT_CLASS(PARENT);
 // #define NAPI_EXPORT_OBJECT(...)  //noop
  #define NAPI_EXPORT_MODULES(...)  //noop
 #endif //def NODE_GYP_MODULE_NAME
+
+
+//define getter/setter wrappers:
+//can be used as napi shims
+#define GETTER(...)  UPTO_3ARGS(__VA_ARGS__, GETTER_3ARGS, GETTER_2ARGS, GETTER_1ARG) (__VA_ARGS__)
+#define GETTER_1ARG(name)  GETTER_2ARGS(get_ ## name, m_ ## name)
+#define GETTER_2ARGS(name, target)  decltype(target) name() const { return target; }
+#define GETTER_3ARGS(name, target, cls)  decltype(NULL_OF(cls)->target) name() const { return target; }
+//decltype(member_func(&A::f));
+
+#define SETTER(...)  UPTO_2ARGS(__VA_ARGS__, SETTER_2ARGS, SETTER_1ARG) (__VA_ARGS__)
+#define SETTER_1ARG(name)  SETTER_2ARGS(set_ ## name, m_ ## name)
+#define SETTER_2ARGS(name, target)  void name(decltype(target) newval) { target = newval; }
+
+#define SETTERCB(name, cb)  void name(decltype(name()) newval) { cb(newval); }
+
+//allow use with member functions:
+//based on https://stackoverflow.com/questions/5147492/member-function-call-in-decltype
+//template< typename RETTYPE, typename CLS, typename... ARGS > //use template to deduce types
+//RETTYPE member_func(RETTYPE (CLS::*)(ARGS...));
+
+//getter/setter for atomic members:
+//napi doesn't like atomics
+//NOTE: decltype needs obj instance; use NULL_OF or declval<>
+#define AGETTER(...)  UPTO_2ARGS(__VA_ARGS__, AGETTER_2ARGS, AGETTER_1ARG) (__VA_ARGS__)
+#define AGETTER_1ARG(name)  AGETTER_2ARGS(aget_ ## name, name)
+//#define AGETTER_2ARGS(name, target)  decltype(target.load()) name() const { return target; }
+#define AGETTER_2ARGS(name, target)  decltype(/*NULL_OF(cls)->*/ std::declval<self_t>(). target.load()) name() const { return target.load(); }
+
+#define ASETTER(...)  UPTO_2ARGS(__VA_ARGS__, ASETTER_2ARGS, ASETTER_1ARG) (__VA_ARGS__)
+#define ASETTER_1ARG(name)  ASETTER_2ARGS(aset_ ## name, name)
+//#define ASETTER_2ARGS(name, target)  void name(decltype(target.load()) newval) { target = newval; }
+#define ASETTER_2ARGS(name, target)  void name(decltype(/*NULL_OF(cls)->*/ std::declval<self_t>(). target.load()) newval) { target.store(newval); } //use store() to avoid copy ctor
+
+//#define ASETTERCB(name, target, cb)  void name(decltype(target.load()) newval) { cb(newval); }
+
 
 #endif //ndef _NAPI_HELPERS
 //eof

@@ -25,7 +25,7 @@
 #use "npm install --verbose" to verify these options are being passed correctly to compiler:
             "cflags":
             [
-#"-E",
+# "-E",
 #debug:                "-E", #show cpp output; goes to build/Release/obj.target/gpuport/src/GpuPort.o
 #                "-S", #generate assembler output and stop
                 "-g", #include debug symbols
@@ -96,7 +96,7 @@
 #handled by SDL?                " <!@(test -n \"<(hasX)\"  && echo \"-lX11 -lXxf86vm\"  ||  exit 0)", #for dev/debug only
 #                " -L'<!(pwd)'",
 #                "<(module_root_dir)/build/Release/",
-                " -lmpg123 -lao", #audio
+#                " -lmpg123 -lao", #audio
             ],
             'dependencies':
             [

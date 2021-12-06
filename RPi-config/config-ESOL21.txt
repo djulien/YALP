@@ -1,0 +1,133 @@
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan
+#disable_overscan=1
+
+# uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border
+#overscan_left=16
+#overscan_right=16
+#overscan_top=16
+#overscan_bottom=16
+
+# uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# uncomment if hdmi display is not detected and composite is being output
+#hdmi_force_hotplug=1
+
+# uncomment to force a specific HDMI mode (this will force VGA)
+#hdmi_group=1
+#hdmi_mode=1
+
+# uncomment to force a HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes
+#hdmi_drive=2
+
+# uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display
+#config_hdmi_boost=4
+
+# uncomment for composite PAL
+#sdtv_mode=2
+
+#uncomment to overclock the arm. 700 MHz is the default.
+#arm_freq=800
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+dtparam=i2c_arm=off
+#dtparam=i2s=on
+dtparam=spi=off
+
+# Uncomment this to enable infrared communication.
+#dtoverlay=gpio-ir,gpio_pin=17
+#dtoverlay=gpio-ir-tx,gpio_pin=18
+
+# Additional overlays and parameters are documented /boot/overlays/README
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+[all]
+#dtoverlay=vc4-fkms-v3d
+gpu_mem=128
+
+#######################################################################
+# YALP custom
+#see https://github.com/raspberrypi/documentation/blob/develop/documentation/asciidoc/computers/raspberry-pi/display-parallel-interface.adoc
+#or https://www.raspberrypi.com/documentation/computers/config_txt.html#custom-mode
+#for example see https://forums.raspberrypi.com/viewtopic.php?t=190702
+
+#[0xBEEF]
+#TODO: check how tft35a uses parameter in https://avikdas.com/2018/12/31/setting-up-lcd-screen-on-raspberry-pi.html
+dtoverlay=dpi24-nosync,want_vsync=0,want_clock=1
+#set dpi display geometry:
+#inv clock (data valid on falling edge), data valid, RGB byte order, 24-bit 888:
+dpi_output_format=0x17
+dpi_group=2
+dpi_mode=87
+#2.4MHz (gives 3 ppb for WS281X), 4:3 aspect:
+#30 FPS (1111 nodes/fr):
+#hdmi_timings=320 0 0 1 0  240 0 3 3 3  0 0 0  30 0 2400000 1
+#20 FPS (1666 nodes/fr):
+#dpi_timings=392 0 0 1 0  294 0 2 2 2  0 0 0  20 0 2400000 1
+#18.5 FPS (1800 nodes/fr):
+dpi_timings=416 0 0 1 0  310 0 1 1 0  0 0 0  18 0 2400000 1
+#15 FPS (2222 nodes/fr):
+#dpi_timings=464 0 0 1 0  348 0 1 1 0  0 0 0  15 0 2400000 1
+#enable lcd:
+enable_dpi_lcd=1
+#default display !LCD; use HDMI instead:
+#puts console on /dev/fb0 and dpi on /dev/fb1
+#? display_default_lcd=0
+display_default_lcd=1
+
+#enable hdmi if no monitor detected:
+#NOTE: affects headphone audio
+hdmi_force_hotplug=1
+#disable black border:
+disable_overscan=1
+#?? below needed? sends sound over HDMI if supported
+#hdmi_drive=2
+#config_hdmi_boost=4
+overscan_left=0
+overscan_right=0
+overscan_top=0
+overscan_bottom=0
+
+[0xDEAD]
+#desktop default = LCD (fb0), put it on HDMI instead:
+framebuffer_priority=2
+#default is 1 < Pi4:
+max_framebuffers=2
+#need force??
+hdmi_force_mode=1
+#from https://www.raspberrypi.org/forums/viewtopic.php?f=63&t=246384
+#and maybe https://github.com/raspberrypi/firmware/issues/1180#issuecomment-509373742
+#skip lcd auto-detect:
+#ignore_lcd=1
+# increase GPU memory
+#needs to be >= 32 for dispmanx?
+######gpu_mem=112
+#regular hdmi settings:
+#tell also to use headphone jack:
+hdmi_ignore_edid_audio=1
+#console framebuffer depth:
+#? framebuffer_depth=24
+framebuffer_depth=32
+framebuffer_ignore_alpha=1
+
+#eof

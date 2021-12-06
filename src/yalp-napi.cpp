@@ -7,6 +7,7 @@
 // 4.11.20  DJ  misc tweaks for single-threaded version
 // 4.1.21  DJ  rewrite to use shm and support multiple procs or threads; reuse frbufs in shm with circ queue
 // 4.2.21  DJ  move nodes out of port sttr, misc tweaks for RPi vs. XWindows
+// 11.16.21  DJ  extract pivot + related into simpler addon
 
 ///////////////////////////////////////////////////////////////////////////////
 ////
@@ -78,14 +79,1294 @@
 //#if __cplusplus < 201400L
 // #pragma message("CAUTION: this file probably needs c++14 or later to compile correctly")
 //#endif
-#if __cplusplus < 201703L
- #error "sorry, need C++17 or later to compile"
-//#else
-// #pragma message("okay, using C++ " TOSTR(__cplusplus))
+//#if __cplusplus < 201703L
+// #define expand(ver)  #ver
+// extern const char* show_error = expand(__cplusplus);
+// #error "sorry, need C++17 or later to compile" __cplusplus
+////#else
+//// #pragma message("okay, using C++ " TOSTR(__cplusplus))
+//#endif
+
+
+#ifndef _HOIST //#ifdef NEW_YALP //streamlined API
+#pragma message(CYAN_MSG "using new (streamlined) YALP API" ENDCOLOR_NOLINE)
+
+ #define HOIST_UTILS  1
+ #define HOIST_HELPERS  2
+ #define HOIST_DATASTTR  3
+#define _HOIST  HOIST_HELPERS //HOIST_UTILS
+#include __FILE__  //error here requires CD into folder or add "-I." to compile
+#undef _HOIST
+
+//#ifdef NODE_GYP_MODULE_NAME //defined by node-gyp
+ #include "napi-helpers.h"
+//#else //stand-alone compile; no Javascript
+// #define NAPI_START_EXPORTS(...)  //noop
+// #define NAPI_EXPORT_PROPERTY(...)  //noop
+// #define NAPI_EXPORT_WRAPPED_PROPERTY(...)  //noop
+// #define NAPI_EXPORT_METHOD(...)  //noop
+// #define NAPI_STOP_EXPORTS(...)  //noop
+// #define NAPI_EXPORT_CLASS(...)  //noop
+// #define NAPI_EXPORT_OBJECT(...)  //noop
+// #define NAPI_EXPORT_MODULES(...)  //noop
+//#endif //def NODE_GYP_MODULE_NAME
+
+
+//execute a shell command:
+//results returned to caller as string (with newlines)
+//from https://stackoverflow.com/questions/478898/how-do-i-execute-a-command-and-get-the-output-of-the-command-within-c-using-po
+//#include <cstdio>
+//#include <iostream>
+#if 0
+#include <stdio.h> //FILE, fgets(), popen(), pclose()
+#include <unistd.h> //pipe()
+#include <memory> //std::unique_ptr<>
+//#include <stdexcept>
+#include <string> //std::string
+//#include <array>
+std::string shell(const char* cmd)
+{
+//    std::array<char, 128> buffer;
+    std::string result;
+//debug("run shell command '%s' ...", cmd);
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) fatal("can't create pipe"); //throw std::runtime_error("popen() failed!");
+    char buffer[250];
+    while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) result += buffer;
+    std::string& result_esc = str_replace(result.c_str(), "\n", CYAN_MSG "\\n" ENDCOLOR_NOLINE); //esc special chars in debug output
+debug("shell '%s' output %'lu:'%s'", cmd, result.length(), result_esc.c_str());
+    return result;
+}
+#endif //0
+
+
+#if 0
+//file wrapper:
+//auto-closes file upon scope exit
+#include <unistd.h> //close(), getpid(), usleep()
+//#include <stdio.h> //open(), close()
+#include <fcntl.h> //open(), O_RDONLY, O_RDWR
+//#include <sys/stat.h> //open()?
+//#include <sys/types.h> //open()?
+#include <utility> //std::forward<>()
+//#include <stdexcept> //std::runtime_error()
+//#include <string.h> //strerror()
+//#include <errno.h> //errno
+int open(int fd = -1) { return fd; } //kludge: can't overload templated member function in AutoFile, so overload open() instead
+class AutoFile
+{
+protected: //allow children to see
+    int m_fd;
+public: //ctor/dtor
+//    AutoClose(const char* name): AutoClose(
+//    AutoFile(int fbnum): AutoClose(fbname(fbnum), O_RDWR) {}
+    template <typename ... ARGS>
+    AutoFile(ARGS&& ... args): m_fd(::open(std::forward<ARGS>(args) ...)) {} //debug("autofile: fd %d", m_fd); }; //perfect fwd args to open()
+//can't specialize member functions :(    template<int> AutoFile(int fd): m_fd(fd) {};
+//    template<> AutoFile(): m_fd(-1) {}
+    ~AutoFile()
+    {
+        if (isOpen() && ::close(m_fd) < 0) fatal("file close failed"); //std::runtime_error(strerror(errno));
+        m_fd = -1;
+    }
+public: //operators
+    operator int() const { return m_fd; }
+public: //methods
+    inline bool isOpen() const { return !(m_fd < 0); } //::isOpen(m_fd); }
+};
+#endif //0
+
+
+//FB wrapper:
+//auto-closes FB upon scope exit
+//optional (default) mmap/munmap
+//2 scenarios:
+//- if XWindows is running, emulate FB using SDL window
+//- if running in console, use FB/stdio
+#include <fcntl.h> //O_RDWR
+//#include <sys/stat.h> //open()?
+//#include <sys/types.h> //open()?
+//#include <utility> //std::forward<>()
+#include <unistd.h> //close(), getpid(), usleep()
+#include <sys/ioctl.h> //ioctl()
+#include <sys/mman.h> //mmap(), munmap(), PROT_*, MAP_*
+#include <linux/fb.h> //FBIO_*, struct fb_var_screeninfo, fb_fix_screeninfo
+//#include <ostream> //write()
+//#include <mutex>
+#include <map> //std::map<>
+#include <tuple>
+//#include <condition_variable>
+#include <string> //std::string
+template <typename PIXEL_T = uint32_t> //GPU pixel type (ARGB is 4 bytes)
+#define AutoFB newer_AutoFB
+class AutoFB: public AutoFile
+{
+    using SUPER = AutoFile;
+//cursor control:
+//turn cursor off when using framebuffer (interferes with pixels in that area)
+//https://en.wikipedia.org/wiki/ANSI_escape_code#Escape_sequences
+    static constexpr char* CURSOFF = "\x1B[?25l";
+    static constexpr char* CURSON = "\x1B[?25h";
+//    std::mutex m_mutex;
+//protected: //allow children to see
+public: //allow children to see
+    /*volatile*/ PIXEL_T* m_pxbuf = (PIXEL_T*)MAP_FAILED;
+    size_t m_stride32 = 0; //, m_height = 0;
+    int m_fbnum, m_xres, m_xblank, m_yres, m_yblank; //, m_linelen; //, m_ppb;
+    inline int xtotal() const { return m_xres + m_xblank; }
+    inline int ytotal() const { return m_yres + m_yblank; }
+    inline int pxbuf_len32() const { return m_stride32 * m_yres; } //#px in frbuf mem, *not* actual #px
+    int m_pixclock; //, m_frtime_usec, m_vblank_usec, m_fps;
+//not needed: public: //kludge: below needs to be public for NULL_OF kludge in child class getter
+    inline int frtime_usec() const { int retval = rdiv(rdiv(m_pixclock * xtotal(), 1e3) * ytotal(), 1e3); return retval; } //debug("frtime_usec: pxclk %'d * xtotal %'d / 1e3 * ytotal %'d / 1e3 = %'d", m_pixclock, xtotal(), ytotal(), retval); return retval; } //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+    inline int vblank_usec() const { int retval = rdiv(rdiv(m_pixclock * xtotal(), 1e3) * m_yblank, 1e3); return retval; } //debug("vblank_usec: pxclk %'d * xtotal %'d / 1e3 * yblank %'d / 1e3 = %'d", m_pixclock, xtotal(), m_yblank, retval); return retval; } //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+    inline int fps() const { int retval = m_pixclock? rdiv((int)1e6, frtime_usec()): 0; return retval; } //debug("fps: 1e6 / frtime_usec %'d = %'d", frtime_usec(), retval); return retval; }
+    int m_depth;
+    std::string m_order; //char m_order[5];
+//    bool m_dirty = false;
+//    DevWindow* m_devwnd = 0;
+public: //types
+    using pixel_t = PIXEL_T;
+    struct my_var_screeninfo: /*struct*/ fb_var_screeninfo
+    {
+//            int fbnum; //tag screen info with FB device#
+//add helpers:
+        inline int xtotal() const { return left_margin + xres + right_margin + hsync_len; }
+        inline int ytotal() const { return upper_margin + yres + lower_margin + vsync_len; }
+        inline int pixfreq() const { return pixclock? rdiv((int)1e9, pixclock): 0; } //psec => KHz
+        inline bool has_pixclock() const { return (pixfreq() >= (int)1e3) && (pixfreq() <= (int)80e3); } //clock freq within expected range
+//            inline int frtime_usec() const { return (int)(double)pixclock * xtotal() / (int)1e3 * ytotal() / (int)1e3; } //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+//            inline float fps() const { return (int)1e6 / frtime_usec(); }
+    };
+//    struct timing_t
+//    {
+//        int xres, xtotal, yres, ytotal, pxclock; //main timing params
+//        bool for_timing, for_update; //want_mmap;
+//        timing_t(): timing_t(0, 0, 0, 0, 0, false, false) {}
+//        timing_t(int xr, int xt, int yr, int yt, int px, bool wt, bool mm): xres(xr), xtotal(xt), yres(yr), ytotal(yt), pxclock(px), for_timing(wt), for_update(mm) {};
+//    };
+//    static timing_t& NO_MMAP() { static timing_t m_timing; return m_timing; }
+public: //ctor/dtor
+//    template <typename ... ARGS>
+//    AutoFB(ARGS&& ... args): SUPER(std::forward<ARGS>(args) ...), m_pxbuf(MAP_FAILED), m_stride32(0), m_height(0) //perfect fwd args to open()
+//    AutoFB(int fbnum): AutoFB(fbnum, NO_MMAP()) {}
+//    AutoFB(int fbnum, /*bool want_mmap = true,*/ const timing_t& gpuinfo): SUPER(fbname(fbnum), O_RDWR), m_fbnum(fbnum) //, m_pxbuf(MAP_FAILED), m_stride32(0), m_height(0)
+    AutoFB(int fbnum, bool want_mmap = true): SUPER(fbname(fbnum), want_mmap? O_RDWR: O_RDONLY), m_fbnum(fbnum) //, m_pxbuf(MAP_FAILED), m_stride32(0), m_height(0)
+    {
+//        const bool want_mmap = gpuinfo.for_update; //want_mmap; //(&gpuinfo != &NO_MMAP());
+//        const bool timovr = gpuinfo.xtotal && gpuinfo.yres; //broken-timovr = &gpuinfo != &(const timing_t&)NO_MMAP;
+//debug("autoFB: fb# %d, mmap? %d, open? %d, ovr? %d: xtotal %d, yres %d", fbnum, want_mmap, isOpen(), timovr, gpuinfo.xtotal, gpuinfo.yres);
+        if (!isOpen()) RETURN(want_mmap? fatal("open fb '%s' failed", fbname(fbnum)): 0);
+        struct my_var_screeninfo scrv;
+        if (::ioctl(*this, FBIOGET_VSCREENINFO, &scrv) < 0) fatal("can't get screen var info");
+//        scrv.fbnum = fbnum; //tag with device#
+        detailed_timing(scrv);
+        measure_clock(scrv);
+        m_xres = scrv.xres;
+        m_xblank = scrv.xtotal() - scrv.xres; //scrv.right_margin + scrv.hsync_len + scrv.left_margin;
+        m_yres = scrv.yres;
+        m_yblank = scrv.ytotal() - scrv.yres; //scrv.lower_margin + scrv.vsync_len + scrv.upper_margin;
+        m_pixclock = scrv.pixclock; //psec
+//        m_frtime_usec = m_pixclock * xtotal() / 1e3 * ytotal() / 1e3; //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+//        m_vblank_usec = m_pixclock * xtotal() / 1e3 * m_yblank / 1e3; //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+//        m_fps = m_frtime_usec? (int)1e6 / m_frtime_usec: 0;
+        m_depth = scrv.bits_per_pixel;
+        char order[5]; //offsets are from right (<< rop)
+        order[4 - (scrv.red.offset / 8) % 4 - 1] = 'R';
+        order[4 - (scrv.green.offset / 8) % 4 - 1] = 'G';
+        order[4 - (scrv.blue.offset / 8) % 4 - 1] = 'B';
+        order[4 - (scrv.transp.offset / 8) % 4 - 1] = 'A';
+        order[4] = '\0';
+        m_order = order;
+        struct fb_fix_screeninfo scrf;
+        if (/*!timovr &&*/ ::ioctl(*this, FBIOGET_FSCREENINFO, &scrf) < 0) fatal("get screen fixed info failed");
+//        if (timovr) //override timing with caller info
+//        {
+//            int xcmp = INTCMP(gpuinfo.xtotal, scrf.line_length / sizeof(DATA_T));
+//            int ycmp = INTCMP(gpuinfo.yres, scrf.smem_len / scrf.line_length);
+//            const char* cmpstr = "<=>";
+//            if (xcmp || ycmp) warn("FB# %d override: xtotal %'lu %c actual %'lu, yres %'lu %c actual %'lu", fbnum, gpuinfo.xtotal, cmpstr[xcmp + 1], scrf.line_length / sizeof(DATA_T), gpuinfo.yres, cmpstr[ycmp + 1], scrf.smem_len / scrf.line_length);
+//            if (isXWindows) scrf.line_length = gpuinfo.xtotal * sizeof(DATA_T); //NOTE: can't do this on real FB (rows would be misaligned in memory)
+//            if (isXWindows || (ycmp < 0)) scrf.smem_len = gpuinfo.yres * scrf.line_length; //can only shorten real FB
+//        }
+        if (scrf.line_length % sizeof(PIXEL_T)) fatal("FB# %d row len %'d !multiple of px data type %d; row+gap addressing broken", fbnum, scrf.line_length, sizeof(PIXEL_T));
+        m_stride32 = scrf.line_length / sizeof(PIXEL_T); //NOTE: might be larger than screen xres due to padding
+//debug("rowlen %d", m_stride32);
+//        if (scrf.smem_len % scrf.line_length) warn("FB# %d memlen %'d !multiple of row len %'d", fbnum, scrf.smem_len, scrf.line_length);
+//        m_height = scrf.smem_len / scrf.line_length; //m_stride32;
+        if (scrf.smem_len != scrf.line_length * scrv.yres) warn("FB# %d memlen %'d != row len %'d x yres %'d", fbnum, scrf.smem_len, scrf.line_length, scrv.yres);
+//debug("height %d", m_height);
+//        if (!want_mmap) return;
+debug("using stride32 %'d, yres %'d, pxbuf32 %'d", m_stride32, m_yres, pxbuf_len32()); //, XWin? %d, isXWindows);
+//        if (!gpuinfo.for_timing && !gpuinfo.for_update) return;
+        if (!want_mmap) return;
+//        if (isXWindows) RETURN(devwindow(gpuinfo));
+        constexpr void* DONT_CARE = NULL; //CONSTDEF(DONT_CARE, NULL); //system chooses addr
+//debug("addr %p, #px %'lu x len %'lu = size %'lu, prot 0x%x, flags 0x%x, fd %d, ofs 0", DONT_CARE, numpx(), sizeof(DATA_T), numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this);
+//notes about mmap RPi FB: https://forums.raspberrypi.com/viewtopic.php?t=263873
+        m_pxbuf = (PIXEL_T*)::mmap(DONT_CARE, pxbuf_len32() * sizeof(PIXEL_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this, 0 /*ofs*/); //shared with GPU
+        if (m_pxbuf == (PIXEL_T*)MAP_FAILED) fatal("mmap fb failed"); //throw std::runtime_error(strerror(errno));
+//        if (m_stride32 != scrv.xres) warn("raster stride32 %'lu != width %'d", m_stride32, scrv.xres);
+//        if (new_height * new_stride32 * 4 != scrf.smem_len) debug(YELLOW_MSG "CAUTION: raster size %'lu != calc %'d", new_height * new_stride32 * 4, scrf.smem_len);
+#pragma message(TODO(madvise(fbp, finfo.smem_len, MADV_WILLNEED); "msync()" with "MS_SYNC" flag?))
+        ::write(*this, CURSOFF, strlen(CURSOFF));
+//        ::memset(m_pxbuf, 0, pxbuf_len32() * sizeof(DATA_T));
+    }
+    ~AutoFB()
+    {
+//        if (isXWindows) RETURN(devwindow());
+        if (/*isOpen()*/ m_pxbuf == (PIXEL_T*)MAP_FAILED) return;
+        ::write(*this, CURSON, strlen(CURSON));
+        if (::munmap(m_pxbuf, pxbuf_len32() * sizeof(PIXEL_T)) < 0) fatal("munmap fb failed");
+        m_pxbuf = (PIXEL_T*)MAP_FAILED;
+    }
+public: //methods
+    static const char* fbname(int fbnum) { return strprintf("/dev/fb%d", fbnum); } //FB device name
+    /*static*/ int wait4sync(/*int fd,*/ timer_t<(int)1e6>::elapsed_t fallback_usec = 0) //CAUTION: blocks caller's thread
+    {
+//        std::lock_guard<decltype(m_mutex)> lock(m_mutex); //don't allow >1 thread to sync simultaneously (should only happen during thread startup)
+//        m_dirty = false; //tell caller update was flushed
+//        if (isXWindows) return m_devwnd->wait4sync(); //NOTE: m_devwnd could be null
+        int retval; // = true;
+        int arg = 0; //must be 0
+        if (retval = ioctl(*this, FBIO_WAITFORVSYNC, &arg) < 0)
+        {
+//TODO? adaptive vsync, OMAPFB_WAITFORVSYNC_FRAME
+//    inline int getline()
+//    {
+//        int counter;
+//        return (isOpen() && ioctl(m_fd, OMAPFB_GET_LINE_STATUS, &counter))? counter: -1;
+//    }
+//        static unsigned int arg = 0;
+//        ioctl(fbdev, FBIO_WAITFORVSYNC, &arg);
+//        if (!fallback_usec) fallback_usec = 10e3; //wait >= 1 msec so CPU doesn't get too busy
+            if (!fallback_usec) fatal("wait4vsync failed (no fallback)");
+            usleep(fallback_usec); //kludge: try to maintain timing
+//            retval = false;
+        }
+//wrong        m_dirty = false; //benign (caller must write to FB shm); here just = status that caller can check
+        return retval;
+    }
+//public: //helpers
+//    class PxRow
+//    {
+//    public: //operators
+//        inline DATA_T& operator[](size_t inx) const
+//        {
+//            return ((DATA_T*)this)[inx];
+//        }
+//    };
+//public: //operators
+//    operator DATA_T*() const { return m_pxbuf; }
+//    inline const PxRow& operator[](size_t inx) const
+//    {
+//        return *(const PxRow*)&m_pxbuf[inx * m_stride32]; //kludge: cast a memberless row proxy on top of px buf at requested row address
+//    }
+public: //properties
+//    inline bool dirty() const { return m_dirty; }
+//    /*inline*/ void dirty(bool newval)
+//    {
+//        m_dirty = newval;
+//        if (isXWindows) return m_devwnd->dirty(newval); //NOTE: m_devwnd could be null
+//    }
+//    DATA_T* pixels() const { return m_pxbuf; }
+//    inline int fbnum() const { return m_fbnum; }
+//    inline size_t numpx() const { return m_stride32 * m_height; }
+//    inline size_t width() const { return m_stride32; }
+//    inline size_t height() const { return m_height; }
+//private: //emulate FB with SDL in XWindows: can't get XWindows FB driver to work :(
+//    void devwindow(const timing_t& gpuinfo)
+//    {
+//        if (m_devwnd) return; //already open
+//        m_devwnd = new DevWindow(gpuinfo.xres, gpuinfo.xtotal, gpuinfo.yres, gpuinfo.ytotal, gpuinfo.pxclock, gpuinfo.for_update);
+//        m_pxbuf = m_devwnd->pxbuf();
+//        m_stride32 = m_devwnd->width();
+//        m_height = m_devwnd->height();
+//    }
+//    void devwindow()
+//    {
+//        if (m_devwnd) delete m_devwnd;
+//        m_devwnd = 0;
+//        m_pxbuf = 0;
+//    }
+private: //helpers
+    void measure_clock(struct my_var_screeninfo& scrv)
+    {
+//        if (scrv.pixclock) return; //already have clock info
+        if (scrv.has_pixclock()) return;
+//check cached values:
+//avoids additional delay when re-opening FB
+        static std::map<decltype(m_fbnum), decltype(scrv.pixclock)> m_cache;
+        auto found = m_cache.find(m_fbnum);
+        if (found != m_cache.end()) RETURN(scrv.pixclock = found->second);
+//measure it:
+//            m_pixclock = measure_pixclock();
+        timer_t<(int)1e6> clock; //no worky--NOTE: use nsec to detect timer wrap (validates NUMFR range)
+#if 0
+        decltype(clock)::elapsed_t test_usec = -clock.elapsed();
+        debug("start %d, this@ %p", -test_usec, this);
+        usleep(150);
+        test_usec += clock.elapsed();
+        debug("calibrate: 150 = %d", test_usec);
+        test_usec = -clock.elapsed();
+        usleep((int)3e3);
+        test_usec += clock.elapsed();
+        debug("calibrate: 3k = %d", test_usec);
 #endif
+        wait4sync(); //wait until start of next frame to get clean stats
+        int frames = 0;
+//TODO: adjust NUMFR based on (something) so delay period can be kept to 1 sec?
+        CONSTDEF(NUMFR, 40); //CAUTION: elapsed time in usec must stay under ~ 2 sec to avoid overflow; 40 frames @60Hz ~= 667K, @30Hz ~= 1.3M, @20Hz == 2M usec
+//        decltype(clock)::elapsed_t times[NUMFR];
+        decltype(clock)::elapsed_t elapsed_usec = -clock.elapsed();
+        while (frames++ < NUMFR) wait4sync(); //{ wait4sync(); times[frames - 1] = elapsed_usec + clock.elapsed(); }
+//        debug("%'d + %'d", elapsed_usec, clock.elapsed());
+        elapsed_usec += clock.elapsed();
+//        for (int i = 1; i < NUMFR; ++i) times[i] -= times[i - 1]; //delta
+//        for (int i = 0; i < NUMFR; ++i) 
+//            debug("%scalibr[%d] = %'d, delta %'d", (i == 2 && NUMFR > 4)? (i = NUMFR - 2, "  ...\n"): "", i, times[i], i? times[i] - times[i - 1]: 0); //skip some entries
+        if (elapsed_usec > (int)2e6) fatal("measure_clock %d took too long: %'d usec limit %'d", frames, elapsed_usec, clock.max);
+//debug("%'d vs. %'u usec elapsed", elapsed_usec, elapsed_usec);
+//wrong        pxclock = (unsigned long long)/*clock.elapsed()*/elaps * (int)1e6 / NUMFR; //<(int)1e6>(started_usec) * 1e6 / NUMFR; //use long long for max accuracy
+        scrv.pixclock = rdiv(rdiv(rdiv(elapsed_usec, NUMFR) * (int)1e3, scrv.xtotal()) * (int)1e3, scrv.ytotal()); //usec => psec; kludge: split up 1e6 factor to prevent overflow
+        debug("measured pix clock %'d psec = %'d usec / %'d frames / %'d xtotal / %'d ytotal, this@ %p", scrv.pixclock, elapsed_usec, NUMFR, scrv.xtotal(), scrv.ytotal(), this);
+        if (!scrv.has_pixclock()) fatal("can't measure pixclock");
+        m_cache[m_fbnum] = scrv.pixclock; //reuse result again later
+    }
+    void detailed_timing(struct my_var_screeninfo& scrv)
+    {
+        if (scrv.xtotal() != scrv.xres || scrv.ytotal() != scrv.yres) return; //already have sync info
+//check cached values:
+//avoids additional delay when re-opening FB
+//        using details_t = std::tuple<decltype(scrv.right_margin), decltype(scrv.hsync_len), decltype(scrv.left_margin), decltype(scrv.lower_margin), decltype(scrv.vsync_len), decltype(scrv.upper_margin)>;
+        struct details_t
+        {
+            decltype(scrv.right_margin) xfront, xsync, xback;
+            decltype(scrv.lower_margin) yfront, ysync, yback;
+        };
+        static std::map<decltype(m_fbnum), details_t> m_cache;
+        auto found = m_cache.find(m_fbnum);
+        if (found != m_cache.end())
+        {
+            scrv.right_margin = found->second.xfront;
+            scrv.hsync_len = found->second.xsync;
+            scrv.left_margin = found->second.xback;
+            scrv.lower_margin = found->second.yfront;
+            scrv.vsync_len = found->second.xsync;
+            scrv.upper_margin = found->second.xback;
+            return;
+        }
+//try to get detailed timing info:
+        const bool isRPi = fexists("/boot/config.txt"); //use __arm__ or __ARMEL__ macro instead?
+//try to get detailed timing (RPi only):
+        std::string str = isRPi? shell("vcgencmd get_config str"): ""; //try to get missing info for RPi; TODO: how to select FB if multiple?
+//        str = shell("vcgencmd hdmi_timings");
+//        if (str.size()) return str.c_str();
+//        str = shell("vcgencmd get_config dpi_timings");
+//        if (str.size()) return str.c_str();
+        details_t details;
+        for (auto end = 0U;;)
+        {
+            auto start = str.find("_timings", end); //NOTE: could be > 1 for RPi 4
+            if (start == std::string::npos) break;
+            end = str.find("\n", start);
+            std::string timings = str.substr(start + 8, ((end != std::string::npos)? end: str.length()) - start - 8);
+//                .map(line => line.match(/=\s*(\d+)\s+\d+\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+(\d+)\s+(\d+)\s+(\d+)\s+/))
+            int xres, yres, ignore; //xfront, xsync, xback, yres, yfront, ysync, yback, ignore;
+//            details_t details;
+            CONSTDEF(NUMVALS, 10);
+            int nvals = sscanf(timings.c_str(), " = %d %d %d %d %d  %d %d %d %d %d ", // %d %d %d  %d %d %d %d ",
+                &xres, &ignore, &details.xfront, &details.xsync, &details.xback,
+                &yres, &ignore, &details.yfront, &details.ysync, &details.yback);
+            debug("found %d vals in detailed timing '%s' for fb#%d: xres %'d, xblank %'d+%'d+%'d, yres %'d, yblank %'d+%'d+%'d", nvals, timings.c_str(), m_fbnum, xres, details.xfront, details.xsync, details.xback, yres, details.yfront, details.ysync, details.yback);
+            if (/*nvals &&*/ (nvals != NUMVALS)) { warn("invalid timing: '%s' (found %d vals, expected %d)", timings.c_str(), nvals, NUMVALS); continue; }
+//printf("timing: nvals %d, str '%s'\n", nvals, ifnull(str, "(empty)"));
+            if (xres != scrv.xres || yres != scrv.yres) { warn("skipping other timing: '%s' (!for xres %'d, yres %'d)", timings.c_str(), scrv.xres, scrv.yres); continue; }
+            scrv.right_margin = details.xfront;
+            scrv.hsync_len = details.xsync;
+            scrv.left_margin = details.xback;
+            scrv.lower_margin = details.yfront;
+            scrv.vsync_len = details.ysync;
+            scrv.upper_margin = details.yback;
+            break;
+        }
+        if (scrv.xtotal() == scrv.xres && scrv.ytotal() == scrv.yres) fatal("detailed timing not available");
+        m_cache[m_fbnum] = details; //reuse results again later
+    }
+};
 
 
-#if 0 //tsfn test
+//encapsulate FB update loop + open/close + WS protocol:
+//can be run on fg or bkg thread
+//mutex !needed; render threads use atomic access to control vars and there is only 1 writer thread
+#include <atomic> //std::atomic<>
+#include <stdint.h> //PRIu64, PRIx64, ...
+//#include <climits> //INT_MAX
+class FBloop: public AutoFB<>
+{
+protected: //allow children to see
+    using SUPER = AutoFB<>;
+    using self_t = FBloop;
+public:
+//h/w constraints:
+#pragma message(TODO("allow caller to reduce #ports"))
+    CONSTDEF(MAX_PORTS, 24); //maximum is fixed by GPU + VideoCore; each bit plane is a port or "universe"
+    CONSTDEF(PORT_MASK, (1L << MAX_PORTS) - 1);
+    CONSTDEF(WSNODE_USEC, 30); //fixed by WS281X protocol
+    CONSTDEF(WSLATCH_USEC, 50); //fixed by WS281X protocol
+    CONSTDEF(WSBITS, 24); //fixed by WS281X protocol
+    CONSTDEF(PPB, 3); //fixed by SPI3x bit encoding
+    CONSTDEF(L2ROWLEN, 64); //RPi 2/3 reportedly have 32/64 byte cache rows; use larger size to accomodate both
+public:
+    struct brlimit_t
+    {
+        int brlimit[MAX_PORTS];
+    };
+//    static inline brlimit_t& m_brlimit() { static brlimit_t brlimit; return brlimit; } //kludge: avoid need for dangling static var declare
+    brlimit_t& m_brlimit; //ref to shmem
+    int m_univlen, m_univ_padlen;
+//protect run-time thread control info with atomic access:
+//    std::atomic<int> numrd, numwr, numfr;
+//    std::atomic<int> job_count, job_wait, job_busy; //provide shared job stats for worker threads
+//    std::atomic<int> upd_count, upd_idle, upd_pivot, upd_sync;
+    struct stats_t
+    {
+//        union
+//        {
+//            struct { std::atomic<int32_t> numrd, frtime, numwr, numfr; } a; //worker thread ctl
+//            std::atomic<int64_t> combo;
+//        } u;
+//        std::atomic<int32_t> frtime, numrd, numwr, numfr; //worker thread ctl
+        /*std::atomic<uint32_t>*/ uint32_t ary[0]; //CAUTION: napi doesn't want atomic<> here
+        std::atomic<uint32_t> delay_ready, delay_total, delay_count; //startup delay
+        std::atomic<uint32_t> loop_total, loop_count, loop_idle, loop_pivot, loop_sync; //bkg loop status/perf
+//        std::atomic<uint32_t> upd_total, upd_count, upd_idle, upd_pivot, upd_sync; //bkg loop status
+        std::atomic<uint32_t> render_total, render_count, render_idle, render_busy; //render status/perf; not used in here
+        std::atomic<uint64_t> combo[0]; //used for atomic 64 overlay of endian test
+        std::atomic<uint32_t> first32, last32; //endian test
+    };
+//    static inline stats_t& m_stats() { static stats_t stats; return stats; } //kludge: avoid need for dangling static var declare
+    stats_t& m_stats; //ref to shmem
+    static constexpr char* m_statsdir = "delay_ready, delay_total, delay_count, loop_total, loop_count, loop_idle, loop_pivot, loop_sync, render_total, render_count, render_idle, render_busy, first32, last32"; //tell caller what's in stats
+    static constexpr uint64_t ENDIAN_TEST = 0x123456789abcdefL;
+//    int m_numbufs;
+    using wsnode_t = uint32_t;
+//    wsnode_t* m_wsnodes;
+//    data_t* m_mempx;
+public: //ctors/dtors
+//ctor helpers:
+//shim for ctor optional args:
+    struct opts_t
+    {
+        decltype(m_fbnum) fbnum = 0;
+//        bool rdwr;
+        std::remove_cvref<decltype(m_brlimit.brlimit[0])>::type brlimit = 3 * 256 * 5/6;
+//        int numbufs;
+        brlimit_t* brlimit_ptr = 0;
+        stats_t* stats_ptr = 0;
+        int debug_level = -1;
+//ctor/dtor:
+        opts_t() //: fbnum(0), /*rdwr(false), xres(0), xblank(1), yres(0), linelen(0), ppb(3),*/ brlimit(3 * 256 * 5/6), /*numbufs(0),*/ debug_level(-1) //default 85% (50 mA/pixel)
+        {
+            for (fbnum = 4; fbnum > 0; --fbnum)
+                if (AutoFB<>(fbnum, false).isOpen()) break; //default: use highest FB#
+        }
+//        opts_t(int want_fbnum = -1, const char* str = 0, int want_debug = 0): fbnum(want_fbnum), timing_ovr(ifnull(str)), debug_level(want_debug) {}; //CAUTION: don't init str to NULL; use ""
+    };
+//    utils(struct opts_t& opts): YALP(opts.fbnum, opts.timing_ovr.c_str(), opts.debug_level) {}
+//    utils() { debug("utils@ %#p ctor", this); }
+//    ~utils() { debug("utils@ %#p dtor", this); }
+    FBloop() = delete; //don't allow implicit create
+//    template <typename ... ARGS>
+//    utils(Napi::Env env) //, ARGS&& ... args) //: m_shmptr(std::forward<ARGS>(args) ...) //, fremit(env) //perfect fwd; explicitly call ctor to init
+    FBloop(const struct opts_t& opts): SUPER(opts.fbnum), m_brlimit(*opts.brlimit_ptr), m_stats(*opts.stats_ptr) //, opts.numbufs != 0) //, numrd(INT_MAX - 1) //, m_ppb(opts.ppb)
+    {
+        if (!opts.brlimit_ptr) fatal("missing brlimit (shared) ptr");
+        if (!opts.stats_ptr) fatal("missing stats (shared) ptr");
+        debug("FBloop ctor@ %p, stats@ %p, brlimit@ %p", this, &m_stats, &m_brlimit);
+//        debug("FBloop ctor@ %p", this);
+//        m_frtime_usec = frtime_usec(); //save value to avoid re-calculating each frame
+//        m_fbnum = opts.fbnum;
+//        char fbname[30];
+//        sprintf(fbname, "/dev/fb%d", m_fbnum);
+//        m_fd = ::open(fbname, O_RDWR);
+//#pragma message(YELLOW_MSG "TODO: use ioctl and shell to read this stuff in here" ENDCOLOR_NOLINE)
+//        m_xres = opts.xres;
+//        m_xblank = opts.xblank; //1; //default to 1/3 trailing low
+//        m_yres = opts.yres;
+//        /*m_yblank =*/
+//        m_linelen = opts.linelen; //caller must supply these; config-dependent
+//        m_ppb = opts.ppb; //3; //default to SPI 3x encoding
+//        if (!m_ppb || xtotal() % m_ppb) warn("xtotal %d !multiple of ppb %d", xtotal(), m_ppb);
+//        int vblank_usec = m_pixclock * xtotal() / 1e3 * m_yblank / 1e3; //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+//        if (vblank_usec < 50) warn("vblank too short: %d usec", vblank_usec);
+        m_stats.combo[0] = ENDIAN_TEST; //endian flag
+        for (int i = 0; i < /*SIZEOF(m_brlimit)*/ MAX_PORTS; ++i) m_brlimit.brlimit[i] = opts.brlimit; //3 * 256 * 5/6; //default to 85% brightness
+//WS281X checking:
+        int univlen_t = (frtime_usec() - WSLATCH_USEC) / WSNODE_USEC; //allow 50 usec for WS281X latch
+        int univlen_r = xtotal() * m_yres / PPB / WSBITS; //50 usec = 50/1.25 == 40 bits for WS281X latch
+        int rowgap = m_stride32 - m_xres; //fb.xtotal; //memory wasted/padding on each raster scan line
+//        fb.numpx = fb.yres * fb.stride32;
+//fb.ppb = 3; //SPI3x encoding
+//console.log("fb", JSON.stringify(fb, (key, val) => (isUN(val, {}).length > 30)? `(${typeof val} len ${val.length})`: val, "  ")); //, Object.keys(fb));
+        m_univlen = MIN(univlen_t, univlen_r);
+        m_univ_padlen = u32len(divup(u8len(m_univlen), L2ROWLEN) * L2ROWLEN); //univ len padded to reduce L2 cache contention between threads
+        debug("FBloop ctor@%p: %sunivlen (timing) %'d, %sunivlen (res) %'d%s, univlen L2 pad %'d, rowgap %'d, numpx %'d, rd/wr? %d", this, (m_univlen == univlen_t)? GREEN_MSG: YELLOW_MSG, univlen_t, (m_univlen == univlen_r)? GREEN_MSG: YELLOW_MSG, univlen_r, /*ENDCOLOR_NOLINE*/ BLUE_MSG, m_univ_padlen, rowgap, pxbuf_len32(), true);
+        if (xtotal() % PPB || m_xblank > PPB / 3) fatal("xtotal %'d !multiple of ppb %d or xblank %d exceeds ppb/3, WS data bits will drop", xtotal(), PPB, m_xblank); //fb.xtotal - fb.xres);
+        if (vblank_usec() < WSLATCH_USEC) fatal("vblank %'d usec too short for WS latch (must be >= %d usec)", vblank_usec(), WSLATCH_USEC);
+//        m_mempx = opts.numbufs? new data_t[opts.numbufs * pxbuf_len32()]: 0;
+//        if (m_mempx) m_numbufs = opts.numbufs;
+    }
+    ~FBloop() { debug("FBloop dtor@ %p", this); } //if (m_mempx) free(m_mempx); m_mempx = 0; m_numbufs = 0; }
+public: //methods
+//frame update loop:
+//no throttling is possible, framebuf has fixed display time
+//therefore this loop just blasts thru frbuf fifo regardless of whether ready or not
+//NOTE: this should run on 1 bkg thread
+//stats init done by caller (it decides when to clear them)
+    void bkgloop(wsnode_t* frbufs, int numbufs, uint32_t portmask, int duration) //loop_status_t& status, int duration) //NUMFR)
+    {
+//        status.loop_total = status.loop_count = status.loop_idle = status.loop_sync = status.loop_update = 0; //perf
+//        int m_frtime_usec = frtime_usec();
+        if (!m_pxbuf) fatal("not open in rd/wr mode");
+//        static constexpr PORT_MASK = 1 << MAX_PORTS - 1;
+        if (!(portmask & PORT_MASK) || portmask & ~PORT_MASK /*s < 1 || numports > MAX_PORTS*/) fatal("invalid port mask: 0x%x, must have [1..%d] of 0x%x bits", portmask, MAX_PORTS, PORT_MASK);
+        int numports = 0;
+        for (int i = portmask; i; i >>= 1) if (i & 1) ++numports;
+//        decltype(m_stats())& stats = m_stats();
+        m_stats.combo[0] = ENDIAN_TEST; //set endian flag again in case caller cleared it
+        int numfr = duration * (int)1e3 / frtime_usec();
+        debug("bkg loop start, duration %'d msec (%'d buffered), #frames %'d+1 total, #bufs %'d, #ports %d, portmask 0x%x", duration, divup((numbufs / numports - 1) * frtime_usec(), (int)1e3), numfr, numbufs, numports, portmask);
+//        if (!m_numbufs) fatal("no frame buffers");
+//        timer_t<(int)1e3> loop_clock; //set global start time (epoch), msec
+//#define delta_init_2ARGS(epoch, now)  decltype(epoch)::elapsed_t now = epoch.elapsed(), chkpt = -now
+//#define delta_2ARGS(epoch, now)  chkpt + (now = epoch.elapsed()); chkpt = -now
+        delta_init(epoch, now); //::elapsed_t chkpt, now; delta(epoch); //= epoch.elapsed(), chkpt = -now;
+        decltype(now) started = -now;
+        m_stats.delay_total += -now;
+//        stats.loop_total += -now;
+        for (int frnum = 0;; ++frnum)
+        {
+            ++m_stats.delay_count;
+            wait4sync(); //wait at least 1x for full timeslot
+            debug("bkg sync: delay[%'d] ready? %d", frnum, m_stats.delay_ready.load());
+            if (m_stats.delay_ready) break; //allow caller to signal when ready
+        }
+        delta(epoch); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+        m_stats.delay_total += now;
+        m_stats.loop_idle += -now; //initial time-tracking state == idle
+//        numrd = 0; //reset this one last; render threads are waiting for it
+//NOTE: caller should have already set initial state to allow workers to start rendering; DON'T init state here
+//perf tips: see https://forums.raspberrypi.com/viewtopic.php?t=263873
+        for (uint32_t frnum = 0; frnum <= numfr; ++frnum) //CAUTION: extra frame 0
+        {
+//            uint32_t next_frtime = rdiv(frtime_usec() * (status.numfr = frnum + 1), (int)1e3); //NOTE: expected wakeup, not necessarily actual wakeup time; status.numfr is info only; don't use for loop control here in case another thread changes it
+//            bool eof = (next_frtime >= duration);
+            ++m_stats.loop_count;
+            delta(epoch);
+            m_stats.loop_total = frnum * frtime_usec() / (int)1e3; //for watchers only; not used by loop
+            m_stats.loop_idle += now; //delta(epoch); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+            m_stats.loop_sync += -now;
+            wait4sync(); //frtime_usec()); //wait for next frame (to avoid screen tear)
+            debug("bkg sync: fr[%'d/%'d] %'d/%'d msec, eof? %d", frnum, numfr, m_stats.loop_total.load(), duration, frnum == numfr);
+//pivot into pxbuf (avoids extra mem cpy):
+//if too slow, pivot < sync and mem cpy > sync (but adds extra mem cpy step)
+#pragma message(TODO(is mmaped fb memory as fast as local? or ioctl pandisplay and 2x height))
+            delta(epoch);
+            m_stats.loop_sync += now; //delta(epoch); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+            m_stats.loop_pivot += -now;
+//TODO: add port mask if pivot too slow
+            ws3x_pivot(&frbufs[(frnum % numbufs) * numports * m_univlen], portmask);
+            delta(epoch);
+            m_stats.loop_pivot += now; //delta(epoch); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+            m_stats.loop_idle += -now;
+//            memcpy(m_pxbuf, &m_mempx[(frnum % m_numbufs) * pxbuf_len32()], u32len(pxbuf_len32())); //update FB in memory after sync (to avoid screen tear)
+//            stats.loop_update += delta(epoch); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+        }
+        delta(epoch);
+        m_stats.loop_idle += now; //delta(epoch, now); //chkpt + (now = epoch.elapsed()); chkpt = -now;
+//        stats.loop_total += now;
+        started += now;
+        debug("bkg loop finish after %'d msec, %'d frames, avg %'d msec/frame", started, numfr, rdiv(started, numfr));
+    }
+#if 0
+    void X_bkgloop(loop_status_t& status, wsnode_t* wsnodes, int duration) //NUMFR)
+    {
+//        NUMFR = eof;
+//        std::atomic<int> numrd, frtime, numwr, numfr;
+//        status.numwr = numfr = 0;
+//        job_count = job_wait = job_busy = 0;
+        uint64_t save = status.combo[2];
+        status.combo[2] = 0x123456789abcdefL;
+        bool isBE = (status.first32 == 0x1234567) && (status.last32 == 0x89abcdef);
+        bool isLE = (status.first32 == 0x89abcdef) && (status.last32 == 0x1234567);
+        debug("u64 endian test: [0x%x, 0x%x] BE? %d, LE? %d", status.first32.load(), status.last32.load(), isBE, isLE);
+        status.combo[2] = save;
+        status.upd_count = status.upd_idle = status.upd_pivot = status.upd_sync = 0;
+//        timer_t<(int)1e3> loop_clock; //set global start time (epoch), msec
+        decltype(epoch)::elapsed_t now = epoch.elapsed(), chkpt = status.upd_total = -now;
+        debug("bkg loop start with [%'d, %'d, %'d, %'d, 0x%x, 0x%x], run for %'d msec", status.numrd.load(), status.frtime.load(), status.numwr.load(), status.numfr.load(), status.first32.load(), status.last32.load(), duration);
+//        numrd = 0; //reset this one last; render threads are waiting for it
+//NOTE: caller should have already set initial state to allow workers to start rendering; DON'T init state here
+        for (uint32_t frnum = 0;; ++frnum)
+        {
+            bool ready = !(status.numwr < NUM_PORTS); //render not complete (shouldn't happen if workers are fast enough)
+            if (ready) //all ports rendered
+            {
+                ++status.upd_count;
+                now = epoch.elapsed();
+                status.upd_idle += chkpt + now; chkpt = -now;
+                ws3x_pivot(wsnodes); //, m_mempx); //s, m_pxbuf, frtime);
+#pragma message(TODO(read next fseq frame))
+                now = epoch.elapsed();
+                status.upd_pivot += chkpt + now; chkpt = -now;
+            }
+            uint32_t next_frtime = rdiv(frtime_usec() * (status.numfr = frnum + 1), (int)1e3); //NOTE: expected wakeup, not necessarily actual wakeup time; status.numfr is info only; don't use for loop control here in case another thread changes it
+            bool eof = (next_frtime >= duration);
+            if (ready) status.combo[0] = isBE? (uint64_t)next_frtime << 32: (uint64_t)next_frtime; // numrd = 0; //ignore excess, allow render threads to resume; atomic upd frtime + numrd
+            wait4sync(); //wait for next frame (to avoid screen tear)
+//NOTE: this is when wakeup *should* have happened, not necessarily when it *did*
+//we want to tell workers what time to render for; actual frame buffer update time doesn't need to be precise as long as it's during vblank (to avoid tear)
+//TODO: maybe use double-buffering and pan up/down?
+            debug("bkg loop render ready? %d, frame[%'d] %'d msec, eof? %d [%'d, %'d, (0x%" PRIx64 "), %'d, %'d, 0x%x, 0x%x]", ready, status.numfr.load() - 1, next_frtime, eof, status.frtime.load(), status.numrd.load(), status.combo[0].load(), status.numwr.load(), status.numfr.load(), status.first32.load(), status.last32.load());
+            if (eof) break;
+            if (!ready) continue;
+            memcpy(m_pxbuf, m_mempx, u32len(pxbuf_len32())); //update FB in memory after first sync (to avoid screen tear)
+            now = epoch.elapsed();
+            status.upd_sync += chkpt + now; chkpt = -now;
+            status.numwr -= NUM_PORTS; //only remove jobs from completed cycle, preserve pre-completed work on next cycle
+            debug("bkg loop next frame: #rd %d, #wr %d, frtime %'d msec, eof? %d", status.numrd.load(), status.numwr.load(), status.frtime.load(), eof); //"#wr bump back, new val:", shmbuf.numwr); //Atomics.load(shmbuf, 1));
+        }
+        now = epoch.elapsed();
+        status.upd_idle += chkpt + now; chkpt = -now;
+        status.upd_total += now;
+        debug("bkg loop finish after %'d msec", status.upd_total.load());
+    }
+#endif
+private: //helpers
+    int pivot_count = 0;
+//NOTE: this *can* run on any thread, but it's currently only embedded in bkg loop:
+    void ws3x_pivot(const wsnode_t* nodes1D, uint32_t portmask) //, int bufnum) //data_t* mempx) //, uint32_t* pxbuf, int num_nodes)
+    {
+//        int UNIV_LEN = num_nodes / NUM_PORTS, gaplen = m_stride32 - xtotal();
+        int gaplen = m_stride32 - xtotal(); //m_xres; //fb.xtotal; //memory wasted/padding on each raster scan line
+        decltype(epoch)::elapsed_t started = -epoch.elapsed();
+//        debug("TODO: pivot %p -> %p", nodes2D, pxbuf);
+//#pragma message(YELLOW_MSG "TODO: pivot" ENDCOLOR_NOLINE)
+//        if (bufnum < 0 || bufnum >= m_numbuf)
+//        if (!m_numbufs) fatal("no frame buffers");
+//        data_t* const mempx = &m_mempx[(bufnum % m_numbufs) * pxbuf_len32()]; //circular fifo
+        pixel_t* bp = &m_pxbuf[0]; //rewind
+        pixel_t* eol = bp + xtotal(); //set first gap
+        debug("ws3x_pivot: nodes1D %p, mempx buf %p %svs. mine %p%s, UNIV_LEN %'d, port mask 0x%x/0x%x, gaplen %d", nodes1D, m_pxbuf, (m_pxbuf == m_pxbuf)? GREEN_MSG: YELLOW_MSG, m_pxbuf, ENDCOLOR_NOLINE, m_univlen, portmask, PORT_MASK, gaplen);
+        for (int node = 0; node < m_univlen; ++node)
+        {
+            pixel_t cached[MAX_PORTS];
+//            for (int port = 0; port < numports; ++port) 
+//            for (uint32_t portbit = 1 << (MAX_PORTS - 1), port = 0; portbit; portbit >>= 1, ++port)
+//            static constexpr uint32_t MSB = 1 << (32 - 1); //0x80000000;
+//            for (uint32_t portbits = portmask << (32 - MAX_PORTS), port = 0, portofs = 0; portbits; portbit <<= 1)
+            for (uint32_t portbits = portmask, port = 0, portofs = 0; portbits & PORT_MASK; portbits <<= 1, portofs += m_univlen)
+                if (portbits & msb(PORT_MASK)) //encode this port
+                    cached[port++] = limit(nodes1D[portofs + node], m_brlimit.brlimit[port]); //limit brightness + localize memory access for bit loop
+//TODO: look for prop-level commands, including max brightness
+            static constexpr pixel_t BLACK = 0xff000000; //alpha on, r/g/b/ off
+            static constexpr pixel_t WHITE = 0xffffffff; //alpha on, r/g/b/ on
+            static constexpr uint32_t WSMSB = 1 << (WSBITS - 1); //0x800000; //msb of ws data
+//            static constexpr pixel_t RGBMSB = msb(WHITE & ~BLACK);
+            for (uint32_t wsbit = WSMSB; wsbit; wsbit >>= 1) //generate ws data bits, msb first
+            {
+                *bp++ = WHITE; //-1; //start of bit
+                pixel_t pxbits = BLACK;
+//                for (data_t port = 0, portbit = 1 << (numports - 1); port < numports; ++port, portbit >>= 1)
+                for (uint32_t portbits = portmask, port = 0, pxbit = msb(WHITE & ~BLACK); portbits & PORT_MASK; portbits <<= 1, pxbit >>= 1)
+                    if ((portbits & msb(PORT_MASK)) && (cached[port++] & wsbit)) pxbits |= pxbit;
+                *bp++ = pxbits; //live part of bit, 1 bit for each port
+                *bp++ = BLACK; //0xff000000; //end of bit
+                if (bp == eol) eol = xtotal() + (bp += gaplen); //skip fb gap at end of each raster line
+            }
+        }
+        if (pivot_count++) return;
+        started += epoch.elapsed();
+        debug("redraw[0] eof: x %'d/%'d, y %'d/%'d, gaplen %d, took %'d msec", (bp - &m_pxbuf[0]) % xtotal(), m_xres, (bp - &m_pxbuf[0]) / xtotal(), m_yres, gaplen, started);
+    }
+//private: //helpers
+    inline static wsnode_t limit(wsnode_t color, int LIMIT3)
+    {
+        if (!LIMIT3) return color;
+        int r = R(color), g = G(color), b = B(color);
+        int br = r + g + b; //brightness(color);
+        if (br <= LIMIT3/*_BRIGHTNESS * 3*/) return color; //TODO: maybe always do it? (to keep relative brightness correct)
+//TODO: cache results?
+//NOTE: palette-based nodes would make this more efficient
+//    return toARGB(A(color), r, g, b);
+//linear calculation is more efficient but less accurate than HSV conversion+adjust:
+        int dimr = r * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+        int dimg = g * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+        int dimb = b * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+//debug("r %d * %d / %d => %d, g %d * %d / %d => %d, b %d * %d / %d => %d", r, 3 * LIMIT_BRIGHTNESS, br, dimr, g, 3 * LIMIT_BRIGHTNESS, br, dimg, b, 3 * LIMIT_BRIGHTNESS, br, dimb);
+        return Abits(color) | (dimr << 16) | (dimg << 8) | (dimb << 0); //LIMIT3 / br < 1; don't need clamp()
+    }
+};
+
+
+//main API wrapper object:
+//#pragma message(YELLOW_MSG "TODO: use shm?  won't work for m_fd/mmap, but will save re-run vcgencmd" ENDCOLOR_NOLINE)
+class FB//: public AutoFB<>
+{
+private:
+    using self_t = FB;
+//    using SUPER = AutoFB<>;
+//    using wsnode_t = uint32_t;
+    NAPI_START_EXPORTS(self_t); //, CLS_T);
+protected: //allow children to see
+//    static constexpr int NUM_PORTS = 24, &m_NUM_PORTS = NUM_PORTS; //fixed by GPU + VideoCore
+//    CONSTDEF(NUM_PORTS, 24); //fixed by GPU + VideoCore
+//    int m_fd;
+//    int32_t m_fbnum, m_xres, m_xblank, m_yres, /*m_yblank,*/ m_linelen;
+//    int m_ppb;
+//    int m_frtime_usec; //cached
+//    int32_t m_brlimit[NUM_PORTS];
+//    inline static FBloop& m_fbloop(const FBloop::opts_t& opts) { static FBloop fbloop(opts); return fbloop; } //kludge: wrapper to avoid trailing decl
+//    inline static FBloop& m_fbloop() { static FBloop::opts_t def_opts; return m_fbloop(def_opts); }
+    FBloop m_fbloop;
+//public:
+#if 0 //getters/setters not visible on obj :(, caller might not check prototype
+private:
+//properties:
+//    GETTER(get_num_ports, (int)NUM_PORTS);
+//    NAPI_EXPORT_PROPERTY(self_t, NUM_PORTS, get_num_ports);
+    inline int num_ports() const { return (int)NUM_PORTS; } //shim
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, NUM_PORTS, num_ports()); //(int)NUM_PORTS);
+//    GETTER(xres);
+//    SETTER(xres);
+//    int get_xres() { return m_xres; }
+//    void set_xres(int newval) { m_xres = newval; }
+//    NAPI_EXPORT_PROPERTY(self_t, "xres", get_xres, set_xres);
+//    NAPI_EXPORT_RDWR_PROPERTY(self_t, fd, m_fd);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, fbnum, m_fbnum);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, xres, m_xres);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, xblank, m_xblank);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, yres, m_yres);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, yblank, m_yblank);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, stride32, m_stride32);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, pixclock_psec, m_pixclock);
+//    NAPI_EXPORT_RDONLY_PROPERTY(self_t, pxbuf_len32, pxbuf_len32());
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, frtime_usec, m_frtime_usec);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, vblank_usec, vblank_usec()); //, NULL_OF(self_t)); //std::declval<self_t>().vblank_usec());
+//    decltype(NULL_OF(AutoFB)->vblank_usec()) my_vblank_usec() const { return vblank_usec(); }
+//    GETTER(get_vblank_usec, vblank_usec());
+//    std::decltype(NULL_OF(AutoFB)->vblank_usec()) get_vblank_usec() const { return vblank_usec(); }
+//    std::decltype((NULL_OF(AutoFB)->vblank_usec())) get_vblank_usec() const { return vblank_usec(); }
+//    decltype(NULL_OF(self_t)->my_vblank_usec()) get_vblank_usec() const { return vblank_usec(); }
+//    NAPI_EXPORT_PROPERTY(self_t, "vblank_usec", get_vblank_usec);
+//NAPI_GETTER(cls, getter);
+//NAPI_ADD_EXPORT(cls, name, Accessor, &WrapType::THISLINE(cls_getter_napi), nullptr, my_napi_default_prop)
+//    decltype(get_return_type(&A::f)) g(int x);
+//    decltype(get_return_type(&A::h).f(0)) k(int x);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, FPS, fps()); //std::declval<self_t>().fps());
+//    NAPI_EXPORT_RDONLY_PROPERTY(self_t, ppb, m_ppb);
+    NAPI_EXPORT_RDONLY_PROPERTY(self_t, order, m_order); //[](){ return std::string(m_order); }); //std::string(m_order));
+//    NAPI_EXPORT_RDONLY_PROPERTY(self_t, elapsed, m_shmptr->stats.elapsed_msec); //[this]() { return elapsed<(int)1e3>(stats.started.load()); }); //aget_elapsed_msec);
+//#else
+//    NAPI_GETTER(self_t, (int)NUM_PORTS, get_num_ports); //(int)NUM_PORTS);
+//    NAPI_GETTER(self_t, m_fbnum, get_fbnum);
+//    NAPI_GETTER(self_t, m_xres, get_xres);
+//    NAPI_GETTER(self_t, m_xblank, get_xblank);
+//    NAPI_GETTER(self_t, m_yres, get_yres);
+//    NAPI_GETTER(self_t, m_yblank, get_yblank);
+//    NAPI_GETTER(self_t, m_stride32, get_stride32);
+//    NAPI_GETTER(self_t, m_pixclock, get_pixclock);
+//    NAPI_GETTER(self_t, m_frtime_usec, get_frtime_usec);
+//    NAPI_GETTER(self_t, vblank_usec(), get_vblank_usec); //, NULL_OF(self_t)); //std::declval<self_t>().vblank_usec());
+//    NAPI_GETTER(self_t, fps(), get_fps); //std::declval<self_t>().fps());
+//    NAPI_GETTER(self_t, m_order, get_order); //[](){ return std::string(m_order); }); //std::string(m_order));
+//run-time stats + thread control:
+//    NAPI_EXPORT_RDWR_PROPERTY(self_t, vblank_usec, vblank_usec()); //, NULL_OF(self_t)); //std::declval<self_t>().vblank_usec());
+//    NAPI_EXPORT_PROPERTY(self_t, "numrd", m_fbloop().numrd.load, m_fbloop().numrd.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "numwr", m_fbloop().numwr.load, m_fbloop().numwr.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "numfr", m_fbloop().numfr.load, m_fbloop().numfr.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "job_count", m_fbloop().job_count.load, m_fbloop().job_count.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "job_wait", m_fbloop().job_wait.load, m_fbloop().job_wait.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "job_busy", m_fbloop().job_busy.load, m_fbloop().job_busy.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "upd_count", m_fbloop().upd_count.load, m_fbloop().upd_count.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "upd_idle", m_fbloop().upd_idle.load, m_fbloop().upd_idle.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "upd_pivot", m_fbloop().upd_pivot.load, m_fbloop().upd_pivot.store); //JS can update
+//    NAPI_EXPORT_PROPERTY(self_t, "upd_sync", m_fbloop().upd_sync.load, m_fbloop().upd_sync.store); //JS can update
+#endif //0
+//#ifdef USING_NAPI //brightness limit, node encoding:
+#if 0 //BROKEN- can't use same addr for mult inst (across threads)  :(
+    Napi::Value brlimit_getter(const Napi::CallbackInfo &info)
+    {
+//        debug("brlimit_getter ...");
+        /*Napi::ArrayBuffer*/ auto arybuf = Napi::ArrayBuffer::New(info.Env(), &m_fbloop.m_brlimit.brlimit[0], sizeof(m_fbloop.m_brlimit.brlimit)); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
+        auto retary = Napi::TypedArrayOf<std::remove_cvref<decltype(m_fbloop.m_brlimit.brlimit[0])>::type /*int32_t*/>::New(info.Env(), SIZEOF(m_fbloop.m_brlimit.brlimit), arybuf, 0, napi_int32_array); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+//        debug("... brlimit_getter");
+        Napi::ObjectReference retval = Napi::ObjectReference::New(retary, 1); //TODO: when to unref?
+        return retval.Value(); //retary;
+    }
+//    NAPI_EXPORT_WRAPPED_PROPERTY(self_t, "brlimit", brlimit_getter);
+    Napi::Value stats_getter(const Napi::CallbackInfo &info)
+    {
+//        debug("brlimit_getter ...");
+        /*Napi::ArrayBuffer*/ auto arybuf = Napi::ArrayBuffer::New(info.Env(), &m_fbloop.m_stats.ary[0], sizeof(m_fbloop.m_stats)); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
+        auto retary = Napi::TypedArrayOf<std::remove_cvref<decltype(m_fbloop.m_stats.ary[0])>::type /*int32_t*/>::New(info.Env(), sizeof(m_fbloop.m_stats) / sizeof(m_fbloop.m_stats.ary[0]), arybuf, 0, napi_uint32_array); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+//        debug("... brlimit_getter");
+        Napi::ObjectReference retval = Napi::ObjectReference::New(retary, 1); //TODO: when to unref?
+        return retval.Value(); //retary;
+    }
+//    NAPI_EXPORT_WRAPPED_PROPERTY(self_t, "stats", stats_getter);
+#endif
+#if 0 //moved into FBloop
+    Napi::Value pxbuf_getter(const Napi::CallbackInfo &info)
+    {
+//        debug("pxbuf_getter ...");
+        /*Napi::ArrayBuffer*/ auto arybuf = Napi::ArrayBuffer::New(info.Env(), &m_pxbuf[0], pxbuf_len32() * sizeof(m_pxbuf[0])); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
+        auto retary = Napi::TypedArrayOf<std::remove_cvref<decltype(m_pxbuf[0])>::type /*int32_t*/>::New(info.Env(), pxbuf_len32(), arybuf, 0, napi_uint32_array); //https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+//        debug("... brlimit_getter");
+        return retary;
+    }
+//    NAPI_EXPORT_WRAPPED_PROPERTY(self_t, "pxbuf", pxbuf_getter);
+#endif //def USING_NAPI
+//methods:
+#ifdef USING_NAPI
+//leave these in for timing, not used for framebuffer update loop:
+    Napi::Value wait4sync_method(const Napi::CallbackInfo &args) //CAUTION: blocks main thread up to 50 msec (@20 FPS)
+    {
+        if (args.Length()) return err_napi(args.Env(), "no args expected, got %d: %s", args.Length(), NapiArgType(args, 0));
+        bool retval = (m_fbloop.wait4sync(m_fbloop.frtime_usec()) >= 0);
+        return Napi::Boolean::New(args.Env(), retval);
+    }
+    NAPI_EXPORT_METHOD(self_t, "wait4sync", /*m_ptr->*/wait4sync_method);
+    template<typename RETVAL_T = int32_t, /*typename ARYVAL_T = uint32_t,*/ class SUPER = Napi::AsyncWorker>
+    class Await4syncAsyncWker: public SUPER
+    {
+        self_t* m_ptr;
+        Napi::Promise::Deferred m_deferred;
+        int m_delay;
+//        void* m_data; //ARYVAL_T* m_data;
+        RETVAL_T m_retval; //data type ret from non-JS to JS, *not* wker to caller
+    public:
+        Await4syncAsyncWker(const Napi::Env& env, self_t* ptr, int delay/*, void* data*/): SUPER(env), m_ptr(ptr), m_delay(delay), /*m_data(data),*/ m_deferred(Napi::Promise::Deferred::New(env)) { this->Queue(); } //debug("wker ctor"); }
+        ~Await4syncAsyncWker() { } //debug("wker dtor"); }
+    public:
+        Napi::Promise::Deferred& def() /*const*/ { return m_deferred; }
+        void Execute() //runs inside wker thread; CAUTION: cannot access JS
+        {
+            debug("wker exec start, delay %d", m_delay); //data xfr? %d", !!m_data);
+//epoch !thread safe?
+//            timer_t<(int)1e3> clock;
+//            decltype(epoch)::elapsed_t started = epoch.elapsed();
+//            struct timeval started;
+            decltype(epoch)::elapsed_t elapsed_msec, started = epoch.elapsed(); //, busy = -1; //, now = started;
+//            int busy = 0, sleep = 0;
+//            struct timezone& tz = *NULL_OF(struct timezone); //relative times don't need this
+//            if (gettimeofday(&started, &tz)) fatal("get time of day failed");
+//            const int UNITS = (int)1e3;
+//            using ELAPSED_T = uint32_t;
+//            const unsigned int MAX_SEC = (ELAPSED_T)-1 / UNITS;
+            int frtime_usec = m_ptr->m_fbloop.frtime_usec();
+            for (int count = 0;;)
+            {
+//                busy -= now; now = epoch.elapsed(); busy += now;
+                m_retval = m_ptr->m_fbloop.wait4sync(frtime_usec); //try to maintain timing if no sync; waits at least 1 frame
+//                sleep -= now; now = epoch.elapsed(); sleep += now;
+//memcpy(120K) takes < 1 msec; don't need to track it
+//                if (m_data) { /*busy = -epoch.elapsed();*/ memcpy(m_ptr->m_pxbuf, m_data, u32len(m_ptr->pxbuf_len32())); m_data = 0; } //busy += epoch.elapsed(); } //update FB in memory after first sync (to avoid screen tear)
+                if (m_retval >= 0) m_retval = ++count; //ret #frames waited
+//epoch !thread safe?
+//                if (m_retval < 0) break; //error
+//                decltype(started) elapsed_msec = epoch.elapsed() - started;
+//                struct timeval now;
+//                if (gettimeofday(&now, &tz)) fatal("get time of day failed");
+//                now.tv_sec -= started.tv_sec;
+//                now.tv_usec -= started.tv_usec;
+//                if (now.tv_sec < 0 || now.tv_sec >= MAX_SEC) fatal("%'d sec wrap @T+%'d sec; limit was %'u sec", UNITS, now.tv_sec, MAX_SEC);
+//                ELAPSED_T elapsed_msec = now.tv_sec * UNITS + now.tv_usec / ((int)1e6 / UNITS);
+                /*decltype(epoch)::elapsed_t*/ elapsed_msec = epoch.elapsed() - started;
+//                debug("loop[%'d]: msec remaining %'d", count, m_delay - elapsed_msec);
+                if (elapsed_msec >= m_delay - 2) break; //allow 2 msec slop for overhead
+            }
+            debug("wker exec done after %'d msec", elapsed_msec); //(memcpy %'d took %'d)", elapsed_msec, m_ptr->pxbuf_len32(), busy);
+        }
+        void OnOK() //runs inside main evt loop; safe to use JS data
+        {
+//            debug("wker on ok");
+            m_deferred.Resolve(Napi::Number::New(this->Env(), m_retval)); //ret error# or #frames waited to caller
+        }
+        void OnError(Napi::Error const& error) { debug("wker on err"); m_deferred.Reject(error.Value()); }
+    };
+    Napi::Value await4sync_method(const Napi::CallbackInfo &args) //async !blocks main thread
+    {
+//        if (args.Length() > 2 || (args.Length() && !args[0].IsNumber()) || (args.Length() > 1 && !NapiBufInfo::IsOK(args[1]))) return err_napi(args.Env(), "delay_msec (optional Number) + px buf (optional TypedArray/ArrayBuffer/Buffer) expected, got %d: %s %s", args.Length(), NapiArgType(args, 0), NapiArgType(args, 1));
+        if (args.Length() > 1 || (args.Length() && !args[0].IsNumber())) return err_napi(args.Env(), "delay_msec (optional Number) expected, got %d: %s %s", args.Length(), NapiArgType(args, 0));
+        int delay_msec = args.Length()? napi2val<int>(args[0]): 0;
+//        Napi::Buffer<uint32_t> pxbuf = ((args.Length() >= 2) && args[1].IsBuffer())? args[1].As<Napi::Buffer<uint32_t>>(): Napi::Buffer<uint32_t>::New(args.Env(), NULL, 0); //, finalizer, hint*);
+//        void* pxdata = 0;
+//        int bytelen;
+//        if (args.Length() >= 2) //caller wants me to update FB mem; allow various buf types
+//        {
+//            if (args[1].IsTypedArray())
+//            {
+//                Napi::TypedArrayOf<uint32_t> pxbuf = args[1].As<Napi::TypedArrayOf<uint32_t>>(); //.Data(): 0; //: Napi::TypedArrayOf<uint32_t>::New(args.Env(), NULL, 0); //, finalizer, hint*);
+//                bytelen = pxbuf.ByteLength();
+//                pxdata = pxbuf.Data();
+//            }
+//            else if (args[1].IsArrayBuffer())
+//            {
+//                Napi::ArrayBuffer pxbuf = args[1].As<Napi::ArrayBuffer>(); //.Data(): 0; //: Napi::TypedArrayOf<uint32_t>::New(args.Env(), NULL, 0); //, finalizer, hint*);
+//                bytelen = pxbuf.ByteLength();
+//                pxdata = pxbuf.Data();
+//            }
+//            else if (args[1].IsBuffer())
+//            {
+//                Napi::Buffer pxbuf = args[1].As<Napi::Buffer>(); //.Data(): 0; //: Napi::TypedArrayOf<uint32_t>::New(args.Env(), NULL, 0); //, finalizer, hint*);
+//                bytelen = pxbuf.ByteLength();
+//                pxdata = pxbuf.Data();
+//            }
+//            else return err_napi(args.Env(), "unhandled buf type: %s", NapiArgType(args, 1));
+//        NapiBufInfo buf((args.Length() >= 2)? args[1]: args.Env().Undefined());
+//        if (buf.data && u32len(buf.bytelen) < pxbuf_len32()) return err_napi(args.Env(), "pxbuf %s quadlen %'d too short, needs to be >= %'d quadbytes", NapiArgType(args, 1), u32len(buf.bytelen), pxbuf_len32());
+        auto wker = new Await4syncAsyncWker<>(args.Env(), this, delay_msec); //, buf.data); //run on bkg thread so main thread doesn't block; NOTE: deduction !worky for ptrs/refs; need "auto" here
+        Napi::Value retval = wker->def().Promise();
+        debug("ret promise");
+        return retval;
+    }
+    NAPI_EXPORT_METHOD(self_t, "await4sync", /*m_ptr->*/await4sync_method);
+//#endif //def USING_NAPI
+#if 0
+    Napi::Value ws3x_pivot_method(const Napi::CallbackInfo &args) //blocking
+    {
+//        if (args.Length() < 1 || args.Length() > 2 || !NapiBufInfo::IsOK(args[0]) || (args.Length() > 1 && !NapiBufInfo::IsOK(args[1]))) return err_napi(args.Env(), "node buf (TypedArray/ArrayBuffer/Buffer) + px buf (optional TypedArray/ArrayBuffer/Buffer) expected, got %d: %s %s", args.Length(), NapiArgType(args, 0), NapiArgType(args, 1));
+        if (args.Length() != 2 || !NapiBufInfo::IsOK(args[0]) || !args[1].IsNumber()) return err_napi(args.Env(), "node buf (TypedArray/ArrayBuffer/Buffer) + buf# (Number) expected, got %d: %s %s", args.Length(), NapiArgType(args, 0), NapiArgType(args, 1));
+        NapiBufInfo nodes(args[0]);
+        int bufnum = napi2val<int>(args[1]);
+        decltype(m_fbloop)::data_t* const pxbuf = &m_fbloop.m_mempx[(bufnum % m_fbloop.m_numbufs) * m_fbloop.pxbuf_len32()]; //circular fifo
+//        NapiBufInfo pxbuf((args.Length() >= 1)? args[1]: args.Env().Undefined());
+        int univlen = m_fbloop.xtotal() * m_fbloop.m_yres / 3 / 24; //max nodes based on GPU px res
+//        debug("#args %d, nodes quadlen %'d, univlen %'d, pxbuf quadlen %'d %svs mine %'d" ENDCOLOR_NOLINE, args.Length(), u32len(nodes.bytelen), univlen, u32len(pxbuf.bytelen), (u32len(pxbuf.bytelen) == m_fbloop.pxbuf_len32())? GREEN_MSG: YELLOW_MSG, pxbuf_len32());
+        debug("#args %d, nodes quadlen %'d, univlen %'d, pxbuf# %'d/%'d" ENDCOLOR_NOLINE, args.Length(), u32len(nodes.bytelen), univlen, bufnum, m_fbloop.m_numbufs);
+        if (u32len(nodes.bytelen) < decltype(m_fbloop)::NUM_PORTS * univlen) return err_napi(args.Env(), "nodes1D %s quadlen %'d too short, needs to be >= %'d quadbytes", NapiArgType(args, 0), u32len(nodes.bytelen), decltype(m_fbloop)::NUM_PORTS * univlen);
+//        if (args.Length() >= 1 && u32len(pxbuf.bytelen) < pxbuf_len32()) return err_napi(args.Env(), "pxbuf %s quadlen %'d too short, needs to be >= %'d quadbytes", NapiArgType(args, 1), u32len(pxbuf.bytelen), pxbuf_len32());
+        m_fbloop.ws3x_pivot(reinterpret_cast<const uint32_t*>(nodes.data), bufnum); //pxbuf.data? reinterpret_cast<uint32_t*>(pxbuf.data): m_pxbuf, u32len(nodes.bytelen));
+        return args.Env().Undefined();
+    }
+    NAPI_EXPORT_METHOD(self_t, "ws3x_pivot", ws3x_pivot_method);
+#endif //0
+//#ifdef USING_NAPI
+//allow JS to use my elapsed/epoch:
+//allows consistent time base between JS and C++
+    Napi::Value elapsed_method(const Napi::CallbackInfo& info)
+    {
+        if ((info.Length() > 1) || (info.Length() && !info[0].IsNumber())) return err_napi(info.Env(), "1 optional number (msec) expected; got %d %s", info.Length(), NapiType(info.Length()? info[0]: info.Env().Undefined()));
+        using elapsed_t = decltype(epoch)::elapsed_t;
+        elapsed_t time_base = info.Length()? napi2val<elapsed_t>(info[0]): 0; //msec
+        elapsed_t retval = /*(double)*/epoch.elapsed() - time_base; //msec
+        return Napi::Number::New(info.Env(), retval);
+    }
+    NAPI_EXPORT_METHOD(self_t, "elapsed", elapsed_method);
+//run upd loop on bkg thread:
+    template<typename RETVAL_T = int32_t, /*typename ARYVAL_T = uint32_t,*/ class SUPER = Napi::AsyncWorker>
+    class BkgloopAsyncWker: public SUPER
+    {
+        self_t* m_ptr;
+        Napi::Promise::Deferred m_deferred;
+        int m_numbufs, m_duration;
+        uint32_t m_portmask;
+//        FBloop::loop_status_t* m_status; //ARYVAL_T* m_data;
+        FBloop::wsnode_t* m_nodes;
+        RETVAL_T m_retval; //data type ret from non-JS to JS, *not* wker to caller
+    public:
+        BkgloopAsyncWker(const Napi::Env& env, self_t* ptr, /*FBloop::loop_status_t* status,*/ FBloop::wsnode_t* nodes, int numbufs, uint32_t portmask, int duration): SUPER(env), m_ptr(ptr), /*m_status(status),*/ m_nodes(nodes), m_numbufs(numbufs), m_portmask(portmask), m_duration(duration), m_deferred(Napi::Promise::Deferred::New(env)) { this->Queue(); } //debug("wker ctor"); }
+        ~BkgloopAsyncWker() { } //debug("wker dtor"); }
+    public:
+        Napi::Promise::Deferred& def() /*const*/ { return m_deferred; }
+        void Execute() //runs inside wker thread; CAUTION: cannot access JS
+        {
+            debug("bkg loop wker start"); //data xfr? %d", !!m_data);
+            m_retval = -epoch.elapsed();
+            m_ptr->m_fbloop.bkgloop(m_nodes, m_numbufs, m_portmask, m_duration); //memory stats will give perf info; just measure total time spent as a sanity check
+            m_retval += epoch.elapsed();
+            debug("bkg loop wker done after %'d msec", m_retval); //(memcpy %'d took %'d)", elapsed_msec, m_ptr->pxbuf_len32(), busy);
+        }
+        void OnOK() //runs inside main evt loop; safe to use JS data
+        {
+//            debug("wker on ok");
+            m_deferred.Resolve(Napi::Number::New(this->Env(), m_retval)); //ret error# or #frames waited to caller
+//TODO: unref
+        }
+        void OnError(Napi::Error const& error) { debug("wker on err"); m_deferred.Reject(error.Value()); }
+    };
+    Napi::Value abkgloop_method(const Napi::CallbackInfo &args) //async !blocks main thread
+    {
+//        if (args.Length() > 2 || (args.Length() && !args[0].IsNumber()) || (args.Length() > 1 && !NapiBufInfo::IsOK(args[1]))) return err_napi(args.Env(), "delay_msec (optional Number) + px buf (optional TypedArray/ArrayBuffer/Buffer) expected, got %d: %s %s", args.Length(), NapiArgType(args, 0), NapiArgType(args, 1));
+        if (args.Length() != 3 || !NapiBufInfo::IsOK(args[0]) || !args[1].IsNumber() || !args[2].IsNumber()) return err_napi(args.Env(), "nodebufs  (TypedArray/ArrayBuffer/Buffer) + duration msec (Number) + port mask (Number) expected, got %d: %s %s %s", args.Length(), NapiArgType(args, 0),  NapiArgType(args, 1), NapiArgType(args, 2));
+//        Napi::Buffer<uint32_t> status = ) >= 2) && args[1].IsBuffer())? args[1].As<Napi::Buffer<uint32_t>>(): Napi::Buffer<uint32_t>::New(args.Env(), NULL, 0); //, finalizer, hint*);
+        NapiBufInfo nodes(args[0]); //, nodes(args[1]);
+        int duration_msec = napi2val<int>(args[1]);
+        int port_mask = napi2val<uint>(args[2]);
+//        if (status.bytelen < sizeof(FBloop::loop_status_t)) return err_napi(args.Env(), "status %s %'d too short: %d, needs to be >= %'d quadbytes", NapiArgType(args, 0), u32len(status.bytelen), sizeof(FBloop::loop_status_t));
+        if (nodes.bytelen < u32len(m_fbloop.m_univlen)) return err_napi(args.Env(), "nodes %s %'d too short: %d, needs to be >= %'d quadbytes", NapiArgType(args, 0), u32len(nodes.bytelen), m_fbloop.m_univlen);
+        int numbufs = u32len(nodes.bytelen) / m_fbloop.m_univ_padlen; //CAUTION: caller uses L2 padded len
+        CONSTDEF(MIN_DUR, (int)1e3);
+        CONSTDEF(MAX_DUR, 60 * (int)60e3);
+        if (duration_msec < MIN_DUR || duration_msec > MAX_DUR) return err_napi(args.Env(), "duration %'d msec out of suggested range %'d..%'d", duration_msec, MIN_DUR, MAX_DUR);
+        int num_ports = 0; //for debug only
+        for (int i = port_mask; i; i >>= 1) if (i & 1) ++num_ports;
+        debug("abkgloop: nodebuf bytelen %'d, univlen %'d (%'d padded) => #port bufs %'d, port mask 0x%x, #ports %d => #frbufs %'d, duration %'d (from caller), %'d (from bufs) msec", nodes.bytelen, m_fbloop.m_univlen, m_fbloop.m_univ_padlen, numbufs, port_mask, num_ports, numbufs / num_ports, duration_msec, divup((numbufs / num_ports - 1) * m_fbloop.frtime_usec(), (int)1e3));
+//TODO        Napi::ObjectReference retval = Napi::ObjectReference::New(retary, 1); //TODO: when to unref?
+        auto wker = new BkgloopAsyncWker<>(args.Env(), this, /*(FBloop::loop_status_t*)status.data,*/ (FBloop::wsnode_t*)nodes.data, numbufs, port_mask, duration_msec); //, buf.data); //run on bkg thread so main thread doesn't block; NOTE: deduction !worky for ptrs/refs; need "auto" here
+        Napi::Value retval = wker->def().Promise();
+        debug("ret promise");
+        return retval;
+    }
+    NAPI_EXPORT_METHOD(self_t, "abkgloop", /*m_ptr->*/abkgloop_method);
+#endif //def USING_NAPI
+    NAPI_STOP_EXPORTS(self_t); //public
+public: //ctors/dtors
+//ctor helpers:
+//TODO: pull in named args shim
+//shim for ctor optional args:
+#if 0
+    struct opts_t
+    {
+        decltype(m_fbloop.m_fbnum) fbnum;
+//        decltype(m_xres) xres;
+//        decltype(m_xblank) xblank;
+//        decltype(m_yres) yres;
+//        decltype(m_linelen) linelen;
+//        decltype(m_ppb) ppb;
+//        decltype(m_brlimit[0]) brlimit;
+        std::remove_cvref<decltype(m_fbloop.m_brlimit[0])>::type brlimit;
+        int debug_level;
+//ctor/dtor:
+        opts_t(): fbnum(0), /*xres(0), xblank(1), yres(0), linelen(0), ppb(3),*/ brlimit(3 * 256 * 5/6), debug_level(-1) {}
+//        opts_t(int want_fbnum = -1, const char* str = 0, int want_debug = 0): fbnum(want_fbnum), timing_ovr(ifnull(str)), debug_level(want_debug) {}; //CAUTION: don't init str to NULL; use ""
+    };
+#endif
+    using opts_t = FBloop::opts_t;
+//    utils(struct opts_t& opts): YALP(opts.fbnum, opts.timing_ovr.c_str(), opts.debug_level) {}
+//    utils() { debug("utils@ %#p ctor", this); }
+//    ~utils() { debug("utils@ %#p dtor", this); }
+    FB() = delete; //don't allow implicit create
+//    template <typename ... ARGS>
+//    utils(Napi::Env env) //, ARGS&& ... args) //: m_shmptr(std::forward<ARGS>(args) ...) //, fremit(env) //perfect fwd; explicitly call ctor to init
+    FB(opts_t& opts): m_fbloop(opts) //, SUPER(opts.fbnum) //, m_ppb(opts.ppb)
+    {
+        debug("FB ctor@ %p", this);
+//        if (opts.fbnum != m_fbloop().m_fbnum) m_fbloop() = FBloop(opts);
+//        m_fbloop(opts);
+//        m_frtime_usec = frtime_usec(); //save value to avoid re-calculating each frame
+//        m_fbnum = opts.fbnum;
+//        char fbname[30];
+//        sprintf(fbname, "/dev/fb%d", m_fbnum);
+//        m_fd = ::open(fbname, O_RDWR);
+//#pragma message(YELLOW_MSG "TODO: use ioctl and shell to read this stuff in here" ENDCOLOR_NOLINE)
+//        m_xres = opts.xres;
+//        m_xblank = opts.xblank; //1; //default to 1/3 trailing low
+//        m_yres = opts.yres;
+//        /*m_yblank =*/
+//        m_linelen = opts.linelen; //caller must supply these; config-dependent
+//        m_ppb = opts.ppb; //3; //default to SPI 3x encoding
+//        if (!m_ppb || xtotal() % m_ppb) warn("xtotal %d !multiple of ppb %d", xtotal(), m_ppb);
+//        int vblank_usec = m_pixclock * xtotal() / 1e3 * m_yblank / 1e3; //psec -> usec; kludge: split up 1e6 factor to prevent overflow
+//        if (vblank_usec < 50) warn("vblank too short: %d usec", vblank_usec);
+//        for (int i = 0; i < SIZEOF(m_brlimit); ++i) m_brlimit[i] = opts.brlimit; //3 * 256 * 5/6; //default to 85% brightness
+    }
+    ~FB() { debug("FB dtor@ %p", this); }
+#ifdef USING_NAPI
+//ctor with JS args:
+//    Napi::Array frbufs_js;
+    FB(const Napi::CallbackInfo& args): FB(/*info.Env(),*/ opts_napi(args)) //, fremit(info.Env())
+    {
+//static properties that won't change don't need getters:
+        Napi::Object me = args.This().As<Napi::Object>();
+//        me.Set("NUM_PORTS", (int)NUM_PORTS);
+        me.DefineProperties(
+        {
+#if 1
+//these props won't change values, so just create read-only properties instead of getters (less overhead?):
+//            exports.Set("version", Napi::String::New(env, TOSTR(VERSION))); //from node.gyp
+//            exports.Set("built", Napi::String::New(env, TOSTR(BUILT))); //from node.gyp  __TIMESTAMP__)); //from gcc
+            Napi::PropertyDescriptor::Value("MAX_PORTS", Napi::Number::New(args.Env(), (int)m_fbloop.MAX_PORTS), napi_enumerable),
+            Napi::PropertyDescriptor::Value("PORT_MASK", Napi::Number::New(args.Env(), (int)m_fbloop.PORT_MASK), napi_enumerable),
+            Napi::PropertyDescriptor::Value("UNIV_LEN", Napi::Number::New(args.Env(), m_fbloop.m_univlen), napi_enumerable),
+            Napi::PropertyDescriptor::Value("fbnum", Napi::Number::New(args.Env(), m_fbloop.m_fbnum), napi_enumerable),
+            Napi::PropertyDescriptor::Value("xres", Napi::Number::New(args.Env(), m_fbloop.m_xres), napi_enumerable),
+            Napi::PropertyDescriptor::Value("xblank", Napi::Number::New(args.Env(), m_fbloop.m_xblank), napi_enumerable),
+            Napi::PropertyDescriptor::Value("yres", Napi::Number::New(args.Env(), m_fbloop.m_yres), napi_enumerable),
+            Napi::PropertyDescriptor::Value("yblank", Napi::Number::New(args.Env(), m_fbloop.m_yblank), napi_enumerable),
+            Napi::PropertyDescriptor::Value("stride32", Napi::Number::New(args.Env(), m_fbloop.m_stride32), napi_enumerable),
+            Napi::PropertyDescriptor::Value("pixclock_psec", Napi::Number::New(args.Env(), m_fbloop.m_pixclock), napi_enumerable),
+            Napi::PropertyDescriptor::Value("frtime_usec", Napi::Number::New(args.Env(), m_fbloop.frtime_usec()), napi_enumerable),
+            Napi::PropertyDescriptor::Value("vblank_usec", Napi::Number::New(args.Env(), m_fbloop.vblank_usec()), napi_enumerable),
+            Napi::PropertyDescriptor::Value("FPS", Napi::Number::New(args.Env(), m_fbloop.fps()), napi_enumerable),
+            Napi::PropertyDescriptor::Value("order", Napi::String::New(args.Env(), m_fbloop.m_order), napi_enumerable),
+//stats (rd/wr):
+//            Napi::PropertyDescriptor::Value("numrd", Napi::String::New(args.Env(), m_fbloop.m_order), napi_enumerable),
+#endif
+//https://github.com/nodejs/node-addon-api/blob/HEAD/doc/typed_array_of.md
+//https://github.com/nodejs/node-addon-api/blob/HEAD/doc/array_buffer.md
+//            Napi::PropertyDescriptor::Value("brlimit", brlimit_getter(args), napi_enumerable), //TODO: when to unref?
+//            Napi::PropertyDescriptor::Value("stats", stats_getter(args), napi_enumerable), //TODO: when to unref?
+            Napi::PropertyDescriptor::Value("statsdir", Napi::String::New(args.Env(), m_fbloop.m_statsdir), napi_enumerable),
+//    wsnode_t* m_wsnodes;
+//    data_t* m_mempx;
+//            Napi::PropertyDescriptor::Value("pxbuf", pxbuf_getter(args), napi_enumerable), //TODO: when to unref?
+//            Napi::PropertyDescriptor::Value("brlimit", 
+//                Napi::TypedArrayOf<std::remove_cvref<decltype(m_brlimit[0])>::type /*int32_t*/>::New(args.Env(), SIZEOF(m_brlimit), 
+//                    Napi::ArrayBuffer::New(args.Env(), &m_brlimit[0], sizeof(m_brlimit)), 0, napi_int32_array),
+//                napi_enumerable), //TODO: when to unref?
+//            Napi::PropertyDescriptor::Value("pxbuf", 
+//                Napi::TypedArrayOf<std::remove_cvref<decltype(m_pxbuf[0])>::type /*int32_t*/>::New(args.Env(), pxbuf_len32(), 
+//                    Napi::ArrayBuffer::New(args.Env(), &m_pxbuf[0], pxbuf_len32() * sizeof(m_pxbuf[0])), 0, napi_uint32_array),
+//                napi_enumerable), //TODO: when to unref?
+//            Napi::PropertyDescriptor::Function(args.Env(), "wait4sync", wait4sync_method),
+//            Napi::PropertyDescriptor::Function(args.Env(), "await4sync", await4sync_method),
+        });
+//        me.Set("brlimit", /*Napi::Persistent*/(/*m_ptr->*/brlimit_getter(args))); //TODO: when to unref?
+//        me.Set("pxbuf", /*Napi::Persistent*/(/*m_ptr->*/pxbuf_getter(args))); //TODO: when to unref?
+    }
+    static opts_t& opts_napi(const Napi::CallbackInfo& args) //must be atatic to use in delegated ctor
+    {
+//        static opts_t c_opts; //static to allow returning to caller; CAUTION: must re-init each time to prevent sticky opts or cross talk across threads
+        static thread_local opts_t c_opts; //static to allow returning to caller; CAUTION: must re-init each time to prevent sticky opts; make thread-local to prevent cross-talk between threads
+        new (&c_opts) opts_t; //re-init to prevent sticky defaults
+//        c_opts.rdwr = false; //true;
+//debug("js ctor: %d args", info.Length());
+//        if (!args.Length()) return c_opts;
+//        if (args.Length() > 1 || (args.Length() && !args[0].IsObject())) { err_napi(args.Env(), "options (optional Object) expected; got: %d %s", args.Length(), NapiArgType(args, 0)); return c_opts; }
+        if (!args.Length() || !args[0].IsObject()) { err_napi(args.Env(), "options (Object) expected; got: %d %s", args.Length(), NapiArgType(args, 0)); return c_opts; }
+//https://github.com/nodejs/node-addon-api/blob/master/doc/object.md
+//https://stackoverflow.com/questions/57885324/how-to-access-js-object-property-in-node-js-native-addon
+//        std::string unknopt;
+        const /*auto*/ Napi::Object napi_opts = args[0].As<Napi::Object>(); //.Value();
+        Napi::Array names = napi_opts.GetPropertyNames();
+        for (int i = 0; i < names.Length(); ++i)
+        {
+            std::string name = (std::string)names.Get(i).As<Napi::String>(); //.Get(names[i]).As<Napi::String>();
+//            const char* cname = napi2val(names.Get(i));
+//debug("yalp ctor opt[%d/%d] '%s' %s", i, names.Length(), name.c_str(), NapiType(napi_opts.Get(name))); //names[i])));
+            if (!name.compare("fbnum")) c_opts.fbnum =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.fbnum)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("xres")) c_opts.xres =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.fbnum)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("xblank")) c_opts.xblank =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("yres")) c_opts.yres =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("linelen")) c_opts.linelen =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("ppb")) c_opts.ppb =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("rdwr")) c_opts.rdwr =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else if (!name.compare("numbufs")) c_opts.numbufs =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+            else if (!name.compare("brlimit")) c_opts.brlimit =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+            else if (!name.compare("shmbuf"))
+            {
+//                struct shdata_t { FBloop::brlimit_t brlimit; FBloop::stats_t stats; } shdata;
+                struct shdata_t { FBloop::stats_t stats; FBloop::brlimit_t brlimit; } shdata; //CAUTION: put stats ary first so js caller doesn't need to know about start ofs
+                Napi::Value shmarg = napi_opts.Get(name);
+//debug("opts.shmbuf %s", NapiType(shmarg));
+                NapiBufInfo shmdata(shmarg); //, nodes(args[1]);
+debug("opts.shmbuf ptr %p, len %'d vs. reqd %'d", shmdata.data, shmdata.bytelen, sizeof(shdata_t));
+                if (shmdata.bytelen < sizeof(shdata_t)) { err_napi(args.Env(), "opts.shmbuf too small: %'d needs to be >= %'d+%'d bytes", shmdata.bytelen, sizeof(shdata.stats), sizeof(shdata.brlimit)); return c_opts; }
+//                Napi::ObjectReference retval = Napi::ObjectReference::New(args[0], 1); //TODO: when to unref?
+//                return retval.Value(); //retary;
+                c_opts.stats_ptr = &((shdata_t*)shmdata.data)->stats;
+                c_opts.brlimit_ptr = &((shdata_t*)shmdata.data)->brlimit;
+//debug("brlimit@ %p, stats@ %p", c_opts.brlimit_ptr, c_opts.stats_ptr);
+            }
+            else if (!name.compare("debug")) c_opts.debug_level =  napi_opts.Get(name)/*.As<Napi::Number>()*/.ToNumber().Int32Value(); //coerce //napi2val<decltype(c_opts.debug_level)>(napi_opts.Get(name).As<Napi::Number>());
+//            else unknopt += strprintf(", %s '%s'", NapiType(napi_opts.Get(name)), name.c_str());
+            else warn("unknown option: %s '%s' (valid options: %s)", NapiType(napi_opts.Get(name)), name.c_str(), "fbnum, shmbuf, brlimit, debug");
+        }
+//        if (unknopt.length()) { err_napi(info.Env(), "unknown option%s: %s (allowed are: %s)", strchr(unknopt.c_str() + 2, ',')? "s": "", unknopt.c_str() + 2, "fbnum, timing, debug"); return c_opts; }
+debug("FB ctor opts: fbnum %d, rd/wr? %d, brlimit %'d, debug %d", c_opts.fbnum, true, c_opts.brlimit, c_opts.debug_level);
+        return c_opts;
+    }
+#endif //def USING_NAPI
+#if 0
+//helpers:
+private:
+//    uint32_t numwr, numfr;
+    void bkgloop()
+    {
+        for (;;)
+        {
+            if (atomic(numwr) == NUM_PORTS)
+            {
+                now = Date.now();
+                jobctl.upd_count_bump;
+                jobctl.upd_idle_bump = upd_ready + now; upd_ready = -now;
+                if (jobctl.numcycle_bump+1 > 3) jobctl.numcycle = EOF; //_bump; //Atomics.add(shmbuf, 2, 1); //#cycles
+                pivot(frtime);
+                now = Date.now();
+                jobctl.upd_pivot_bump = upd_ready + now; upd_ready = -now;
+                jobctl.numrd = 0; //Atomics.store(shmbuf, 0, 0); //wipe out excess
+                await sync(frtime);
+                now = Date.now();
+                jobctl.upd_sync_bump = upd_ready + now; upd_ready = -now;
+                jobctl.numwr_bump = -6; //drop; //Atomics.add(shmbuf, 1, -6); //only remove jobs from completed cycle, preserve pre-completed work on next cycle
+                debug("allow next cycle".brightCyan); //"#wr bump back, new val:", shmbuf.numwr); //Atomics.load(shmbuf, 1));
+            }
+            wait4sync();
+            pivot()
+        }
+    }
+    int pivot_count = 0;
+    void ws3x_pivot(const uint32_t* nodes1D, uint32_t* pxbuf, int num_nodes)
+    {
+        int UNIV_LEN = num_nodes / NUM_PORTS, gaplen = m_stride32 - xtotal();
+        decltype(epoch)::elapsed_t started = -epoch.elapsed();
+//        debug("TODO: pivot %p -> %p", nodes2D, pxbuf);
+//#pragma message(YELLOW_MSG "TODO: pivot" ENDCOLOR_NOLINE)
+        uint32_t* bp = &pxbuf[0]; //rewind
+        uint32_t* eol = bp + xtotal(); //set first gap
+        debug("ws3x_pivot: nodes1D %p, pxbuf %p %svs. mine %p%s, UNIV_LEN %'d, NUM_PORTS %d, gaplen %d", nodes1D, pxbuf, (pxbuf == m_pxbuf)? GREEN_MSG: YELLOW_MSG, m_pxbuf, ENDCOLOR_NOLINE, UNIV_LEN, NUM_PORTS, gaplen);
+        for (int node = 0; node < UNIV_LEN; ++node)
+        {
+            uint32_t cached[NUM_PORTS];
+            for (int port = 0; port < NUM_PORTS; ++port) cached[port] = limit(nodes1D[port * UNIV_LEN + node], m_brlimit[port]); //limit brightness + localize memory access for bit loop
+            for (uint32_t pxbit = 0x800000; pxbit; pxbit >>= 1)
+            {
+                *bp++ = -1; //start of bit
+                uint32_t pxbits = 0xff000000;
+                for (uint32_t port = 0, portbit = 1 << (NUM_PORTS - 1); port < NUM_PORTS; ++port, portbit >>= 1)
+                    if (cached[port] & pxbit) pxbits |= portbit;
+                *bp++ = pxbits; //live part of bit
+                *bp++ = 0xff000000; //end of bit
+                if (bp == eol) eol = xtotal() + (bp += gaplen); //fb gap at end of each raster line
+            }
+        }
+        if (pivot_count++) return;
+        started += epoch.elapsed();
+        debug("redraw[0] eof: x %'d/%'d, y %'d/%'d, gaplen %d, took %'d msec", (bp - &pxbuf[0]) % xtotal(), m_xres, (bp - &pxbuf[0]) / xtotal(), m_yres, gaplen, started);
+    }
+    inline static wsnode_t limit(wsnode_t color, int LIMIT3)
+    {
+        if (!LIMIT3) return color;
+        int r = R(color), g = G(color), b = B(color);
+        int br = r + g + b; //brightness(color);
+        if (br <= LIMIT3/*_BRIGHTNESS * 3*/) return color; //TODO: maybe always do it? (to keep relative brightness correct)
+//TODO: cache results?
+//NOTE: palette-based nodes would make this more efficient
+//    return toARGB(A(color), r, g, b);
+//linear calculation is more efficient but less accurate than HSV conversion+adjust:
+        int dimr = r * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+        int dimg = g * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+        int dimb = b * LIMIT3/*_BRIGHTNESS * 3*/ / br;
+//debug("r %d * %d / %d => %d, g %d * %d / %d => %d, b %d * %d / %d => %d", r, 3 * LIMIT_BRIGHTNESS, br, dimr, g, 3 * LIMIT_BRIGHTNESS, br, dimg, b, 3 * LIMIT_BRIGHTNESS, br, dimb);
+        return Abits(color) | (dimr << 16) | (dimg << 8) | (dimb << 0); //LIMIT3 / br < 1; don't need clamp()
+    }
+#endif //0
+};
+NAPI_EXPORT_CLASS(FB);
+//NAPI_EXPORT_CLASS(YALP_shm, "YALP");
+
+
+//NODE_API_MODULE(clock, Init)
+NAPI_EXPORT_MODULES(); //export modules to Javascript
+
+#define _HOIST 99
+#endif //def NEW_YALP
+
+
+#if 0 //ndef _HOIST //tsfn test
 #include <chrono>
 #include <napi.h>
 #include <thread>
@@ -249,7 +1530,7 @@ public: //ctor/dtor
         AutoFB pxbuf(this->fbnum, timing); //*this); //{xres, xtotal, yres, ytotal, pxclock}
         if (!pxbuf.isOpen()) fatal("open fb#%d failed", this->fbnum);
 //        univlen_check();
-        if (pxbuf.width() != /*m_shdata.*/xtotal) warn("raster rowlen32 %'lu != xtotal res %'d", pxbuf.width(), /*m_shdata.*/xtotal);
+        if (pxbuf.width() != /*m_shdata.*/xtotal) warn("raster stride32 %'lu != xtotal res %'d", pxbuf.width(), /*m_shdata.*/xtotal);
         if (/*m_shdata.*/ppb() != PPB) fatal("%d ppb !implemented; should be %d", /*m_shdata.*/ppb(), PPB);
 //        if (gaplen() != 1) fatal("gap len %d !implemented; should be 1 with ppb %d", gaplen, PPB);
         debug("YALP ctor @%p: fb# %d, #bufs %d, #ports %d, pid %d/thread# %d", this, /*m_shdata.*/ this->fbnum, /*shmdata_t::*/NUMBUFS, NUMPORTS, getpid(), thrinx());
@@ -699,6 +1980,7 @@ private:
     using wsnode_t = typename shmdata_t::wsnode_t;
     using opts_t = typename YALP::/*struct*/ opts_t;
     shmwrap<YALP, SHMKEY> m_shmptr; //(ptr to) one shared copy
+    using PROVIDER_LOCKTYPE = typename decltype(m_shmptr->m_mtx)::PROVIDER_LOCKTYPE;
 //delegated:
     NAPI_START_EXPORTS(self_t); //, CLS_T);
 //misc/config:
@@ -853,7 +2135,7 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //        return fbptr2napi(info.This().As<Napi::Object>(), fbptr);
         return fbptr2napi(info.Env(), fbptr); //fbptr can't be null here
     }
-    Napi::Value newer_getter(const Napi::CallbackInfo &info)
+    Napi::Value newer_getter(const Napi::CallbackInfo &info) //non-blocking
     {
         using seqnum_t = frbuf_t::seqnum_t;
         using timestamp_t = frbuf_t::timestamp_t;
@@ -867,9 +2149,24 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //debug("newer %'d: found frbuf# %d, latest %d, others: %'d, %'d, %'d, %'d", want_time, fbptr - &m_shmptr->frbufs[0], m_shmptr->fifo.load(), m_shmptr->frbufs[0].timestamp(), m_shmptr->frbufs[1].timestamp(), m_shmptr->frbufs[2].timestamp(), m_shmptr->frbufs[3].timestamp());
         return fbptr2napi(info.Env(), fbptr); //fbptr *can* be null here
     }
+    Napi::Value wait4newer_getter(const Napi::CallbackInfo &info) //blocking
+    {
+        using seqnum_t = frbuf_t::seqnum_t;
+        using timestamp_t = frbuf_t::timestamp_t;
+        if (info.Length() != 2 /*|| info.Length() > 3*/ || !info[0].IsNumber() || !info[1].IsNumber() /*|| (info.Length() > 2 && !info[2].IsNumber())*/) return err_napi(info.Env(), "seq# (Number) + timestamp (msec, Number) expected, got %d: %s %s %s", info.Length(), NapiArgType(info, 0), NapiArgType(info, 1)); //, NapiArgType(info, 2));
+//        const auto seqnum = info[0].As<Napi::Number>().Uint32Value();
+        const seqnum_t want_seq = napi2val<seqnum_t>(info[0]);
+//        const auto timestamp = info[1].As<Napi::Number>().Uint32Value();
+        const timestamp_t want_time = napi2val<timestamp_t>(info[1]);
+        auto fbptr = m_shmptr->wait4newer(want_seq, want_time);
+//        return fbptr2napi(info.This().As<Napi::Object>(), fbptr);
+//debug("newer %'d: found frbuf# %d, latest %d, others: %'d, %'d, %'d, %'d", want_time, fbptr - &m_shmptr->frbufs[0], m_shmptr->fifo.load(), m_shmptr->frbufs[0].timestamp(), m_shmptr->frbufs[1].timestamp(), m_shmptr->frbufs[2].timestamp(), m_shmptr->frbufs[3].timestamp());
+        return fbptr2napi(info.Env(), fbptr); //fbptr *can* be null here
+    }
 #endif //def USING_NAPI
     NAPI_EXPORT_WRAPPED_PROPERTY(self_t, "oldest", /*m_ptr->*/oldest_getter);
     NAPI_EXPORT_METHOD(self_t, "newer", /*m_ptr->*/newer_getter);
+    NAPI_EXPORT_METHOD(self_t, "wait4newer", /*m_ptr->*/wait4newer_getter);
 #ifdef USING_NAPI
     Napi::Value recycle_method(const Napi::CallbackInfo& info)
     {
@@ -885,7 +2182,51 @@ if (fbptr && fbptr != &m_shmptr->frbufs[0] && fbptr != &m_shmptr->frbufs[1] && f
 //control:
     NAPI_EXPORT_PROPERTY(self_t, "seqnum", m_shmptr->oldest()->seqnum.load);
     NAPI_EXPORT_PROPERTY(self_t, "timestamp", m_shmptr->oldest()->timestamp); //.load);
-#ifdef USING_NAPI
+#ifdef USING_NAPI //simpler bkg thread (blocking) using mutex/condvar for wakeup
+//https://github.com/nodejs/node-addon-examples/issues/85
+    template<typename RETVAL_T = uint32_t, class SUPER = Napi::AsyncWorker>
+//    using que_t = uint32_t; //shmdata_t::frbuf_t; //kludge: napi only allows simple types
+    class UpdLoopAsyncWker: public SUPER
+    {
+        self_t* m_ptr;
+        Napi::Promise::Deferred m_deferred;
+        RETVAL_T m_retval;
+    public:
+        UpdLoopAsyncWker(const Napi::Env& env, self_t* ptr): SUPER(env), m_ptr(ptr), m_deferred(Napi::Promise::Deferred::New(env)) { this->Queue(); }
+        ~UpdLoopAsyncWker() {}
+    public:
+        Napi::Promise::Deferred& def() /*const*/ { return m_deferred; }
+        void Execute() //runs inside wker thread; CAUTION: cannot access JS
+        {
+            PROVIDER_LOCKTYPE lock(m_ptr->m_shmptr->m_mtx); //NOTE: mutex must be held while var is changed even if atomic, according to https://en.cppreference.com/w/cpp/thread/condition_variable
+            auto emitfr = [this /*m_ptr*/](shmdata_t::frbuf_t* fbptr = 0)
+            {
+//                QUE_T msg = fbptr? fbptr - &ptr->m_shmptr->frbufs[0]: -1;
+//            { //lock scope
+//                PROVIDER_LOCKTYPE lock(m_mtx); //NOTE: mutex must be held while var is changed even if atomic, according to https://en.cppreference.com/w/cpp/thread/condition_variable
+//                ++dequeue()->seqnum; //get oldest + mark eof
+//            }
+                VOID m_ptr->m_shmptr->m_cv.notify_all(); //wake render/wker threads waiting for more frbufs
+//debug("progress: fbptr@ %p, seq# %d, fr# %'d => fb# %d", fbptr, fbptr? fbptr->seqnum.load(): -1, fbptr? fbptr->frnum.load(): -1, msg);
+            };
+            m_retval = m_ptr->m_shmptr->updloop(emitfr);
+        }
+        void OnOK() //runs inside main evt loop; safe to use JS data
+        {
+            m_deferred.Resolve(Napi::Number::New(this->Env(), m_retval));
+        }
+        void OnError(Napi::Error const& error) { m_deferred.Reject(error.Value()); }
+    };
+    Napi::Value updloop_method(const Napi::CallbackInfo& info)
+    {
+        if (info.Length()) return err_napi(info.Env(), "no args expected, got %d: %s", info.Length(), NapiArgType(info, 0)); //do this here so err can be ret to caller
+//        Napi::Promise::Deferred promise = Napi::Promise::Deferred::New(info.Env());
+        /*UpdLoopAsyncWker* */ auto wker = new UpdLoopAsyncWker(info.Env(), this); //run on bkg thread so main thread doesn't block; NOTE: deduction !worky for ptrs/refs; need "auto" here
+        Napi::Value retval = wker->def().Promise();
+        return retval;
+    }
+#endif //def USING_NAPI
+#if 0 //def USING_NAPI
 //https://github.com/nodejs/node-addon-api/blob/main/doc/async_worker_variants.md
 //https://github.com/mika-fischer/napi-thread-safe-callback/issues/10
 //https://github.com/SurienDG/NAPI-Thread-Safe-Promise
@@ -1359,8 +2700,8 @@ Napi::Value jsdebug(const Napi::CallbackInfo& info)
 //    const char* bp2 = strchr(bp, ':');
 //    bool has_srcline = true; //TODO
 //    prevout = printf("\n" BLUE_MSG "%s" BLUE_MSG "%s" "%s" ENDCOLOR_NEWLINE + (prevout > 0), str.c_str(), !has_srcline? SRCLINE: "", rti()); //TODO: fix color spread
-//#define debug(...)  debug_info(BLUE_MSG __VA_ARGS__, thrinx(), (double)epoch.elapsed() / (int)1e3, SRCLINEF)
-//#define debug_info(fmt, ...)  prevout = printf("\n" fmt " $%d T+%4.3f @%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
+//#define debug(...)  debug_maybe(BLUE_MSG __VA_ARGS__, thrinx(), (double)epoch.elapsed() / (int)1e3, SRCLINEF)
+//#define debug_maybe(fmt, ...)  prevout = printf("\n" fmt " $%d T+%4.3f @%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
     const char* buf = str.c_str();
     const char* bp = strrchr(buf, '@');
 //    debug("%s", str.c_str());
@@ -1902,10 +3243,10 @@ public: //fifo methods:
     inline frbuf_t* dequeue() { return fbptr(fifo++); } //fifo.compare_exchange_weak(svfifo, svfifo + 1, std::memory_order_relaxed, std::memory_order_relaxed)); //move frbuf from que head to tail; onlg bkg thread should do this, but use atomic update just in case
 //static_assert(sizeof(frbuf_t::seqnum_t) == 4);
 //frbuf provider/consumer thread sync:
-//    ShmMutex m_mtx; //std::mutex m_mtx; //avoid mutex locks except when waiting; //PTHREAD_MUTEX_INITIALIZER?
+    ShmMutex m_mtx; //std::mutex m_mtx; //avoid mutex locks except when waiting; //PTHREAD_MUTEX_INITIALIZER?
 //    using PROVIDER_LOCKTYPE = typename ShmMutex::write_lock; //std::lock_guard<decltype(m_mtx)>;
 //    using CONSUMER_LOCKTYPE = typename ShmMutex::read_lock; //std::unique_lock<decltype(m_mtx)>; //not: std::lock_guard<decltype(m_mtx)>;
-//    ShmCondVar m_cv; //std::condition_variable m_cv;
+    ShmCondVar m_cv; //std::condition_variable m_cv;
 //find first frbuf !older than specified time for given seq#:
     frbuf_t* newer(typename frbuf_t::seqnum_t want_seq, typename frbuf_t::timestamp_t min_time) const
     {
@@ -1919,7 +3260,7 @@ public: //fifo methods:
         }
         return 0; //all frbuf in use; caller needs to wait (polling for now); TODO: add IPC wakeup?
     }
-#if 0
+#if 1
 //blocking version for async JS:
 //CAUTION: do not call on fg JS thread (due to blocking)
 //    int wait4frbuf(typename frbuf_t::seqnum_t want_seq, typename frbuf_t::timestamp_t min_time) const
@@ -1927,7 +3268,7 @@ public: //fifo methods:
     {
         debug("renderer wait4newer: seq %'u, timest %'u", want_seq, min_time);
         if ((want_seq > 100) || (min_time > (int)300e3)) fatal("suspicious wait4newer: seq %'u, timest %'u", want_seq, min_time); //probably a bug
-        CONSUMER_LOCKTYPE lock(m_mtx); //req'd even for atomic vars
+        decltype(m_mtx)::CONSUMER_LOCKTYPE lock(m_mtx); //req'd even for atomic vars
         for (;;)
         {
             frbuf_t* fbptr = newer(want_seq, min_time);
@@ -1987,51 +3328,23 @@ template<> STATIC decltype(shmdata_t::frbufnodes_t::item_type) shmdata_t::frbufn
 
 
 //export C++ classes/objects to Javascript (non-intrusive):
-#ifdef NODE_GYP_MODULE_NAME //defined by node-gyp
+//#ifdef NODE_GYP_MODULE_NAME //defined by node-gyp
  #include "napi-helpers.h"
-#else //stand-alone compile; no Javascript
- #define NAPI_START_EXPORTS(...)  //noop
- #define NAPI_EXPORT_PROPERTY(...)  //noop
- #define NAPI_EXPORT_WRAPPED_PROPERTY(...)  //noop
- #define NAPI_EXPORT_METHOD(...)  //noop
- #define NAPI_STOP_EXPORTS(...)  //noop
- #define NAPI_EXPORT_CLASS(...)  //noop
- #define NAPI_EXPORT_OBJECT(...)  //noop
- #define NAPI_EXPORT_MODULES(...)  //noop
-#endif //def NODE_GYP_MODULE_NAME
+//#else //stand-alone compile; no Javascript
+// #define NAPI_START_EXPORTS(...)  //noop
+// #define NAPI_EXPORT_PROPERTY(...)  //noop
+// #define NAPI_EXPORT_WRAPPED_PROPERTY(...)  //noop
+// #define NAPI_EXPORT_METHOD(...)  //noop
+// #define NAPI_STOP_EXPORTS(...)  //noop
+// #define NAPI_EXPORT_CLASS(...)  //noop
+// #define NAPI_EXPORT_OBJECT(...)  //noop
+// #define NAPI_EXPORT_MODULES(...)  //noop
+//#endif //def NODE_GYP_MODULE_NAME
 //#ifdef NODE_GYP_MODULE_NAME
 // #pragma message("compiled as Node.js add-on")
 //#else
 // #pragma message("compiled for stand-alone usage")
 //#endif
-
-
-//define getter/setter wrappers:
-//can be used as napi shims
-#define GETTER(...)  UPTO_2ARGS(__VA_ARGS__, GETTER_2ARGS, GETTER_1ARG) (__VA_ARGS__)
-#define GETTER_1ARG(name)  GETTER_2ARGS(get_ ## name, name)
-#define GETTER_2ARGS(name, target)  decltype(target) name() const { return target; }
-
-#define SETTER(...)  UPTO_2ARGS(__VA_ARGS__, SETTER_2ARGS, SETTER_1ARG) (__VA_ARGS__)
-#define SETTER_1ARG(name)  SETTER_2ARGS(set_ ## name, name)
-#define SETTER_2ARGS(name, target)  void name(decltype(target) newval) { target = newval; }
-
-#define SETTERCB(name, cb)  void name(decltype(name()) newval) { cb(newval); }
-
-//getter/setter for atomic members:
-//napi doesn't like atomics
-//NOTE: decltype needs obj instance; use NULL_OF or declval<>
-#define AGETTER(...)  UPTO_2ARGS(__VA_ARGS__, AGETTER_2ARGS, AGETTER_1ARG) (__VA_ARGS__)
-#define AGETTER_1ARG(name)  AGETTER_2ARGS(aget_ ## name, name)
-//#define AGETTER_2ARGS(name, target)  decltype(target.load()) name() const { return target; }
-#define AGETTER_2ARGS(name, target)  decltype(/*NULL_OF(cls)->*/ std::declval<self_t>(). target.load()) name() const { return target.load(); }
-
-#define ASETTER(...)  UPTO_2ARGS(__VA_ARGS__, ASETTER_2ARGS, ASETTER_1ARG) (__VA_ARGS__)
-#define ASETTER_1ARG(name)  ASETTER_2ARGS(aset_ ## name, name)
-//#define ASETTER_2ARGS(name, target)  void name(decltype(target.load()) newval) { target = newval; }
-#define ASETTER_2ARGS(name, target)  void name(decltype(/*NULL_OF(cls)->*/ std::declval<self_t>(). target.load()) newval) { target.store(newval); } //use store() to avoid copy ctor
-
-//#define ASETTERCB(name, target, cb)  void name(decltype(target.load()) newval) { cb(newval); }
 
 
 //get RGB color components:
@@ -2417,7 +3730,7 @@ class AutoFB: public AutoFile
 {
     using SUPER = AutoFile;
     DATA_T* m_pxbuf = (DATA_T*)MAP_FAILED;
-    size_t m_rowlen32 = 0, m_height = 0;
+    size_t m_stride32 = 0, m_height = 0;
     int m_fbnum;
     bool m_dirty = false;
     DevWindow* m_devwnd = 0;
@@ -2438,9 +3751,9 @@ public: //types
     static timing_t& NO_MMAP() { static timing_t m_timing; return m_timing; }
 public: //ctor/dtor
 //    template <typename ... ARGS>
-//    AutoFB(ARGS&& ... args): SUPER(std::forward<ARGS>(args) ...), m_pxbuf(MAP_FAILED), m_rowlen32(0), m_height(0) //perfect fwd args to open()
+//    AutoFB(ARGS&& ... args): SUPER(std::forward<ARGS>(args) ...), m_pxbuf(MAP_FAILED), m_stride32(0), m_height(0) //perfect fwd args to open()
     AutoFB(int fbnum): AutoFB(fbnum, NO_MMAP()) {}
-    AutoFB(int fbnum, /*bool want_mmap = true,*/ const timing_t& gpuinfo): SUPER(fbname(fbnum), O_RDWR), m_fbnum(fbnum) //, m_pxbuf(MAP_FAILED), m_rowlen32(0), m_height(0)
+    AutoFB(int fbnum, /*bool want_mmap = true,*/ const timing_t& gpuinfo): SUPER(fbname(fbnum), O_RDWR), m_fbnum(fbnum) //, m_pxbuf(MAP_FAILED), m_stride32(0), m_height(0)
     {
         const bool want_mmap = gpuinfo.for_update; //want_mmap; //(&gpuinfo != &NO_MMAP());
         const bool timovr = gpuinfo.xtotal && gpuinfo.yres; //broken-timovr = &gpuinfo != &(const timing_t&)NO_MMAP;
@@ -2458,21 +3771,21 @@ public: //ctor/dtor
             if (isXWindows || (ycmp < 0)) scrf.smem_len = gpuinfo.yres * scrf.line_length; //can only shorten real FB
         }
         if (scrf.line_length % sizeof(DATA_T)) fatal("FB# %d row len %'d !multiple of px data type %d; row+gap addressing broken", fbnum, scrf.line_length, sizeof(DATA_T));
-        m_rowlen32 = scrf.line_length / sizeof(DATA_T); //NOTE: might be larger than screen xres due to padding
-//debug("rowlen %d", m_rowlen32);
+        m_stride32 = scrf.line_length / sizeof(DATA_T); //NOTE: might be larger than screen xres due to padding
+//debug("rowlen %d", m_stride32);
         if (scrf.smem_len % scrf.line_length) warn("FB# %d memlen %'d !multiple of row len %'d", fbnum, scrf.smem_len, scrf.line_length);
-        m_height = scrf.smem_len / scrf.line_length; //m_rowlen32;
+        m_height = scrf.smem_len / scrf.line_length; //m_stride32;
 //debug("height %d", m_height);
 //        if (!want_mmap) return;
-debug("using w %'d, h %'d, #px %'d, XWin? %d", m_rowlen32, m_height, m_rowlen32 * m_height, isXWindows);
+debug("using w %'d, h %'d, #px %'d, XWin? %d", m_stride32, m_height, m_stride32 * m_height, isXWindows);
         if (!gpuinfo.for_timing && !gpuinfo.for_update) return;
         if (isXWindows) RETURN(devwindow(gpuinfo));
         constexpr void* DONT_CARE = NULL; //CONSTDEF(DONT_CARE, NULL); //system chooses addr
 //debug("addr %p, #px %'lu x len %'lu = size %'lu, prot 0x%x, flags 0x%x, fd %d, ofs 0", DONT_CARE, numpx(), sizeof(DATA_T), numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this);
         m_pxbuf = (DATA_T*)::mmap(DONT_CARE, numpx() * sizeof(DATA_T), PROT_READ | PROT_WRITE, MAP_SHARED, (int)*this, 0 /*ofs*/); //shared with GPU
         if (m_pxbuf == (DATA_T*)MAP_FAILED) fatal("mmap fb failed"); //throw std::runtime_error(strerror(errno));
-//        if (m_rowlen32 != scrv.xres) warn("raster rowlen32 %'lu != width %'d", m_rowlen32, scrv.xres);
-//        if (new_height * new_rowlen32 * 4 != scrf.smem_len) debug(YELLOW_MSG "CAUTION: raster size %'lu != calc %'d", new_height * new_rowlen32 * 4, scrf.smem_len);
+//        if (m_stride32 != scrv.xres) warn("raster stride32 %'lu != width %'d", m_stride32, scrv.xres);
+//        if (new_height * new_stride32 * 4 != scrf.smem_len) debug(YELLOW_MSG "CAUTION: raster size %'lu != calc %'d", new_height * new_stride32 * 4, scrf.smem_len);
         ::write(*this, CURSOFF, strlen(CURSOFF));
     }
     ~AutoFB()
@@ -2521,7 +3834,7 @@ public: //operators
 //    operator DATA_T*() const { return m_pxbuf; }
     inline const PxRow& operator[](size_t inx) const
     {
-        return *(const PxRow*)&m_pxbuf[inx * m_rowlen32]; //kludge: cast a memberless row proxy on top of px buf at requested row address
+        return *(const PxRow*)&m_pxbuf[inx * m_stride32]; //kludge: cast a memberless row proxy on top of px buf at requested row address
     }
 public: //properties
     inline bool dirty() const { return m_dirty; }
@@ -2532,8 +3845,8 @@ public: //properties
     }
 //    DATA_T* pixels() const { return m_pxbuf; }
     inline int fbnum() const { return m_fbnum; }
-    inline size_t numpx() const { return m_rowlen32 * m_height; }
-    inline size_t width() const { return m_rowlen32; }
+    inline size_t numpx() const { return m_stride32 * m_height; }
+    inline size_t width() const { return m_stride32; }
     inline size_t height() const { return m_height; }
 private: //emulate FB with SDL in XWindows: can't get XWindows FB driver to work :(
     void devwindow(const timing_t& gpuinfo)
@@ -2541,7 +3854,7 @@ private: //emulate FB with SDL in XWindows: can't get XWindows FB driver to work
         if (m_devwnd) return; //already open
         m_devwnd = new DevWindow(gpuinfo.xres, gpuinfo.xtotal, gpuinfo.yres, gpuinfo.ytotal, gpuinfo.pxclock, gpuinfo.for_update);
         m_pxbuf = m_devwnd->pxbuf();
-        m_rowlen32 = m_devwnd->width();
+        m_stride32 = m_devwnd->width();
         m_height = m_devwnd->height();
     }
     void devwindow()
@@ -2553,6 +3866,7 @@ private: //emulate FB with SDL in XWindows: can't get XWindows FB driver to work
 };
 
 
+#if 0
 //wrapper for 2D addressing:
 //NOTE: doesn't use array of arrays but looks like it
 //parent manages all memory
@@ -2602,6 +3916,7 @@ private: //helpers
         return *NULL_OF(CHILD_T); //NULL;
     }
 };
+#endif //0
 
 
 #if 0
@@ -2647,7 +3962,7 @@ public:
 #endif //0
 
 
-#if 1 //another try at shmwrapper
+#if 0 //another try at shmwrapper
 //#include <atomic>
 #include <sys/ipc.h> //IPC_*
 #include <sys/shm.h> //shmget(), shmat(), shmctl(), shmdt()
@@ -2752,7 +4067,7 @@ public:
 #endif
 
 
-#if 0 //no longer needed; use evt emitter instead
+#if 0 //NO- no longer needed; use evt emitter instead
 //shm mutex:
 //based on https://stackoverflow.com/questions/13161153/c11-interprocess-atomics-and-mutexes
 //https://www.gonwan.com/2014/04/10/sharing-mutex-and-condition-variable-between-processes/
@@ -2837,6 +4152,8 @@ public: //helper class
     };
     using read_lock = lock;
     using write_lock = lock;
+    using PROVIDER_LOCKTYPE = typename ShmMutex::write_lock; //std::lock_guard<decltype(m_mtx)>;
+    using CONSUMER_LOCKTYPE = typename ShmMutex::read_lock; //std::unique_lock<decltype(m_mtx)>; //not: class 
 };
 
 
@@ -2981,6 +4298,8 @@ debug("shell '%s' output %'lu:'%s'", cmd, result.length(), result_esc.c_str());
 //#elements in an array:
 //array elements can be *any* type
 #define SIZEOF(thing)  (sizeof(thing) / sizeof((thing)[0]))
+#define u32len(bytelen)  ((bytelen) / sizeof(uint32_t))
+#define u8len(u32len)  ((u32len) * sizeof(uint32_t))
 
 
 //int compare:
@@ -3002,6 +4321,13 @@ debug("shell '%s' output %'lu:'%s'", cmd, result.length(), result_esc.c_str());
 #define shiftlr(val, pos)  (((pos) < 0)? ((val) << -(pos)): ((val) >> (pos)))
 
 #define bytes2bits(n)  ((n) * 8)
+
+//get msb of value:
+#define msb(u32)  ((u32) & ~((u32) >> 1))
+
+//bit value:
+#define BIT(n)  (1 << (n))
+
 
 
 //flip a value:
@@ -3218,6 +4544,7 @@ void memset(DATA_T* ary, DATA_T val, size_t len)
 #define ENDCOLOR_NEWLINE  ENDCOLOR_NOLINE "\n"
 //#define ENDCOLOR_ATLINE  SRCLINE ENDCOLOR_NEWLINE
 //#define ENDCOLOR_ATLINE_INFO  SRCLINE "%s" ENDCOLOR_NEWLINE //with run-time info
+#define TODO(msg)  YELLOW_MSG [TODO] msg ENDCOLOR_NOLINE
 
 
 //misc message functions:
@@ -3226,10 +4553,10 @@ void memset(DATA_T* ary, DATA_T val, size_t len)
 #include <stdexcept> //std::runtime_error(), std::out_of_range()
 #include <string.h> //strerror()
 #include <errno.h> //errno
-static int prevout = 0; //1; //true; //start with newline first time
+//static thread_local int prevout = 0; //1; //true; //start with newline first time
 #define SRCLINE  "@" __FILE__ ":" TOSTR(__LINE__)
 #define SRCLINEF  strafter(SRCLINE, '/') //"/")
-#define RTI_FMT  " T+%4.3f $%d @%s" //f#%d
+#define RTI_FMT  " T+%'4.3f $%d @%s" //f#%d
 #define rti()  (double)epoch.elapsed() / (int)1e3, thrinx(), SRCLINEF //fileno(debout),
 //#pragma message(YELLOW_MSG "add mutex to prevent msg interleave?")
 //NOTE: first arg must be lit str below (printf-style fmt)
@@ -3241,10 +4568,12 @@ static int prevout = 0; //1; //true; //start with newline first time
 #define fatal_type(exctype, ...)  fatal_info(exctype, RED_MSG "FATAL: " __VA_ARGS__, strerror(errno), rti())
 #define fatal_info(exctype, fmt, ...)  throw *(new exctype(strprintf(fmt "; last error: %s" RTI_FMT ENDCOLOR_NOLINE, __VA_ARGS__)))
 #define debug_dedup(limit, ...)  ((line_elapsed(__LINE__) < (limit))? 0: debug(__VA_ARGS__))
-#define debug(...)  debug_info(true, BLUE_MSG __VA_ARGS__, rti()) //NOTE: adds run-time info *and* ensures >= 2 args before splitting off first arg
+#define debug(...)  debug_maybe(true, BLUE_MSG __VA_ARGS__, rti()) //NOTE: adds run-time info *and* ensures >= 2 args before splitting off first arg
 FILE* debout = stdout;
-#define debug_noinfo(...)  debug_info(false, BLUE_MSG __VA_ARGS__, "") //ensures >= 2 args before splitting off
-#define debug_info(want_info, fmt, ...)  prevout = fprintf(debout, want_info? "\n" fmt RTI_FMT ENDCOLOR_NEWLINE + (prevout > 0): "\n" fmt "%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
+#define debug_noinfo(...)  debug_maybe(false, BLUE_MSG __VA_ARGS__, "") //ensures >= 2 args before splitting off
+//handle prevout within thrinx(): #define debug_maybe(want_info, fmt, ...)  prevout = fprintf(debout, want_info? "\n" fmt RTI_FMT ENDCOLOR_NEWLINE + (prevout > 0): "\n" fmt "%s" ENDCOLOR_NEWLINE + (prevout > 0), __VA_ARGS__)
+#define debug_maybe(want_info, fmt, ...)  fprintf(debout, want_info? fmt RTI_FMT ENDCOLOR_NEWLINE: fmt "%s" ENDCOLOR_NEWLINE, __VA_ARGS__)
+#pragma message(TODO(lock around fprintf?))
 //TODO: fix color spread, threading, allow turn on/off
 //#define debug_1ARG(msg)  prevout = printf("\n" BLUE_MSG "%s" msg ENDCOLOR_ATLINE_INFO + (prevout > 0), DebugScope::top(": "), rti())
 //#define debug_MORE_ARGS(msg, ...)  prevout = printf("\n" BLUE_MSG "%s" msg ENDCOLOR_ATLINE_INFO + (prevout > 0), DebugScope::top(": "), __VA_ARGS__, rti())
@@ -3276,47 +4605,54 @@ FILE* debout = stdout;
 //using elapsed_t = uint32_t; //unsigned int;
 #define timer_t  my_timer_t //kludge: avoid name conflict
 template <unsigned int UNITS = (int)1e3, typename ELAPSED_T = uint32_t, unsigned int MAX_SEC = (ELAPSED_T)-1 / UNITS> //max value before wrap; 
+//CAUTION: timer_t needs to be thread-safe; don't update shared/static members without protection
 class timer_t
 {
 public: //types
-    using timeval_t = struct timeval;
+//    using timeval_t = struct timeval;
     using elapsed_t = ELAPSED_T; //uint32_t; //unsigned int;
+    static const elapsed_t max = MAX_SEC;
 private: //members
-    timeval_t m_timeval;
+    elapsed_t m_timeval;
 public: //ctor/dtor
-    timer_t(): timer_t(now()) {}
-    timer_t(const timeval_t& other) { m_timeval.tv_sec = other.tv_sec; m_timeval.tv_usec = other.tv_usec; }
+    inline timer_t(): timer_t(now()) {}
+    inline timer_t(const elapsed_t& other): m_timeval(other) {} // { m_timeval.tv_sec = other.tv_sec; m_timeval.tv_usec = other.tv_usec; }
 public: //operators
-    operator const timeval_t&() const { return m_timeval; }
+    inline operator const elapsed_t&() const { return m_timeval; }
 public: //methods
-    elapsed_t elapsed() const { timeval_t no_update = m_timeval; return elapsed(no_update); }
-    elapsed_t elapsed() { return elapsed(m_timeval); }
+    inline elapsed_t elapsed() const { elapsed_t no_update = m_timeval; return elapsed(no_update); }
+//    inline elapsed_t elapsed() { return elapsed(m_timeval); }
 public: //static methods
-    static elapsed_t elapsed(timeval_t& update) //{ return elapsed<UNITS>(m_timeval); }
+    /*static*/ elapsed_t elapsed(elapsed_t& update) const //{ return elapsed<UNITS>(m_timeval); }
     {
 //        const bool want_update = !isConst(*this);
 //        static timeval_t epoch = now; //set epoch first time called
 //    if (init /*!started.tv_sec && !started.tv_usec && &started != &USE_EPOCH*/) { started = now; return 0; } //caller just wants to set start time, no diff
 //    timeval_t& since = (&started == /*NULL_OF(timeval_t)*/ &USE_EPOCH)? epoch: started; //compare to caller vs. global epoch
-        const timeval_t& current = now();
+//        const timeval_t& current = now();
+        elapsed_t current = now();
 //        diff -= (&started == /*NULL_OF(timeval_t)*/ &USE_EPOCH)? epoch: started; //compare to caller vs. global epoch
-        bool was_init = update.tv_sec || update.tv_usec;
-        timeval_t diff = was_init? current: update; //member-wise compare prev to current time
-        diff.tv_sec -= update.tv_sec;
-        diff.tv_usec -= update.tv_usec;
+//        bool was_init = update.tv_sec || update.tv_usec;
+//        timeval_t diff = was_init? current: update; //member-wise compare prev to current time
+        elapsed_t diff = update? current - update: 0;
+//        diff.tv_sec -= update.tv_sec;
+//        diff.tv_usec -= update.tv_usec;
+//        diff -= update;
         /*if (want_update)*/ update = current; //update compare basis for next time after diff
 //    CONSTDEF(MAX_SEC, (int)((elapsed_t)-1 / UNITS)); //max value before wrap
 //static int count = 0;
 //if (!count++) printf("elapsed<%'d>: max sec %'u, diff %'d sec + %'d usec %s\n", UNITS, MAX_SEC, diff.tv_sec, diff.tv_usec, SRCLINEF);
 //CAUTION: need to check for overflow *before* multiply (arm clamps to max uint32):
-        if (diff.tv_sec < 0 || diff.tv_sec >= MAX_SEC) fatal("%'d sec wrap @T+%'d sec; limit was %'u sec", UNITS, diff.tv_sec, MAX_SEC);
-        return diff.tv_sec * UNITS + diff.tv_usec / ((int)1e6 / UNITS);
+//        if (diff.tv_sec < 0 || diff.tv_sec >= MAX_SEC) fatal("%'d sec wrap @T+%'d sec; limit was %'u sec", UNITS, diff.tv_sec, MAX_SEC);
+//        return diff.tv_sec * UNITS + diff.tv_usec / ((int)1e6 / UNITS);
+        return diff;
     }
-    static timeval_t now()
+    static elapsed_t now()
     {
-        static timeval_t retval;
+        struct timeval time_parts;
         static struct timezone& tz = *NULL_OF(struct timezone); //relative times don't need this
-        if (gettimeofday(&retval, &tz)) fatal("get time of day failed");
+        if (gettimeofday(&time_parts, &tz)) fatal("get time of day failed");
+        elapsed_t retval = time_parts.tv_sec * UNITS + time_parts.tv_usec / ((int)1e6 / UNITS); //could wrap but shouldn't matter if taking time diff
         return retval;
     }
 //check if var is const:
@@ -3329,6 +4665,14 @@ private: //dummy deps for fatal()
     static int thrinx() { return -1; }
     static struct { elapsed_t elapsed() { return -1; }} epoch;
 };
+#define delta_init(...)  UPTO_2ARGS(__VA_ARGS__, delta_init_2ARGS, delta_init_1ARG) (__VA_ARGS__)
+#define delta_init_1ARG(epoch)  delta_init_2ARGS(epoch, now)
+#define delta_init_2ARGS(epoch, now)  decltype(epoch)::elapsed_t now = epoch.elapsed(), chkpt = -now
+
+#define delta(...)  UPTO_2ARGS(__VA_ARGS__, delta_2ARGS, delta_1ARG) (__VA_ARGS__)
+#define delta_1ARG(epoch)  delta_2ARGS(epoch, now)
+#define delta_2ARGS(epoch, now)  chkpt + (now = epoch.elapsed()); chkpt = -now
+
 static const timer_t<(int)1e3> epoch; //set global start time (epoch), msec
 
 
@@ -3383,7 +4727,7 @@ int thrinx(/*const thrid_t&*/ /*std::thread::id*/ /*auto*/ thrid_t myid = thrid(
   }
 //    fprintf(stderr, "new thread[%d] id %d\n", retval, myid);
 //CAUTION: need to unlock before calling debug()
-    debug("new thread[%d] 0x%lx, pid %d", retval, myid, getpid()); //CAUTION: recursion into above section; okay if doesn't fall thru to here
+    debug("\n%s\nnew thread[%d] 0x%lx detected, pid %d", std::string(16, '.').c_str(), retval, myid, getpid()); //CAUTION: recursion into above section; okay if doesn't fall thru to here
     return retval;
 }
 
