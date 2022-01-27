@@ -14,7 +14,7 @@ const had_wker = require.cache[require.resolve("worker_threads")];
 //console.log(require.resolve("worker_threads"), !!require.cache[require.resolve("worker_threads")], srcline());
 const {isMainThread, threadId, workerData, parentPort, Worker: Worker_sv} = require('worker_threads');
 //console.log(require.resolve("worker_threads"), !!require.cache[require.resolve("worker_threads")], srcline());
-const {debug, whoami, trunc, isUN, isobj, elapsed, milli, u32, u32bytes, hex, fmt} = require("./incl/utils21");
+const {debug, srcline, whoami, trunc, isUN, isobj, elapsed, milli, u32, u32bytes, hex, fmt} = require("./incl/utils22");
 const addon = require('bindings')('yalp-addon');
 
 
