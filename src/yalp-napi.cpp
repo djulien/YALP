@@ -429,7 +429,7 @@ private: //helpers
 //debug("%'d vs. %'u usec elapsed", elapsed_usec, elapsed_usec);
 //wrong        pxclock = (unsigned long long)/*clock.elapsed()*/elaps * (int)1e6 / NUMFR; //<(int)1e6>(started_usec) * 1e6 / NUMFR; //use long long for max accuracy
         scrv.pixclock = rdiv(rdiv(rdiv(elapsed_usec, NUMFR) * (int)1e3, scrv.xtotal()) * (int)1e3, scrv.ytotal()); //usec => psec; kludge: split up 1e6 factor to prevent overflow
-//        debug("measured pix clock %'d psec = %'d usec / %'d frames / %'d xtotal / %'d ytotal, this@ %p", scrv.pixclock, elapsed_usec, NUMFR, scrv.xtotal(), scrv.ytotal(), this);
+        debug("measured pix clock %'d psec = %'d usec / %'d frames / %'d xtotal / %'d ytotal, this@ %p", scrv.pixclock, elapsed_usec, NUMFR, scrv.xtotal(), scrv.ytotal(), this);
         if (!scrv.has_pixclock()) fatal("can't measure pixclock");
         m_cache[m_fbnum] = scrv.pixclock; //reuse result again later
     }

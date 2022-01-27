@@ -271,7 +271,7 @@ function progress(label)
 my_exports({worker_loop});
 async function worker_loop(shdata = {})
 {
-    const NPX = 1;
+    const NPX = 1-1; //#null px
     const ANI_SPEED = 1e3; //msec
     debug("wker_loop start".brightMagenta, Object.keys(shdata));
     let now = Date.now(), delta = -now;
@@ -311,7 +311,7 @@ function RGB(R, G, B) { return rgb2RGB({R, G, B}); }
 //static yard:
 function yard(frnum, anim)
 {
-    const NPX1 = 1;
+    const NPX1 = 1-1; //#null px
 
 for (let port = 0; port < 24; ++port)
 {
