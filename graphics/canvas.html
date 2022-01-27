@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Canvas tutorial</title>
+    <script>
+//https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Drawing_text
+//https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Basic_usage
+function draw()
+{
+  var canvas = document.getElementById('target');
+  var ctx = canvas.getContext? ctx = canvas.getContext('2d'): null;
+
+  document.getElementById("w").innerText = canvas.width;
+  document.getElementById("h").innerText = canvas.height;
+  
+//   ctx.translate(0.5, 0.5) ;//avoid anti-aliasing when drawing lines/points; https://stackoverflow.com/questions/195262/can-i-turn-off-//antialiasing-on-an-html-canvas-element
+//doesn't help: ctx.imageSmoothingEnabled= false;
+   
+//         ctx.fillStyle = 'rgb(200, 0, 0)';
+//        ctx.fillRect(10, 10, 50, 50);
+
+ 
+//if (false)
+// {
+// ctx.fillStyle = 'rgb(200, 0, 0)';
+//for (let y = 0; y < 24; ++y)
+//  if (!(y & 1)) ctx.fillRect(y & 1, y, 1, 1);
+//
+// ctx.fillStyle = 'rgb(0, 200, 0)';
+//for (let x = 0; x < 68; ++x)
+//  if (!(x & 1)) ctx.fillRect(x, x & 1, 1, 1);
+//}
+
+ //ctx.fillStyle = 'rgb(0, 0, 200)';
+//ctx.fillRect(67, 23, 1, 1);
+
+// ctx.fillStyle = 'rgb(0, 200, 200)';
+//ctx.fillRect(0, 23, 1, 1);
+
+  //ctx.italic = true;
+  ctx.font = 'italic 14px sans-serif';
+//  ctx.fillStyle = 'rgb(0, 0, 0)';
+//  ctx.fillStyle = 'rgb(192, 0, 0)';
+//  ctx.fillText('Merry', 4-1, 12-1);
+//  ctx.fillStyle = 'rgb(0, 128, 0)';
+//  ctx.fillText('Christmas!', 1-2, 24-1);
+[
+//  {x: 4-1, y: 12-1, txt: "Merry", fg: "rgb(192,0,0)"},
+//  {x: 1-2, y: 24-1, txt: "Christmas!", fg: "rgb(0,128,0)"},
+
+//  {x: 4, y: 12-1, txt: "Happy", fg: "rgb(0,192,192)"},
+//  {x: 0, y: 24-1, txt: "New", fg: "rgb(0,0,255)"},
+//  {x: 32, y: 24-1, txt: "Year!", fg: "rgb(192,0,192)"},
+
+  {x: 4, y: 12-1, txt: "Welcome", fg: "rgb(0,192,192)"},
+  {x: 22, y: 24-1, txt: "2022!", fg: "rgb(192,0,192)"},
+].forEach(chunk =>
+  {
+    if (chunk.fg) ctx.fillStyle = chunk.fg;
+    if (chunk.txt) ctx.fillText(chunk.txt, chunk.x, chunk.y);
+  });
+}
+    </script>
+    <style>
+    body { background-color: #cccccc; }
+      canvas
+      {
+      	xleft: 608px; xtop: 248px; /* make it easier to find when zoomed in GIMP */
+      	xposition: absolute;
+      	background-color: #ffffff;
+      	xborder: none;
+      	 border: 1px dashed black;
+        font-smooth: never;
+        -webkit-font-smoothing : none;
+}
+      }
+    </style>
+  </head>
+  <body onload="draw();">
+    <div id="desc">
+<span id="w">0</span> x <span id="h">0</span> raster image:
+    </div>
+    <canvas id="target" width="66" height="24"></canvas>
+    <div id="instr">
+    <p/>
+    usage:
+    <ol>
+    <li>run, take screen shot</li>
+    <li>paste into GIMP as *new image*</li>
+    <li>put cursor over text, zoom +8</li>
+    <li>Colors -> posterize 3 or 4</li>
+    <li>crop, export xpm</li>
+    </ol>
+    </div>
+  </body>
+</html>

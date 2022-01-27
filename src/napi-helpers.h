@@ -194,13 +194,27 @@ class NapiBufInfo
 public:
     void* data;
     size_t bytelen;
+//hold ref for caller to prevent garbage collect:
+//TODO: use template for this
+    Napi::Reference<Napi::TypedArrayOf<uint32_t>> taryref; //= Napi::Reference<Napi::Buffer<uint_fast8_t>>::New(napiBuf0, 1);
+    Napi::Reference<Napi::ArrayBuffer> arybufref; //= Napi::Reference<Napi::Buffer<uint_fast8_t>>::New(napiBuf0, 1);
+    Napi::Reference<Napi::Buffer<uint8_t>> bufref; //= Napi::Reference<Napi::Buffer<uint_fast8_t>>::New(napiBuf0, 1);
 public: //ctors/dtors:
     NapiBufInfo(): data(0), bytelen(0) {}
 //    NapiBufInfo(void* ptr, size_t buflen): data(ptr), bytelen(buflen) {}
-    NapiBufInfo(Napi::TypedArrayOf<uint32_t>/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
-    NapiBufInfo(Napi::ArrayBuffer/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
-    NapiBufInfo(Napi::Buffer<uint8_t>/*&*/ buf): data(buf.Data()), bytelen(buf.ByteLength()) {}
-    NapiBufInfo(Napi::Value/*&*/ buf): NapiBufInfo() //data(0), bytelen(0)
+    NapiBufInfo(Napi::TypedArrayOf<uint32_t>/*&*/ buf, bool want_ref = false): data(buf.Data()), bytelen(buf.ByteLength())
+    {
+        if (want_ref) taryref.Reset(buf, 1); //= Napi::Reference<TypedArrayOf<uint32_t>>::New(buf, 1); //set ref count to 1
+    }
+    NapiBufInfo(Napi::ArrayBuffer/*&*/ buf, bool want_ref = false): data(buf.Data()), bytelen(buf.ByteLength())
+    {
+        if (want_ref) arybufref.Reset(buf, 1); //= Napi::Reference<ArrayBuffer>::New(buf, 1); //set ref count to 1
+    }
+    NapiBufInfo(Napi::Buffer<uint8_t>/*&*/ buf, bool want_ref = false): data(buf.Data()), bytelen(buf.ByteLength())
+    {
+        if (want_ref) bufref.Reset(buf, 1); //= Napi::Reference<Buffer<uint8_t>>::New(buf, 1); //set ref count to 1
+    }
+    NapiBufInfo(Napi::Value/*&*/ buf, bool want_ref = false): NapiBufInfo() //data(0), bytelen(0)
     {
         if (buf.IsUndefined()) return;
         if (buf.IsTypedArray()) new(this) NapiBufInfo(buf.As<Napi::TypedArrayOf<uint32_t>>());
@@ -208,7 +222,12 @@ public: //ctors/dtors:
         else if (buf.IsBuffer()) new(this) NapiBufInfo(buf.As<Napi::Buffer<uint8_t>>());
         else err_napi(buf.Env(), "unhandled buf type: %s", NapiType(buf));
     }
-    ~NapiBufInfo() {}
+    ~NapiBufInfo()
+    {
+        if (!taryref.IsEmpty()) { taryref.Unref(); taryref.Reset(); }
+        if (!arybufref.IsEmpty()) { arybufref.Unref(); arybufref.Reset(); }
+        if (!bufref.IsEmpty()) { bufref.Unref(); bufref.Reset(); }
+    }
 public: //helpers
     static bool IsOK(Napi::Value val) { return val.IsTypedArray() || val.IsArrayBuffer() || val.IsBuffer(); }
 };

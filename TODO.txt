@@ -1,2 +1,0 @@
-demos
-- RPi: fresh install

@@ -40,9 +40,10 @@ const {isMainThread, threadId, workerData, Worker_bk, parentPort} = require('wor
 //console.log(Worker); //, srcline());
 //elapsed.started = isMainThread? Date.now(): workerData.epoch; //use same time base for all threads
 //console.log("ex-here2", JSON.stringify(workerData), whoami(), srcline());
-//const {debug, /*nodes1D, nodes2D,*/ UNIV_LEN, NUM_PORTS, NUM_WKERS, frtime_usec} = require("./index.js")
+//const {debug, /*pixels1D, pixels2D,*/ UNIV_LEN, NUM_PORTS, NUM_WKERS, frtime_usec} = require("./index.js")
 //    .custom({opts, main, worker}); //startup, render, quit});
-const /*addon*/{MAX_PORTS, UNIV_LEN, frtime_usec, FPS, /*FB,*/ brlimit, stats, statsdir, /*'FB.abkgloop': abkgloop,*/ fb, debug, srcline, elapsed, isUN, Worker} = require("./index.js"); //.options({shmbuf()}); //require('bindings')('yalp-addon'); //.options({fbnum: 1}); //FB object
+const /*addon*/{MAX_PORTS, UNIV_LEN, UNIV_PADLEN, frtime_usec: frtime_usec_from_api, FPS, /*FB,*/ brlimit, stats, statsdir, /*'FB.abkgloop': abkgloop,*/ fb, addr, debug, srcline, elapsed, isUN, Worker} = require("./index.js"); //.options({shmbuf()}); //require('bindings')('yalp-addon'); //.options({fbnum: 1}); //FB object
+const frtime_usec = isMainThread? frtime_usec_from_api: workerData.frtime_usec; //kludge: need to make timing calculations consistent
 const NUM_WKERS = require("os").cpus().length; //1 thread per core
 //console.log("ex-here3", whoami(), srcline());
 //debug("enter".brightMagenta, {MAX_PORTS, UNIV_LEN, frtime_usec, FPS, NUM_WKERS}); //, workerData});
@@ -56,7 +57,7 @@ const cfg =
 {
 //    num_wkers: require("os").cpus().length, //1 thread per core
 //    brlimit: 3 * 256 * 0.5, //50%
-//    univlen: layout.nodes,
+//    univlen: layout.pixels,
 };
 //debug({cfg});
 
@@ -69,11 +70,11 @@ const cfg =
 
 //cre one dummy model per every-third port:
 //const models = ary(NUM_PORTS); //list of port#s
-const models = ary(MAX_PORTS / 3, inx =>
+const models = ary(MAX_PORTS, inx => // / 2, inx => // / 3, inx =>
 ({
 //TBD
-    port: 3 * inx,
-    get num_nodes() { return (this.port || 1) * 100; }, //400, //varied by port
+    port: inx, //* 3,
+    get num_pixels() { return (this.port || 1) * 100; }, //400, //varied by port
     brlimit: 3 * 256 * [1/2, 5/6, 1/10][inx % 3],
 }));
 //debug({models});
@@ -93,12 +94,14 @@ const [NUM_PORTS, PORT_MASK] = [numkeys(layout), Object.keys(layout).reduce((bit
 const seq =
 {
 //TBD
-    duration: 2500, //msec; == 50 fr @20 FPS
-    render_time: 4000, //how long it takes wker threads to render all frames in this seq; comment out if < duration (no work-ahead needed); set to 2x duration to pre-render entire seq in memory
+//duration controls bkg loop + render wkers
+//render_time gives wkers a head-start
+    duration: /*3.5*60e3 +*/3*150*51+ 2500, //msec; == 50 fr @20 FPS
+    get render_time() { return this.duration + 100; }, //: /*3.5*60e3 +*/ 4000, //how long it takes wker threads to render all frames in this seq; comment out if < duration (no work-ahead needed); set to 2x duration to pre-render entire seq in memory
 };
 //debug({seq});
-const [NUMFR, WKAHEAD] = [Math.ceil(seq.duration * 1e3 / frtime_usec), Math.ceil(Math.max(isUN(seq.render_time, 0) - seq.duration, 0) * 1e3 / frtime_usec)]; //more accurate than FPS
-debug("enter".brightMagenta, {MAX_PORTS, NUM_PORTS, PORT_MASK: hex(PORT_MASK), UNIV_LEN, padded: u32inx(portbytes(1)), FPS, duration: milli(seq.duration), playback_delay: milli(isUN(seq.render_time, 0) - seq.duration), frtime_usec, NUMFR, WKAHEAD, /*full_buf: NUMFR <= WKAHEAD, circ_buf: NUMFR > WKAHEAD,*/ NUM_WKERS}); //, workerData});
+const NUMFR = Math.ceil(seq.duration * 1e3 / frtime_usec), WKAHEAD = Math.max(Math.ceil((seq.render_time || 0) * 1e3 / frtime_usec) - NUMFR, 0); //more accurate than FPS
+debug("enter".brightMagenta, {MAX_PORTS, NUM_PORTS, PORT_MASK: hex(PORT_MASK), UNIV_LEN, padded: u32inx(portbytes(1)), frtime_usec, FPS, duration: milli(seq.duration), NUMFR, playback_delay: milli(Math.max(seq.render_time || 0) - seq.duration, 0), WKAHEAD, /*full_buf: NUMFR <= WKAHEAD, circ_buf: NUMFR > WKAHEAD,*/ NUM_WKERS}); //, workerData});
 //  wkers             bkgloop
 //  0..delay-1        hold
 //  delay..dur-delay  0..dur
@@ -112,29 +115,36 @@ debug("enter".brightMagenta, {MAX_PORTS, NUM_PORTS, PORT_MASK: hex(PORT_MASK), U
 
 //debug(workerData);
 //frame buffer fifo:
+//frifo has 1 frbuf for each wkahead + 1 working frbuf for render (bkg loop !allowed to use last one)
+//each frbuf = #ports * univlen (padded for L2 cache)
 //uses shared memory to avoid serialization overhead between threads
 //
-//function port_shmofs(port) { return port * L2pad(u32len(UNIV_LEN)); } //byte ofs nodebuf for port
-//function frbuf_shmofs(frbuf) { return frbuf * port_shmofs(NUM_PORTS); } //byte ofs nodes for frame
-function portbytes(port) { return port * L2pad(u32bytes(UNIV_LEN)); } //padded to reduce cache contention between threads
-const frbufs = isMainThread? new SharedArrayBuffer(portbytes((WKAHEAD + 1) * NUM_PORTS)): workerData.frbufs;
+//function port_shmofs(port) { return port * L2pad(u32len(UNIV_LEN)); } //byte ofs pixelbuf for port
+//function frbuf_shmofs(frbuf) { return frbuf * port_shmofs(NUM_PORTS); } //byte ofs pixels for frame
+const FIFOLEN = NUMFR; //wrong: WKAHEAD;
+function portbytes(port) { return port * u32bytes(UNIV_PADLEN); } //L2pad(u32bytes(UNIV_LEN)); } //padded to reduce cache contention between threads
+const frbufs = isMainThread? new SharedArrayBuffer(portbytes((FIFOLEN + 1) * NUM_PORTS)): workerData.frbufs;
 //const frifo = ary(WKAHEAD + 1, frbuf => new Uint32Array(frbufs, u32len(portofs32(frbuf * NUMPORTS)), portofs32(NUM_PORTS))));
-const frifo = new Uint32Array(frbufs, 0, u32inx(portbytes(WKAHEAD * NUM_PORTS))); //each frame buf consists of NUM_PORTS port bufs, each port buf consists of UNIV_LEN (padded) u32 values; exclude working copy @end
-debug("frifo", {bytes: frifo.buffer.byteLength, len32: frifo.length, portbufs: frifo.byteLength / portbytes(1), frbufs: frifo.byteLength / portbytes(NUM_PORTS)});
+const frifo = new Uint32Array(frbufs); //, 0, u32inx(portbytes(Math.max(WKAHEAD, 1) * NUM_PORTS))); //each frame buf consists of NUM_PORTS port bufs, each port buf consists of UNIV_LEN (padded) u32 values; exclude working copy @end
+debug("frifo", {bytes: frifo.byteLength, len32: frifo.length, portbufs: frifo.byteLength / portbytes(1), frbufs: frifo.byteLength / portbytes(NUM_PORTS), wkbuf_ofs: u32inx(portbytes(FIFOLEN * NUM_PORTS)), addr: hex(fb.addr(frifo))});
 
-//last frbuf used as working copy for node rendering:
+//last frbuf used as working copy for pixel rendering:
 //working copy becomes last frbuf
-const nodes1D = new Uint32Array(frbufs, portbytes(WKAHEAD * NUM_PORTS)); //1 frbuf at end for rendering
-//debug(nodes1D.length, nodes1D.byteLength);
-const nodes2D = ary(NUM_PORTS, port => new Uint32Array(frbufs, portbytes(WKAHEAD * NUM_PORTS + port), UNIV_LEN)); //nodes1D.buffer, port 
-function enque(frnum, port)
+const pixels1D = new Uint32Array(frbufs, portbytes(FIFOLEN * NUM_PORTS)); //1 frbuf at end for rendering
+//debug(pixels1D.length, pixels1D.byteLength);
+const pixels2D = ary(NUM_PORTS, portinx => new Uint32Array(frbufs, portbytes(FIFOLEN * NUM_PORTS + portinx), UNIV_LEN)); //pixels1D.buffer, port 
+debug("here2");
+function enque(frnum, portinx)
 {
+    if (!FIFOLEN) return; // just pass working copy to bkg loop (not a good idea?)
 //    if (frnum >= NUMFR && NUMFR <= WKAHEAD) return; //leave last frame in work buf if !wrap
-    frifo.copyWithin(u32inx(portbytes(frnum % WKAHEAD * NUM_PORTS + port)), u32inx(portbytes(WKAHEAD * NUM_PORTS + port)), u32inx(portbytes(WKAHEAD * NUM_PORTS + port + 1))); //place rendered port nodes into frifo; wrap (circular fifo)
+    const [to, from_begin, from_end] = [frnum % FIFOLEN * NUM_PORTS + portinx, FIFOLEN * NUM_PORTS + portinx, FIFOLEN * NUM_PORTS + portinx + 1].map(ofs => u32inx(portbytes(ofs)));
+//    if (portinx < 2 || portinx > 6) debug("enque: copy from %s..%s (len %s) to %s", from_begin, from_end, from_end - from_begin, to); //use %s because debug converts args to str
+    frifo.copyWithin(to, from_begin, from_end); //place rendered port pixels into frifo; wrap (circular fifo)
 }
 
 //renderer thread data:
-//first part for job control/wker thread status, remainder for layout/model node rendering
+//first part for job control/wker thread status, remainder for layout/model pixel rendering
 //debug(isMainThread, workerData);
 //function wker_shmofs(wker) { return wker * L2pad(u32bytes(4)); } //byte ofs of wker shm data
 //const [wker_shmlen, port_shmlen] = [L2pad(u32len(4)), L2pad(u32len(UNIV_LEN))]; //pad to reduce memory conflicts between threads
@@ -161,21 +171,23 @@ const wkstate = ary_wrap(/*new Int32Array(stats.buffer)*/ stats, statsdir, "want
 ////const ONE = isLE? 0x100000000n: 1n;
 //debug("endian test", {isLE, isBE, first32: hex(fbstate.first32), last32: hex(fbstate.last32), NDN_HI: hex(NDN_HI), NDN_LO: hex(NDN_LO)});
 //if (isBE == isLE) throw `endian test broken: isLE/isBE ${isLE}/${isBE}, first/second ${hex(fbstate.first32)}/${hex(fbstate.last32)}, hi/lo ${hex(NDN_HI)}/${hex(NDN_LO)}`.brightRed;
-//pixel/node rendering:
-//const nodes1D = new Uint32Array(shmbuf, wker_shmofs(1)); //NUM_WKERS + 1)); //in-memory copy of layout/model nodes, starts after worker state
-//const nodes2D = ary(NUM_PORTS, port => new Uint32Array(shmbuf, wker_shmofs(/*NUM_WKERS +*/ 1) + port_shmofs(port), UNIV_LEN)); //nodes1D.buffer, port * L2pad(u32len(UNIV_LEN)), UNIV_LEN));
-//debug("nodes", {nodes1D_len: u32bytelen(nodes1D.byteLength), NUM_PORTS, UNIV_LEN, univlen_L2pad: port_shmofs(1)}); //L2pad(u32len(UNIV_LEN))});
+//pixel/pixel rendering:
+//const pixels1D = new Uint32Array(shmbuf, wker_shmofs(1)); //NUM_WKERS + 1)); //in-memory copy of layout/model pixels, starts after worker state
+//const pixels2D = ary(NUM_PORTS, port => new Uint32Array(shmbuf, wker_shmofs(/*NUM_WKERS +*/ 1) + port_shmofs(port), UNIV_LEN)); //pixels1D.buffer, port * L2pad(u32len(UNIV_LEN)), UNIV_LEN));
+//debug("pixels", {pixels1D_len: u32bytelen(pixels1D.byteLength), NUM_PORTS, UNIV_LEN, univlen_L2pad: port_shmofs(1)}); //L2pad(u32len(UNIV_LEN))});
 
-nodes1D.fill = function(val = 0) { for (let i = 0; i < this.length; ++i) this[i] = val /*isUN(val, 0)*/; return this; }
-nodes1D.dump = function()
+//pixels1D.fill = function(val = 0) { for (let i = 0; i < this.length; ++i) this[i] = val /*isUN(val, 0)*/; return this; }
+frifo.dump = pixels1D.dump = function(label)
 {
-//    const num_nodes = u32bytelen(this.byteLength);
-    for (let ofs = 0, previous = ""; ofs < this.length/*num_nodes*/; ofs += 16)
+//    const num_pixels = u32bytelen(this.byteLength);
+    debug(label || "", `dump 0..${this.length}`, srcline(+1));
+    for (let ofs = 0, previous = ""; ofs < this.length/*num_pixels*/; ofs += 16)
     {
-        const next = this.slice(ofs, ofs + 16).map(val => hex(val));
-        if (!ofs || previous != next.join(" ")) debug(`nodes[${commas(ofs)}/${this.length}]:`, ...next); 
+        const next = Array.from(this.slice(ofs, ofs + 16), val => hex(val)); //kludge: need to copy slice to regular array in order to keep str fmt
+        if (!ofs || previous != next.join(" ")) debug(`pixels[${commas(ofs)}/${this.length}] @${hex(fb.addr(pixels1D) + u32bytes(ofs))}:`, ...next); 
         previous = (ofs < this.length - 16)? next.join(" "): ""; //force last row to show
     }
+    debug(label || "", "dumped", srcline(+1));
 }
 if (false) //dev test
 {
@@ -185,13 +197,17 @@ if (false) //dev test
 //    fb.pxbuf[2] = 0x00ff00ff;
 //    fb.pxbuf[3] = 0x0000ffff;
 //    console.log({px0: hex(fb.pxbuf[0]), px1: hex(fb.pxbuf[1]), px2: hex(fb.pxbuf[2]), px3: hex(fb.pxbuf[3])});
+    debug("pixels1D@", hex(fb.addr(pixels1D)), "pixels2D@", hex(fb.addr(pixels2D[0])));
     const TEST1 = 0x111, TEST2 = 0x2345;
-    nodes1D[1] = TEST1;
-//console.log(hex(nodes2D[0][1]), srcline());
-    if (nodes2D[0][1] != TEST1) throw ("test1 failed: " + hex(nodes2D[0][1]) + srcline()).brightRed;
-    nodes2D[1][2] = TEST2;
-//console.log(hex(nodes1D[u32bytelen(L2pad(u32len(UNIV_LEN))) + 2]), srcline());
-    if (nodes1D[u32bytelen(L2pad(u32len(UNIV_LEN))) + 2] != TEST2) throw ("test2 failed: " + hex(nodes1D[u32bytelen(L2pad(u32len(UNIV_LEN))) + 2]) + srcline()).brightRed;
+    pixels1D[1] = TEST1;
+//console.log(hex(pixels2D[0][1]), srcline());
+    if (pixels2D[0][1] != TEST1) throw ("test1 failed: " + hex(pixels2D[0][1]) + srcline()).brightRed;
+//    else debug("test1 pass".brightGreen);
+    pixels2D[1][2] = TEST2;
+//console.log(hex(pixels1D[u32bytelen(L2pad(u32len(UNIV_LEN))) + 2]), srcline());
+    if (pixels1D[u32inx(portbytes(1)) + 2] != TEST2) throw ("test2 failed: " + hex(pixels1D[u32inx(portbytes(1)) + 2]) + srcline()).brightRed;
+//    else debug("test2 pass".brightGreen);
+    pixels1D.dump();
 }
 
 
@@ -208,7 +224,7 @@ async function main()
     debug("main start".brightMagenta, fb.constructor.name);
 //    const fb = new FB({rdwr: true, brlimit: 3 * 256 * 0.5}); //{fbnum: +fb.fbdev.last, xres: fb.xres, xblank: fb.xtotal - fb.xres, yres: fb.yres, linelen: fb.line_length, ppb: fb.ws_ppb});
 //    await startup();
-    nodes1D.fill(0); //start with all nodes off
+    pixels1D.fill(0); //start with all pixels off
     Object.entries(layout).forEach(([port, models]) => brlimit[port] = models[0].brlimit); //{ debug(port, JSON.stringify(models), (models[0] || {}).brlimit); brlimit[port] = models[0].brlimit; });
 //    debug(JSON.stringify(brlimit).brightRed);
 //    wkstate.frtime = wkstate.numrd = wkstate.total = wkstate.count = wkstate.wait = wkstate.busy = 0; //clear stats + job control
@@ -240,22 +256,24 @@ async function main()
 //    if (fbstate.frtime || fbstate.numrd != 1) throw `bad-2 fbstate/endian: ${hex(fbstate.frtime)} ${hex(fbstate.numrd)}`.brightRed;
 //    fbstate.numrd = 0;
 
-    (cre_wker.all || (cre_wker.all = [])).push(fb.abkgloop(frifo, seq.duration, PORT_MASK)); //also wait for bkg loop to finish
-    for (let w = 0; w < -3+NUM_WKERS; ++w) await cre_wker(worker, {frbufs}); //, wkstats}); //{shmbuf}); //, NUM_WKERS); //CAUTION: wkers will start (pre-)rendering immediately; delay bkg loop until enough frbufs are queued
+    const frbufs_excl_wkbuf = new Uint32Array(frbufs, 0, u32inx(portbytes(Math.max(FIFOLEN, 1) * NUM_PORTS)));
+    (cre_wker.all || (cre_wker.all = [])).push(fb.abkgloop(frbufs_excl_wkbuf, seq.duration, PORT_MASK)); //also wait for bkg loop to finish
+    for (let w = 0; w < -3+NUM_WKERS; ++w) /*await*/ cre_wker(worker, {frbufs, frtime_usec}); //, wkstats}); //{shmbuf}); //, NUM_WKERS); //CAUTION: wkers will start (pre-)rendering immediately; delay bkg loop until enough frbufs are queued
 //    for (let frnum = 0;;) //NOTE: frtime is seq time, *not* current time
 //    {
 //        await Promise.all(models.map(model => render_model(frnum * frtime_usec / 1e6, model)).concat(fb.await4sync(pxbuf)));
 //        const [more, err] = await Promise.all([render(frnum * frtime_usec / 1e6), await4sync(pxbuf)]);
 //        if (!more || err < 0) break; //eof
-//        pivot(nodes1D, pxbuf);
+//        pivot(pixels1D, pxbuf);
 //    }
     const started = Date.now();
-    const monitor = setInterval(progress, 1e3);
+    const monitor = setInterval(progress, 1e3); progress("starting");
 //    const result = fbstate.numfr_sleep(0); //sleep until first frame rendered (to give wkers head start); CAUTION: blocks main thread?
-//    await false? bkgloop_sim(): fb.abkgloop(fbstate, nodes1D, seq.duration); //pivot + sync in bkg until eof
+//    await false? bkgloop_sim(): fb.abkgloop(fbstate, pixels1D, seq.duration); //pivot + sync in bkg until eof
 //    await quit();
-    debug("wait for %d wkers + bkg loop to finish", cre_wker.all.length);
+    debug("wait for %s wkers + bkg loop to finish", cre_wker.all.length); //CAUTION: debug() changes arg to str
     await Promise.all(cre_wker.all || []); // || [work()]); //wait for wkers to finish; TODO: run on fg if !wkers?
+    debug("wkers done");
     clearInterval(monitor);
     progress("main done".brightMagenta);
 //    debug("wker done".brightMagenta, {total_sec: milli(mystate.total), num_sleep: mystate.sleep, num_render: mystate.count, wait_sec: milli(mystate.wait), avg_wait: milli(mystate.wait / mystate.count), busy_sec: milli(mystate.busy), avg_busy: milli(mystate.busy / mystate.count)}); //{stats: mystate});
@@ -289,18 +307,26 @@ async function main()
 //        debug(label || "progress", {frtime: milli(frtime), duration: milli(seq.duration), eof: is_eof(frtime), numrd, is_rendering: is_rendering(numrd), NUM_PORTS, numwr, is_ready: is_ready(numwr), numfr, elapsed: milli(elapsed(started)), fbstate: fbstate.slice(0, 5)});
 //        debug_wkstate(label || "progress");
 //        if (fbstate.numfr && !bkgloop_sim.active) //bkgloop_sim(); //wait until first frame rendered (to give wkers head start)
-//            fb.abkgloop(fbstate, nodes1D, seq.duration); //pivot + sync in bkg until eof
+//            fb.abkgloop(fbstate, pixels1D, seq.duration); //pivot + sync in bkg until eof
 //delay_ready, delay_total, delay_count, loop_total, loop_count, loop_idle, loop_pivot, loop_sync, render_total, render_count, render_idle, render_busy, first32, last32' 
         const {delay_count, delay_total, delay_ready, first32, last32, //} = wkstate;
             render_count, render_total, render_idle, render_busy, //} = wkstate;
-            loop_count, loop_total, loop_idle, loop_pivot, loop_sync} = wkstate;
-        debug(label || "progress", "delay", {frames: delay_count, time_avg: milli(delay_total / delay_count), time_total: milli(delay_total)},
-              /*"wk-ready?", wkstate.is_ready(), "wk-eof?", wkstate.is_eof(), "wkstate",*/ 
-              "wkers", {frames: render_count, render_frtime: milli(render_count * frtime_usec / 1e3), time_avg: milli(render_total / render_count), time_total: milli(render_total), idle_avg: milli(render_idle / render_count), idle_total: milli(render_idle), busy_avg: milli(render_busy / render_count), busy_total: milli(render_busy)},
-              "bkg loop", {frames: loop_count, sync_frtime: milli(loop_count * frtime_usec / 1e3), time_avg: milli(loop_total / loop_count), time_total: milli(loop_total), idle_avg: milli(loop_idle / loop_count), idle_total: milli(loop_idle), pivot_avg: milli(loop_pivot / loop_count), pivot_total: milli(loop_pivot), sync_avg: milli(loop_sync / loop_count), sync_total: milli(loop_sync)},
-              "endian", {first32: hex(first32), last32: hex(last32)}, (first32 == 0x1234567)? "BE": "LE",
-              "raw", wkstate.slice());
+            loop_count, loop_total, loop_idle, loop_pivot, loop_sync, loop_update} = wkstate;
+//        debug(label || "progress", "delay", {frames: delay_count, time_avg: milli(delay_total / delay_count), time_total: milli(delay_total)},
+//              /*"wk-ready?", wkstate.is_ready(), "wk-eof?", wkstate.is_eof(), "wkstate",*/ 
+//              "wkers", {frames: render_count, render_frtime: milli(render_count * frtime_usec / 1e3), time_avg: milli(render_total / render_count), time_total: milli(render_total), idle_avg: milli(render_idle / render_count), idle_total: milli(render_idle), busy_avg: milli(render_busy / render_count), busy_total: milli(render_busy)},
+//              "bkg loop", {frames: loop_count, sync_frtime: milli(loop_count * frtime_usec / 1e3), time_avg: milli(loop_total / loop_count), time_total: milli(loop_total), idle_avg: milli(loop_idle / loop_count), idle_total: milli(loop_idle), pivot_avg: milli(loop_pivot / loop_count), pivot_total: milli(loop_pivot), sync_avg: milli(loop_sync / loop_count), sync_total: milli(loop_sync)},
+//              "endian", {first32: hex(first32), last32: hex(last32)}, (first32 == 0x1234567)? "BE": "LE",
+//              "raw", wkstate.slice());
+//        pixels1D.dump();
+        debug(label || "progress", {delay: `frames: ${fmt(delay_count)}, time avg/total: ${milli(delay_total / delay_count)} ${milli(delay_total)}`,
+              wkers: `frames: ${fmt(render_count)}, frtime: ${milli(render_count * frtime_usec / 1e3)}, time/total: ${milli(render_total / render_count)} ${milli(render_total)}, idle avg/total: ${milli(render_idle / render_count)} ${milli(render_idle)}, busy avg/total: ${milli(render_busy / render_count)} ${milli(render_busy)}`,
+              bkgloop: `frames: ${fmt(loop_count)}, frtime: ${milli(loop_count * frtime_usec / 1e3)}, time avg/total: ${milli(loop_total / loop_count)} ${milli(loop_total)}, idle avg/total: ${milli(loop_idle / loop_count)} ${milli(loop_idle)}, pivot avg/total: ${milli(loop_pivot / loop_count)} ${milli(loop_pivot)}, sync avg/total: ${milli(loop_sync / loop_count)} ${milli(loop_sync)}, upd avg/total: ${milli(loop_update / loop_count)} ${milli(loop_update)}`,
+              endian: `first32: ${hex(first32)}, last32: ${hex(last32)}, ${(first32 == 0x1234567)? "BE": "LE"}`,
+              raw: wkstate.slice().join(", ")});
 //"delay_ready, delay_total, delay_count, loop_total, loop_count, loop_idle, loop_pivot, loop_sync, render_total, render_count, render_idle, render_busy, first32, last32";
+//"delay_ready, delay_total, delay_count, loop_total, loop_count, loop_idle, loop_pivot, loop_sync, render_total, render_count, render_idle, render_busy, first32, last32";
+        function fmt(n) { return n.toLocaleString(); } //add commas
     }
 }
 
@@ -321,6 +347,7 @@ async function worker(shdata = {})
 //    const isBE = (u32(fbstate.first32) == NDN_HI); //&& u32(fbstate.last32) == NDN_LO); //RPi seems to be big endian
     
 //    srcline.bypass = "@__:_";
+    let rendered = 0;
     for (;;)
     {
 //        debug("wker loop");
@@ -340,7 +367,7 @@ async function worker(shdata = {})
 //        debug("wker fbstate", {eof: is_eof(frtime_pre), rendering: is_rendering(numrd_pre), isBE, frtime_pre, numrd_pre, frtime_upd, numrd_upd, frtime_sec: milli(frtime_pre), elapsed: milli(elapsed()), fbstate: fbstate.slice(0, 5)});
 //        if (numrd_upd != numrd_pre + 1) throw "endian update error".brightRed;
 //        const [frtime_pre, numrd_pre] = [wkstate.frtime, wkstate.numrd_bump()];
-        const job = wkstate.render_count_bump(), [frnum, port] = [Math.floor(job / NUM_PORTS), job % NUM_PORTS];
+        const job = wkstate.render_count_bump(), [frnum, portinx] = [Math.floor(job / NUM_PORTS), job % NUM_PORTS];
         const frtime = Math.round(frnum * frtime_usec / 1e3); //multiply frtime each time to avoid cumulative addition rounding errors; //TODO: round or floor?  do we want closest or latest?
 //        if (!is_ready(numrd_pre)) //more work to do
 //        if (frtime > seq.duration) break; //eof
@@ -352,14 +379,15 @@ async function worker(shdata = {})
         now = Date.now();
         wkstate.render_idle_bump(delta + now); delta = -now;
 //            const frtime = fb.numfr * 50; //shim 20 fps
-        debug("wker render", {frnum, frtime, port, bkg_wake: job == WKAHEAD * NUM_PORTS, eof: frtime >= seq.duration});
-        render_models(frtime, frnum, port); //render all models for this port
-        enque(frnum, port);
+//        debug("wker render", {frnum, frtime, port, bkg_wake: job == WKAHEAD * NUM_PORTS, eof: frtime >= seq.duration});
+        ++rendered;
+        render_models(frtime, frnum, portinx); //render all models for this port
+        enque(frnum, portinx);
         if (job == WKAHEAD * NUM_PORTS) wkstate.delay_ready = true; //parentPort.postMessage({pre_rendered: true}); //work-ahead queue is fully rendered; okay to start bkg loop
 //debug("fbstate", wkstate[0].slice(0, 5)); //[frtime, numrd, FRTIME_NUMRD, numwr, numfr, test]
 //            if (port == NUM_PORTS - 1)
 //            {
-//                const pclen = fb.pivot_and_compress(nodes2D, pcbuf);
+//                const pclen = fb.pivot_and_compress(pixels2D, pcbuf);
 //                const next_frtime = ++wkstate.numfr * fb.frtime_usec;
 //                frifo.push({frtime: next_frtime, buf: pcbuf.slice(0, pclen)}); //uncompressed ~= 4 * 400 * 300 ~= 1/2 MB /frame, 5 min == 300 sec == 6K frames ~= 3 GB
 //                fbstate.FRTIME_NUMRD = BigInt(next_frtime); //RPi is little endian; u64join([next_frtime, 0], isLE); //ignore excess, allow render threads to resume; atomic upd frtime + numrd
@@ -383,7 +411,11 @@ async function worker(shdata = {})
 //    mystate.wait += chkpt + now;
 //    mystate.total += now;
     wkstate.render_total_bump(now);
-    debug("wker done".brightMagenta); //, {total_sec: milli(mystate.total), num_sleep: mystate.sleep, num_render: mystate.count, wait_sec: milli(mystate.wait), avg_wait: milli(mystate.wait / mystate.count), busy_sec: milli(mystate.busy), avg_busy: milli(mystate.busy / mystate.count)}); //{stats: mystate});
+    debug("wker done, %'d frames rendered".brightMagenta, rendered); //, {total_sec: milli(mystate.total), num_sleep: mystate.sleep, num_render: mystate.count, wait_sec: milli(mystate.wait), avg_wait: milli(mystate.wait / mystate.count), busy_sec: milli(mystate.busy), avg_busy: milli(mystate.busy / mystate.count)}); //{stats: mystate});
+//    frifo.dump("all");
+//    debug("here1");
+//    await asleep(10e3); //kludge: postpone seg fault
+//    debug("here2");
 }
 
 
@@ -407,13 +439,13 @@ function cre_wker(entpt, shdata = {})
 //        const wkdata = Object.assign({/*epoch: elapsed.epoch,*/ entpt: startup[1]}, /*wker,shmbuf*/ shdata); //copy, don't alter caller's shdata obj
 //        debug("cre wker", typeof entpt, Object.keys(wkdata));
 //console.log("wk-here2", JSON.stringify(wkdata), whoami(), srcline());
-        const wker = new Worker(startup[0], {workerData: Object.assign({entpt: startup[1]}, shdata)}); //__dirname + '/worker-node.js');
+        const wker = new Worker(startup[0], {workerData: Object.assign({entpt: startup[1]}, shdata)}); //__dirname + '/worker-pixel.js');
 //         {workerData: {/*wker,*/ shmbuf, epoch: elapsed.started}})
         debug("created wker", wker.threadId, startup[0], startup[1]);
         wker
             .on("message", msg => { /*if (msg.pre_rendered)*/ console.log(msg.italic); }) //resolve_startup(); }) //debug(`msg from wker ${wker.threadId}:`, msg))
-            .on("error", err => { debug(`wker ${wker.threadId} error:`.brightRed, err); reject_startup(); reject_quit(); })
-            .on("exit", code => { debug(`wker ${wker.threadId} exit`.brightGreen, code); resolve_quit(code); });
+            .on("error", err => { debug(`wker ${wker.threadId} error: ${err}`.brightRed.italic); reject_quit(); }) //reject_startup(); reject_quit(); })
+            .on("exit", code => { debug(`wker ${wker.threadId} exit ${code}`.brightGreen.italic); resolve_quit(code); });
 //        worker.postMessage(buffer); //send shm buf
 //        worker.unref();
     });
@@ -451,6 +483,27 @@ function Abits(color) { return color & 0xFF000000; } //cbyte(color, -24) //-Ashi
 //#define Gbits(color)  ((color) & 0x0000FF00) //cbyte(color, -8) //-Gshift)
 //#define Bbits(color)  ((color) & 0x000000FF) //cbyte(color, -0) //-Bshift)
 
+const PALETTE =
+{
+//dim (easier on eyes):
+    OFF: 0xFF000000,
+    RED: 0xFF030000,
+    GREEN: 0xFF000300,
+    BLUE: 0xFF000003,
+    YELLOW: 0xFF010100,
+    CYAN: 0xFF000101,
+    MAGENTA: 0xFF010001,
+    WHITE: 0xFF010101,
+//bright:
+    RED_FULL: 0xFFff0000,
+    GREEN_FULL: 0xFF00ff00,
+    BLUE_FULL: 0xFF0000ff,
+    YELLOW_FULL: 0xFFffff00,
+    CYAN_FULL: 0xFF00ffff,
+    MAGENTA_FULL: 0xFFff00ff,
+    WHITE_FULL: 0xFFffffff,
+};
+
 
 //render all models for a port:
 //can be single- or multi-threaded
@@ -469,17 +522,49 @@ function Abits(color) { return color & 0xFF000000; } //cbyte(color, -24) //-Ashi
 
 //render models:
 //render all models for a port (related models tend to be grouped by port)
-/*async*/ function render_models(frtime, frnum, port)
+//CAUTION: portinx != port# unless all ports in use (sparse ary)
+/*async*/ function render_models(frtime, frnum, portinx)
 {
-    const nodes = nodes2D[port];
+    const pixels = pixels2D[portinx]; //perf: avoid repeated ary refs
 //TBD
 //    const frnum = Math.round(frtime * 1e3 / frtime_usec); //Math.floor(frtime / 50); //TODO: round or floor?  do we want closest or latest?
 //    debug("render", {frnum, frtime: milli(frtime), port});
 //    await sleep(5e3);
-    nodes[port + frnum + 0] = 0;
-    nodes[port + frnum + 1] = 0x030000;
-    nodes[port + frnum + 2] = 0x000300;
-    nodes[port + frnum + 3] = 0x000003;
+//    pixels.fill(0x1000 + frnum * 16 + portinx); return; //if (frnum < 2) pixels1D.dump("fr#" + frnum + " portinx " + portinx); return;
+//    pixels.fill(0x010101 * (frnum % 16));
+//    for (let i = 0; i < pixels.length; ++i) pixels[i] = 0x010101 * (frnum % 16);
+//    if (pixels[0] != 0x010101 * (frnum % 16) || pixels.length != UNIV_LEN) { pixels1D.dump(); throw `didn't set frame ${frnum} pixel2D[${portinx},0] len ${pixels.length}`.brightRed; }
+//    if (frnum && !port) pixels1D.dump();
+//    pixels[1 + portinx + 0] = 0;
+//    pixels[1 + portinx + 1] = 0x030000; //R
+//    pixels[1 + portinx + 2] = 0x000300; //G
+//    pixels[1 + portinx + 3] = 0x000003; //B
+//    const color = [0x030000, 0x000300, 0x000003][Math.floor(portinx / 8)];
+//    pixels[1+16 + frnum] = color;
+//    pixels[64+1 + frnum + 0] = 0;
+//    pixels[64+1 + frnum + 1] = color
+//    pixels[64+1 + frnum + 2] = 0;
+//    pixels[64+1 + frnum + 3] = 0;
+//    pixels[frnum] = PALETTE.BLUE;
+//    pixels.fill(PALETTE.WHITE);
+//    pixels[frnum % 150] = [PALETTE.RED, PALETTE.GREEN, PALETTE.BLUE][Math.floor(frnum / 150) % 3];
+//    const px = zz(frnum, 20);
+//    pixels[1 + px] = PALETTE.RED;
+//    pixels[0 + px] = pixels[2 + px] = 0;
+//    pixels[150 - frnum % 150] = PALETTE.RED;
+    pixels[0] = 0; //nullpx
+    if (frnum < 241) pixels[frnum] = PALETTE.WHITE;
+    if (frnum == 300) pixels.fill(0);
+//    if (frnum < 100) return;
+//    pixels[2] = 0x020101;
+//    pixels[4] = 0x010201;
+//    pixels[6] = 0x010102;
+//    pixels[8] = 0x000101; //pixels[12] = 0x000202;
+//    pixels[9] = 0x010001; //pixels[14] = 0x020002;
+//    pixels[10] = 0x010100; //pixels[16] = 0x020200;
+//    pixels[18] = 0x010202;
+//    pixels[20] = 0x020102;
+//    pixels[22] = 0x020201;
 }
 
 
@@ -593,9 +678,14 @@ function isUN(thing, unval)
 }// end of imported
 
 
+//zig-zag:
+function zz(n, max) { const [cycle, ofs] = [Math.floor(n / max), n % max]; return (cycle & 1)? max - ofs - 1: ofs; }
 
 //show val to 3 dec places:
 function milli(n) { return (n / 1e3).toFixed(3); }
+
+//show number with commas:
+function commas(n) { return n.toLocaleString(); }
 
 //function whoami() { return "[" + ["main-", "thread-"][+!!threadId] + threadId + "]"; } //isUN(workerData)? "[main]": `wker[${workerData.wker}]`; } 
 function whoami() { return "$" + threadId + "MT".charAt(+!isMainThread); }
@@ -734,15 +824,15 @@ function x_u32len(bytelen) { return Math.floor(bytelen / Uint32Array.BYTES_PER_E
 function x_U32LEN(bytelen) { return Math.ceil(bytelen / Uint32Array.BYTES_PER_ELEMENT); } //round up
 
 //reduce memory contention between threads:
-function L2pad(bytelen)
-{
-    const L2CACHELEN = 64; //RPi 2/3 reportedly have 32/64 byte cache rows; use larger size to accomodate both
-    return Math.ceil(bytelen / L2CACHELEN) * L2CACHELEN;
-}
+//function L2pad(bytelen)
+//{
+//    const L2CACHELEN = 64; //RPi 2/3 reportedly have 32/64 byte cache rows; use larger size to accomodate both
+//    return Math.ceil(bytelen / L2CACHELEN) * L2CACHELEN;
+//}
 
 
 function u32(val) { return val >>> 0; }
-function hex(val, prefix = "0x") { return /*isUN(pref, "0x")*/ prefix + u32(val).toString(16); } //force to uint32 for correct display value
+function hex(val, prefix = "0x") { return (val < 10)? val: /*isUN(pref, "0x")*/ prefix + u32(val).toString(16); } //force to uint32 for correct display value; leave 0..9 as-is
 
 //function asmap(namevals) { return namevals.reduce((map, [name, val]) => Object.assign(map, {[name]: val}), {}); }
 function asmap(namevals, init) { return Object.assign(init || {}, ...namevals.map(([name, val]) => ({[name]: val}))); }

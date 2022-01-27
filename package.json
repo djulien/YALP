@@ -55,9 +55,12 @@
   ],
   "dependencies": {
     "colors": "^1.4.0",
+    "colorsys": "^1.0.22",
+    "glob": "^7.2.0",
     "magic-globals": "^0.9.1",
     "node-addon-api": "^3.0.0",
     "node-framebuffer": "git+https://github.com/djulien/node-framebuffer.git",
+    "pnglib": "0.0.1",
     "sprintf-js": "^1.1.2"
   },
   "complex-dependencies": {

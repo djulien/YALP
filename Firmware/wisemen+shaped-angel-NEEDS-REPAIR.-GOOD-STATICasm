@@ -1,0 +1,130 @@
+; 3 wisemen + angel NEEDS_REPAIR with shaped wings, needs anim
+    messg angel NEEDS_REPAIR + shaped wings + 3 wisemen @__LINE__
+
+;RGB colors:
+    constant OFF = LITERAL(0);
+    constant X = LITERAL(0); //don't care/ignored
+#if 1; dim
+    constant RED = LITERAL(0x030000);
+    constant GREEN = LITERAL(0x000300);
+    constant BLUE = LITERAL(0x000003);
+    constant YELLOW = LITERAL(0x020200);
+    constant CYAN = LITERAL(0x000202);
+    constant MAGENTA = LITERAL(0x020002);
+    constant WHITE = LITERAL(0x010101);
+#else; full
+    constant RED = LITERAL(0xFF0000);
+    constant GREEN = LITERAL(0x00FF00);
+    constant BLUE = LITERAL(0x0000FF);
+    constant YELLOW = LITERAL(0x7F7F00);
+    constant CYAN = LITERAL(0x007F7F);
+    constant MAGENTA = LITERAL(0x7F007F);
+    constant WHITE = LITERAL(0x555555);
+#endif;
+
+;//palent[0]: 0x7f0000, #occ 266
+;//palent[1]: 0x3f3f36, #occ 176
+;//palent[2]: 0x0, #occ 52
+;//palent[3]: 0x7f7f00, #occ 46
+;//angel colors:
+;    constant PAL0 = LITERAL(0x5f7f00);
+;    constant PAL1 = LITERAL(0x3f3f36);
+;    constant PAL2 = LITERAL(0);
+;    constant PAL3 = LITERAL(0x7f7f00);
+    constant ANGEL_WINGS = #v(LITERAL(0x4F6F00)); //GRB gold 40%
+    constant ANGEL_BODY = #v(LITERAL(0x2F2F20)); //GRB warm white 20%
+    constant ANGEL_HAIR = #v(LITERAL(0x6F6F00)); //GRB yellow 45%
+    constant ANGEL_HALO = #v(LITERAL(0x4F6F00)); //GRB gold 40%
+    constant ANGEL_TRUMPET = #v(LITERAL(0x5F7F00)); //GRB gold 50%
+    constant TRIM = #v(LITERAL(0))
+;//heartbeat:
+    constant HB_EVEN = LITERAL(0x010000);
+    constant HB_ODD = LITERAL(0x000100);
+;//wisemen colors:
+    constant WM1_BODY = #v(LITERAL(0x6F006F)); //GRB cyan 45%
+    constant WM2_BODY = #v(LITERAL(0x0000dF)); //GRB blue 90%
+    constant WM3_BODY = #v(LITERAL(0x006F6F)); //GRB magenta 45%
+    constant WM_HEAD = #v(LITERAL(0x4F6F00)); //GRB gold 40%
+
+    
+;#define DEVPANEL_CH  BIT(RA0); //RA0, RA1, RA2, RA5
+#define ALLPROPS_CH  #v(LITERAL(BIT(RA0) | BIT(RA1) | BIT(RA2) | BIT(RA5)));
+#define PROP_CH0  #v(LITERAL(BIT(RA0)));
+#define PROP_CH1  #v(LITERAL(BIT(RA1)));
+#define PROP_CH2  #v(LITERAL(BIT(RA2)));
+#define PROP_CH5  #v(LITERAL(BIT(RA5)));
+#define STATUS_CH  #v(LITERAL(BIT(RA4)));
+#define ALL_CH  #v(LITERAL(0XFF));
+#define NONE_CH  #v(LITERAL(0));
+
+#define WM1_CH  PROP_CH0
+#define WM2_CH  PROP_CH1
+#define WM3_CH  PROP_CH2
+#define WMALL_CH  #v(WM1_CH | WM2_CH | WM3_CH)
+#define ANGEL_CH  PROP_CH5
+
+    b0DCL pxbuf, :24; //8 parallel 24-bit values (1 for each IO pin)
+    display_engine pxbuf;
+;    doing_init TRUE
+;    PBLI pxbuf; set initial colors
+;    DW 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0;
+
+
+ws_player: DROP_CONTEXT;
+CURRENT_FPS_usec = -1; force timer0 init
+    WAIT 5 sec; give power time to settle
+player_loop: DROP_CONTEXT;
+    ws8_firstpx pxbuf, LITERAL(0), HB_EVEN, STATUS_CH; heartbeat
+    CALL draw;
+    ws8_firstpx pxbuf, LITERAL(0), HB_ODD, STATUS_CH; heartbeat
+    CALL draw;
+    GOTO player_loop
+
+
+draw: DROP_CONTEXT;
+    BANKCHK LATA;
+    ws8_firstpx pxbuf, LITERAL(0), WM1_BODY, WM1_CH
+    ws8_firstpx pxbuf, LITERAL(0), WM2_BODY, WM2_CH
+    ws8_firstpx pxbuf, LITERAL(0), WM3_BODY, WM3_CH
+    ws8_firstpx pxbuf, LITERAL(0), ANGEL_BODY, ANGEL_CH; set color for new frame
+;//30 RLE blocks:
+; RLE 154*[1], 4*[2], 16*[0], 7*[2], 20*[0], 1*[2], 23*[0], 1*[2], 23*[0], 3*[2], 20*[0], 
+    ws8_sendpx pxbuf, LITERAL(154), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(4), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(16), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(7), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(20), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(1), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(23), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(1), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(14), WM_HEAD, WMALL_CH;
+    ws8_sendpx pxbuf, LITERAL(9), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(3), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(20), TRIM, ANGEL_CH;
+;    6*[2], 16*[0], 4*[2], 23*[3], 54*[0], 23*[3], 4*[2], 16*[0], 7*[2], 20*[0], 1*[2], 
+    ws8_sendpx pxbuf, LITERAL(6), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(16), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(4), ANGEL_HAIR, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(23), ANGEL_HALO, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(7), ANGEL_TRUMPET, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(40), ANGEL_HALO, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(7), ANGEL_HAIR, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(23), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(4), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(16), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(7), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(20), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(1), ANGEL_WINGS, ANGEL_CH;
+;    23*[0], 1*[2], 23*[0], 3*[2], 20*[0], 6*[2], 16*[0], 4*[2]; //375..541
+    ws8_sendpx pxbuf, LITERAL(23), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(1), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(23), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(3), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(20), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(6), ANGEL_WINGS, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(16), TRIM, ANGEL_CH;
+    ws8_sendpx pxbuf, LITERAL(4), OFF, ANGEL_CH;
+CURRENT_FPS_usec = -1; force timer0 init
+    WAIT 1 sec
+    return;
+

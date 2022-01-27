@@ -1,0 +1,21 @@
+/* XPM */
+static char * fence+pole_xpm[] = {
+"18 12 6 1",
+" 	c #9B9B3030FFFF",
+".	c #FFFFFFFFFFFF",
+"X	c #FFFF0000FFFF",
+"o	c #0000CDCD0000",
+"O	c #FFFF00000000",
+"+	c #FFFFA5A50000",
+"  ................",
+"  ................",
+"  ................",
+"  ................",
+"  ................",
+"  X..oO.O+O...OoO.",
+"  X.OoOoO+Oo.oOoO.",
+"  XoOoOoO+Oo.oOoOo",
+"  XoOoOoO+OoOoOoOo",
+"  XoOoOoO+OoOoOoOo",
+"  XoOoOoO+OoOoOoOo",
+"  XoOoOoO+OoOoOoOo"};

@@ -1,0 +1,12 @@
+/* XPM */
+static char * devpanel_blank_xpm[] = {
+"32 8 1 1",
+" 	c #CCCCCC",
+"                                ",
+"                                ",
+"                                ",
+"                                ",
+"                                ",
+"                                ",
+"                                ",
+"                                "};

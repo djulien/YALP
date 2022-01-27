@@ -1,0 +1,18 @@
+/* XPM */
+static char * fence_purpose_xpm[] = {
+"16 7 8 1",
+" 	c #FFFF0000FFFF",
+".	c #FFFFFFFFFFFF",
+"X	c #0000CDCD0000",
+"o	c #00000000EEEE",
+"O	c #FFFFA5A50000",
+"+	c #0000EEEEEEEE",
+"@	c #FFFF30303030",
+"#	c #FFFFFFFF0000",
+" ..Xo.XO ...o+@.",
+" .XXo+XO +.oo+@.",
+" @XXo+XO +.oo+@#",
+" @XXo+XO +#oo+@#",
+" @XXo+XO +#oo+@#",
+" @XXo+XO +#oo+@#",
+" @XXo+XO +#oo+@#"};

@@ -5,6 +5,7 @@
 require('colors').enabled = true; //for console output (all threads)
 require("magic-globals"); //__file, __line, __stack, __func, etc
 //const fs = require("fs");
+const fs = require("fs");
 const util = require("util");
 const Path = require("path");
 //const framebuffer = require("node-framebuffer");
@@ -13,8 +14,8 @@ const had_wker = require.cache[require.resolve("worker_threads")];
 //console.log(require.resolve("worker_threads"), !!require.cache[require.resolve("worker_threads")], srcline());
 const {isMainThread, threadId, workerData, parentPort, Worker: Worker_sv} = require('worker_threads');
 //console.log(require.resolve("worker_threads"), !!require.cache[require.resolve("worker_threads")], srcline());
+const {debug, whoami, trunc, isUN, isobj, elapsed, milli, u32, u32bytes, hex, fmt} = require("./incl/utils21");
 const addon = require('bindings')('yalp-addon');
-elapsed(); //set epoch at load time
 
 
 //console.log !worky within web workers when worker or main thread busy :(
@@ -29,7 +30,6 @@ if (!isMainThread)
 }
 
 //get version# and addon name:
-const fs = require("fs");
 const cfg = JSON.parse(fs.readFileSync("./package.json"));
 
 //console.log(Object.keys(require.cache), srcline());
@@ -66,24 +66,6 @@ if (!module.parent)
     console.log("exports:".brightBlue, Object.entries(module.exports)
         .map(([key, val]) => `${key} = ${fmt(val, {truncate: 50, base: key.match(/mask|map/i)? 16: 10})} (${fmt.typeof})`));
     console.log("TODO? add single-threaded mini-seq?".brightYellow);
-}
-
-function fmt(val, opts = {})
-{
-//    return (Object.keys(val) || [val.toString()]).join(", ");
-    const retval = //Array.isArray(val)? "[0.." + (val.length - 1) + "]":
-        isobj(val)? [val.constructor.name + "!", 
-            (typeof val == "function")? trim(val.toString()).replace(/(\n|\/\/)[\s\S]*$/, " ..."): //first line (signature) only
-//            val.hasOwnProperty("length")?  "[0.." + (val.length - 1) + "]": //[Array.isArray(val)? "array": "array-like",
-            ("length" in val)?  "[0.." + (val.length - 1) + "]": //[Array.isArray(val)? "array": "array-like",
-            "{" + trim(Object.keys(val).join(", ")) + "}"]:
-        (typeof val == "string")? ["string", "'" + trim(val) + "'"]:
-//        (typeof val == "number")? ["number", val.toLocaleString()]: //use commas to group 1000s
-//        [typeof val, val.toString()];
-        [typeof val, (opts.base == 16)? hex(val): val.toLocaleString()];
-    fmt.typeof = retval[0];
-    return retval[1];
-    function trim(thing) { return opts.truncate? trunc(thing, opts.truncate): thing; }
 }
 
 
@@ -137,84 +119,6 @@ function options(opts) //, startup, render, quit})
 }
 
 
-//helpers:
-//for profiling see https://nodejs.org/en/docs/guides/simple-profiling/
-function debug(...args)
-{
-//    args.forEach((arg, inx) => console.error("isbuf?", !isUN(isUN(arg, {}).byteLength)));
-//    args.forEach((arg, inx) => !isUN(isUN(arg, {}).buffer) && args.splice(inx, 1, Object.assign({}, arg, {buffer: `(buffer bytelen ${arg.buffer.byteLength})`))));
-//    args.unshift(whoami());
-    const want_srcline = true; //(debug.opts || {}).srcline; //__stack[] is useful but expensive; allow it to be turned off
-    const [valargs, srcargs] = (want_srcline !== false)? args.reduce((partitioned, arg) => (partitioned[+isUN(arg, "").hasOwnProperty("isSrcline")].push(arg), partitioned), [[], [srcline(+1).toString()]]): [args, []];
-//    valargs.push("T+" + milli(elapsed()), whoami(), ...srcargs); //, srcline(+1)); //TODO: remove redundant file names from srcargs
-    return console.log(...valargs.map(arg => fmt(arg)), "T+" + milli(elapsed()), whoami(), ...srcargs);
-
-//    function fmt(val) { return !isUN(isUN(arg, {}).buffer)? Object.assign({}, arg, {buffer: `(buffer bytelen ${arg.buffer.byteLength})`}): arg; }
-    function fmt(val) { return util.formatWithOptions({maxArrayLength: 20, maxStringLength: 200, colors: true, getters: true}, val).replace(/(?<!0x|[\d.])\d+/gi, val => (+val).toLocaleString()); }
-}
-
-function whoami() { return "$" + threadId + "MT".charAt(+!isMainThread); }
-
-
-function trunc(val, len = 30)
-{
-    return val
-        .toString()
-        .replace(new RegExp(`(?<=[\s\S]{${len},}\\b)[\s\S]*$`), " ..."); //[^]; //try to cut on word boundary
-}
-
-//check for undefined or null:
-//based on https://stackoverflow.com/questions/2647867/how-can-i-determine-if-a-variable-is-undefined-or-null
-function isUN(thing, unval)
-{
-    const retval = (thing == null);
-    return (unval === undefined)? retval: retval? unval: thing;
-}
-
-//from https://stackoverflow.com/questions/8511281/check-if-a-value-is-an-object-in-javascript
-function isobj(thing, objval)
-{
-//    const answer1 = (typeof thing == 'object' && thing !== null);
-    const retval = (thing === Object(thing));
-//    if (answer1 != answer2) throw `disagree: ${answer1} ${answer2}${srcline()}`.brightRed;
-    return (objval === undefined)? retval: retval? objval: thing;
-}
-
-function elapsed(since)
-{
-    if (!elapsed.epoch) elapsed.epoch = (workerData || {}).epoch || Date.now(); //isMainThread? Date.now(): workerData.epoch; //use same time base for all threads
-//    if (!elapsed.epoch) elapsed.epoch = isMainThread? Date.now(): workerData.epoch; //use same time base for all threads
-    return ((elapsed.latest = Date.now()) - (since || elapsed.epoch));
-}
-
-//show msec val to 3 dec places:
-function milli(n) { return (n / 1e3).toFixed(3); }
-
-//function elapsed_str(when) { return "T+" + milli(elapsed(when)); } //msec -> sec
-
-function u32(val) { return val >>> 0; }
-function u32bytes(u32inx) { return u32inx * Uint32Array.BYTES_PER_ELEMENT; }
-function hex(val, prefix = "0x") { return /*isUN(pref, "0x")*/ prefix + u32(val).toString(16); } //force to uint32 for correct display value
-
-//function good_srcline(depth = 0) { return ` @:${(__stack[depth + 1] || {getLineNumber: () => -1}).getLineNumber()}`; }
-function srcline(depth = 0)
-{
-    if (!isUN(srcline.bypass)) return srcline.bypass; //__stack[] is useful but expensive; allow it to be turned off
-    const stkfr = __stack[depth + 1] || {getFileName: () => "??", getLineNumber: () => "?"};
-//    process.stdout.write(util.format(typeof stkfr, isobj(stkfr, stkfr.constructor.name) || "none", "\n"));
-//    process.stdout.write(util.format(((stkfr || {}).getFilename || (() => "??"))(), "\n"));
-//    process.stdout.write(util.format(((stkfr || {}).getLinenumber || (() => -1))(), "\n"));
-//    try { return " @" + Path.basename(((stkfr || {}).getFilename || (() => "??"))()) + ":" + ((stkfr || {}).getLineNumber || (() => -1))(); }
-//no worky    try { return " @" + Path.basename(stkfr.getFilename()) + ":" + stkfr.getLineNumber(); }
-//    try { return " @" + Path.basename(stkfr.getFilename()) + ":" + stkfr.getLineNumber(); }
-//    catch { return " @!!:!"; }
-//console.log(typeof stkfr, (stkfr.constructor || {}).name, typeof stkfr.getFileName, typeof (stkfr.prototype || {}).getFileName);
-//console.log(stkfr.getFileName(), stkfr.getFileName().constructor.name);
-    const retval = " @" + Path.basename(stkfr.getFileName()) + ":" + stkfr.getLineNumber(); //CAUTION: CallSite method names are camel case
-    return Object.defineProperty(new String(retval), "isSrcline", {value: true}); //allow mult (nested) srcline to be detected; need obj for prop; !enum
-}
-
-//function isSrcline(str) { return isUN(str, "").toString().match(/^ @[^^&{}[\]\$=()%]+:\d+$/); }
 
 //eof
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////

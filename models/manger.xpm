@@ -1,0 +1,18 @@
+/* XPM */
+static char * manger_xpm[] = {
+"20 11 4 1",
+" 	c #EEEEEEEE0000",
+".	c #EEEE9A9A0000",
+"X	c #FFFFA5A50000",
+"o	c #FFFFFFFFFFFF",
+"                    ",
+"                    ",
+"                    ",
+"                    ",
+"                    ",
+"...Xoooooooooooo....",
+"...Xoooooooooooo....",
+"...Xoooooooooooo....",
+"...Xoooooooooooo....",
+"...Xoooooooooooo....",
+"....oooooooooooo...."};
