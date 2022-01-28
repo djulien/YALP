@@ -1,9 +1,10 @@
 //WS281X test using Linux framebuffer:
-//build:  gcc fbws.c bcm2835.c -o fbws
-//run:  [sudo]  fbws
+// 1/27/22 no longer depends on device tree overlay - uses run-time config
+//to build:  gcc fbws.c -o fbws
+//to run:  fbws  #(sudo no longer needed)
 
 #include <unistd.h>
-#include <stdio.h>
+#include <stdio.h> //*printf
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -14,10 +15,15 @@
 #include <inttypes.h>
 #include <time.h> //struct timespec
 #include <sys/time.h> //struct timeval, struct timezone
+#include <stdarg.h> //va_args et al
 
+//kludge: including .c here to simplify command line when compiling
+//just pulls in the copy from fpp since it is a source-only type lib
 //#include "../fpp-djgit/src/util/bcm2835.h"
 #include "../fpp-djgit/src/util/bcm2835.c"
 
+#define TRUE  1
+#define FALSE  0
 
 
 // 'global' variables to store screen info
@@ -25,6 +31,7 @@ char* fbp = 0;
 struct fb_var_screeninfo vinfo;
 struct fb_fix_screeninfo finfo;
 
+//NOT IMPLEMENTED:
 void put_pixel_RGB32(int x, int y, int r, int g, int b)
 {
     // calculate the pixel's byte offset inside the buffer
@@ -52,6 +59,7 @@ void put_pixel_RGB24(int x, int y, int r, int g, int b)
 
 }
 
+//NOT IMPLEMENTED:
 void put_pixel_RGB565(int x, int y, int r, int g, int b)
 {
     // calculate the pixel's byte offset inside the buffer
@@ -78,9 +86,24 @@ void put_pixel(int x, int y, int r, int g, int b)
 }
 
 
+//sprintf + shell out:
+int system_printf(const char* cmd, ...)
+{
+    char buf[1000];
+    va_list argp;
+    va_start(argp, cmd);
+    int cmdlen = vsnprintf(buf, sizeof(buf), cmd, argp);
+    va_end(argp);
+    buf[cmdlen] = '\0'; //make sure it's terminated; just truncate command and return an error if it mattered
+    printf("executing %s ...\n", buf);
+    return system(buf);
+}
+
+
 #define fatal(msg)  printf("%s\n", msg) //shim
 #define UNITS  (int)1e6
 
+//convert long long -> uint32 for faster arithmetic:
 uint32_t elapsed_usec()
 {
     struct timeval time_parts;
@@ -91,7 +114,7 @@ uint32_t elapsed_usec()
 
 
 //wait for next frame:
-//synced to GPU
+//synced to GPU (KINDA); seems to be using original GPU speed even after change
 void frame(int fbfd, int numfr) // = 0)
 {
     uint32_t taken_usec = -elapsed_usec();
@@ -114,8 +137,12 @@ void frame(int fbfd, int numfr) // = 0)
 }
 
 
+//these values minimize CPU workload:
+#define WANT_XRES  392
+#define WANT_YRES  294
+
 //measure pix clock:
-//(ioctl doesn't give this info)
+//(ioctl doesn't seem to give this info)
 #define LIMIT  (int)2.5e6 //safe limit before signed wrap
 #define rdiv(num, den)  (((num) + (den) / 2) / (den))
 int measure_pxclock(int fbfd)
@@ -125,7 +152,7 @@ int measure_pxclock(int fbfd)
     if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo))
       printf("Error reading var information.\n");
     uint32_t xtotal = vinfo.xres + vinfo.right_margin + vinfo.hsync_len + vinfo.left_margin;
-    if (vinfo.xres == 392 && xtotal != 393) printf("xtotal %d wrong: %d %d %d %d\n", xtotal, vinfo.xres, vinfo.right_margin, vinfo.hsync_len, vinfo.left_margin);
+    if (vinfo.xres == WANT_XRES && xtotal != WANT_YRES) printf("xtotal %d wrong: %d %d %d %d\n", xtotal, vinfo.xres, vinfo.right_margin, vinfo.hsync_len, vinfo.left_margin);
     uint32_t ytotal = vinfo.yres + vinfo.lower_margin + vinfo.vsync_len + vinfo.upper_margin;
     if (vinfo.yres == 294 && ytotal != 305) printf("ytotal %d wrong: %d %d %d %d\n", ytotal, vinfo.yres, vinfo.upper_margin, vinfo.vsync_len, vinfo.lower_margin);
     frame(fbfd, 1); //skip current frame since it might be partial
@@ -173,7 +200,8 @@ int measure_pxclock(int fbfd)
 #define _1L  (1 * PPB / 3) //28
 #define _H(b)  ((b)? _1H: _0H)
 #define _L(b)  ((b)? _1L: _0L)
-#define BITW(b)  (((b) < 23)? 64: 48) //last bit is partially hidden
+//#define BITW(b)  (((b) < 23)? 64: 48) //last bit is partially hidden
+//obsolete #define BITW(b)  (((b) < 23)? PPB: PPB*2/3) //last bit is partially hidden
 #define nel(ary)  (sizeof(ary) / sizeof((ary)[0]))
 #define RGSWAP(rgb24)  ((((rgb24) >> 8) & 0xff00) | (((rgb24) << 8) & 0xff0000) | ((rgb24) & 0xff))
 
@@ -197,9 +225,12 @@ int measure_pxclock(int fbfd)
 
 #define NUMPX  20 //37
 
-void draw(int fbfd)
+//render WS281X data bits into GPU framebuffer:
+void draw(int fbfd, int hstride, int want_blank)
 {
+    static int frnum = 0;
 	uint32_t colors[] = {RGSWAP(RED), RGSWAP(GREEN), BLUE, YELLOW, RGSWAP(CYAN), RGSWAP(MAGENTA), WHITE};
+    hstride /= 4; //bytes -> uint32
 	const char* color_names[] = {"R", "G", "B", "Y", "C", "M", "W"};
 //for (int i = 0; i < nel(colors); ++i) printf("color[%d/%d]: 0x%x\n", i, nel(colors), colors[i]);
 	long int scrsize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
@@ -207,49 +238,41 @@ void draw(int fbfd)
     for (int loop = 0; loop <= 10; ++loop) //animation loop
     {
         printf("anim[%d/10]: ", loop);
-        for (int y = 0; y < NUMPX; ++y) //WS281X pixel loop (1 per scan line)
+        uint32_t bitofs = 0; //ofs into WS data bit stream (skips over hsync transparently)
+        for (int px = 0; px < NUMPX; ++px) //WS281X pixel loop
         {
-            uint32_t color = colors[(y + loop) % nel(colors)];
-            printf("%s ", color_names[(y + loop) % nel(colors)]);
-	        for (int b = 0; b < 24; ++b) //WS281X bit loop; NOTE: last bit is partially hidden by hsync; check for precise alignment
+            uint32_t color = colors[(px + loop) % nel(colors)];
+            printf("%s ", color_names[(px + loop) % nel(colors)]);
+	        for (int b = 0; b < 24; ++b) //WS281X bit loop; NOTE: one of the WS bits can be partially hidden by hsync, depending on alignment within the scan line; check for precise alignment
 	        {
-		        if (loop == 10) color = 0;
-//if (!b) printf("node[%d]: 0x%x\n", y, color);
-		        uint32_t bv = color & (0x800000 >> b);
-		        for (int i = 0; i < BITW(b); ++i)
+//		        if (loop == 10) color = 0;
+		        uint32_t bv = want_blank? 0: color & (0x800000 >> b);
+		        for (int i = 0; i < PPB; ++i) //WS bit fragment loop
 		        {
 			        int onoff = (i < _H(bv))? 0xff: 0;
-			        put_pixel(BITW(0) * b + i, y, onoff, onoff, onoff);
+//			        put_pixel(BITW(0) * b + i, y, onoff, onoff, onoff);
+                    int x = bitofs % vinfo.xres, y = bitofs / vinfo.xres; //NOTE: WS pixel might overflow to next scan line
+//                    printf("draw: pixel[%d/%d], wsbit[%d/%d], frag[%d/%d] => bitofs %d, x %d/%d, y %d/%d\n", px, NUMPX, b, 24, i, PPB, bitofs, x, vinfo.xres, y, vinfo.yres);
+			        put_pixel(x, y, onoff, onoff, onoff);
+//if (i == 1) printf(" %d ", i < _H(bv));
+                    if ((bitofs++ - y * (hstride - vinfo.xres)) % vinfo.xres) continue; //!end of line
+                    if (!px && !b && !i) continue; //don't check first time
+                    if (onoff) printf("config error: writing non-0 data into hsync gap +%d - %d: ofs %d, x %d, y %d\n", hstride, vinfo.xres, bitofs - 1, x, y); //shouldn't happen
+                    bitofs += hstride - vinfo.xres; //compensate for hsync and/or scan line pad within framebuffer
 		        }
 	        }
+//printf("\n");
+//if (px > 5) break;
         }
         printf("\n");
+        if (frnum < 10) system_printf("cat /dev/fb0 > frame-%d.dat", frnum++);
         frame(fbfd, 20); //20 frames == 1 sec @20FPS
+//break;
     }
 }
 
 
-//set all WS281X px to 0 (off):
-void blank(int fbfd)
-{
-	long int scrsize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
-	memset(fbp, 0, scrsize);
-    for (int y = 0; y < NUMPX + 50; ++y) //WS281X pixel loop (1 per scan line); blank out extra in case junk was sent
-    {
-        for (int b = 0; b < 24; ++b) //WS281X bit loop; NOTE: last bit is partially hidden by hsync; check for precise alignment
-        {
-	        for (int i = 0; i < BITW(b); ++i)
-	        {
-                int bv = 0; //all bits off
-		        int onoff = (i < _H(bv))? 0xff: 0;
-		        put_pixel(BITW(0) * b + i, y, onoff, onoff, onoff);
-	        }
-        }
-    }
-    frame(fbfd, 20); //20 frames == 1 sec @20FPS
-}
-
-
+//OBSOLETE
 // helper function for drawing - no more need to go mess with
 // the main function when just want to change what to draw...
 #define sqrt(x)  0
@@ -281,14 +304,15 @@ sleep(1);
 }
 
 
+//change framebuffer timing to match optimal WS281X rendering:
 void setup(int fbfd, struct fb_var_screeninfo* vinfo_p)
 {
     struct fb_var_screeninfo vinfo = *vinfo_p;
-    if (vinfo.xres == 392 && vinfo.yres == 294) return;
+    if (vinfo.xres == WANT_XRES && vinfo.yres == WANT_YRES) return;
 //try dynamic screen res update instead of using config.txt:
 //dpi_timings=392 0 0 1 0  294 0 4 3 4  0 0 0  20 0 2400000 1
-    vinfo.xres = 392; vinfo.left_margin = 0; vinfo.hsync_len = 1; vinfo.right_margin = 0;
-    vinfo.yres = 294; vinfo.upper_margin = 4; vinfo.vsync_len = 3; vinfo.lower_margin = 4;
+    vinfo.xres = WANT_XRES; vinfo.left_margin = 0; vinfo.hsync_len = 1; vinfo.right_margin = 0;
+    vinfo.yres = WANT_YRES; vinfo.upper_margin = 4; vinfo.vsync_len = 3; vinfo.lower_margin = 4;
     vinfo.pixclock = (int)10e6 / 24L; //(int)1e9 / 2.4L; //2.4MHz needed for WS281X render @3x
     if (ioctl(fbfd, FBIOPUT_VSCREENINFO, &vinfo)) 
       printf("Error reading setting variable information.\n");
@@ -300,8 +324,8 @@ void setup(int fbfd, struct fb_var_screeninfo* vinfo_p)
     if (!chk_vinfo.pixclock) chk_vinfo.pixclock = measure_pxclock(fbfd); //-1;
     int frtime_usec = (double)chk_vinfo.pixclock * (chk_vinfo.xres + chk_vinfo.left_margin + chk_vinfo.hsync_len + chk_vinfo.right_margin) / (int)1e3 * (chk_vinfo.yres + chk_vinfo.upper_margin + chk_vinfo.vsync_len + chk_vinfo.lower_margin ) / (int)1e3; //kludge: split 1e6 to avoid overflow
     float fps = 1e6 / frtime_usec;
-    printf("updated %dx%d, %d bpp, linelen %d, pxclk %d (%3.2f MHz), lrul marg %d %d %d %d, sync len h %d v %d, fps %3.2f\n", 
-       chk_vinfo.xres, chk_vinfo.yres, chk_vinfo.bits_per_pixel, finfo.line_length, chk_vinfo.pixclock, 1e6 / chk_vinfo.pixclock,
+    printf("updated %dx%d, %d bpp, linelen %d px, pxclk %d (%3.2f MHz), lrul marg %d %d %d %d, sync len h %d v %d, fps %3.2f\n", 
+       chk_vinfo.xres, chk_vinfo.yres, chk_vinfo.bits_per_pixel, finfo.line_length / 4, chk_vinfo.pixclock, 1e6 / chk_vinfo.pixclock,
        chk_vinfo.left_margin, chk_vinfo.right_margin, chk_vinfo.upper_margin, chk_vinfo.lower_margin, chk_vinfo.hsync_len, chk_vinfo.vsync_len,
        fps);
 
@@ -319,6 +343,7 @@ void setup(int fbfd, struct fb_var_screeninfo* vinfo_p)
     printf("after reconfig:\n");
     system("fbset");
 //    system("vcgencmd get_config str | grep timings");
+    printf("\"ALT2\" shows DPI pins:\n");
     system("gpio readall | grep -e 38 -e 40");
 }
 
@@ -347,11 +372,13 @@ int main(int argc, char* argv[])
       printf("Error: bcm init failed.\n");
       return(1);
     }
-    printf("bcm opened, ver %d\n", bcm2835_version());
+#define APIN  RPI_V2_GPIO_P1_38 //GPIO 20
+#define BPIN  RPI_V2_GPIO_P1_40 //GPIO 21
+    printf("bcm opened, ver %d, setting pins %d, %d to dpi\n", bcm2835_version());
 //set a couple of pins for DPI:
     int sv_gpio20, sv_gpio21; //TODO: how to get/save current mode?  maybe don't need to
-    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_38, BCM2835_GPIO_FSEL_ALT2); //GPIO 20
-    bcm2835_gpio_fsel(RPI_V2_GPIO_P1_40, BCM2835_GPIO_FSEL_ALT2); //GPIO 21
+    bcm2835_gpio_fsel(APIN, BCM2835_GPIO_FSEL_ALT2); //GPIO 20
+    bcm2835_gpio_fsel(BPIN, BCM2835_GPIO_FSEL_ALT2); //GPIO 21
     bcm2835_close(); //dealloc any mem used; is this needed?
 
     // Open the file for reading and writing
@@ -373,8 +400,8 @@ int main(int argc, char* argv[])
     if (!vinfo.pixclock) vinfo.pixclock = measure_pxclock(fbfd); //-1;
     int frtime_usec = (double)vinfo.pixclock * (vinfo.xres + vinfo.left_margin + vinfo.hsync_len + vinfo.right_margin) / (int)1e3 * (vinfo.yres + vinfo.upper_margin + vinfo.vsync_len + vinfo.lower_margin ) / (int)1e3; //kludge: split 1e6 to avoid overflow
     float fps = 1e6 / frtime_usec;
-    printf("Original %dx%d, %d bpp, linelen %d, pxclk %d (%3.2f MHz), lrul marg %d %d %d %d, sync len h %d v %d, fps %3.2f\n", 
-       vinfo.xres, vinfo.yres, vinfo.bits_per_pixel, finfo.line_length, vinfo.pixclock, 1e6 / vinfo.pixclock,
+    printf("Original %dx%d, %d bpp, linelen %d px, pxclk %d (%3.2f MHz), lrul marg %d %d %d %d, sync len h %d v %d, fps %3.2f\n", 
+       vinfo.xres, vinfo.yres, vinfo.bits_per_pixel, finfo.line_length / 4, vinfo.pixclock, 1e6 / vinfo.pixclock,
        vinfo.left_margin, vinfo.right_margin, vinfo.upper_margin, vinfo.lower_margin, vinfo.hsync_len, vinfo.vsync_len,
        fps);
 
@@ -391,18 +418,18 @@ int main(int argc, char* argv[])
         printf("Failed to mmap.\n");
     else {
         // draw...
-        draw(fbfd);
+        draw(fbfd, finfo.line_length, FALSE);
         sleep(5);
     }
 //    write(fbfd, CURSON, strlen(CURSOFF)); //leave it off?
 
-    blank(fbfd);
+    draw(fbfd, finfo.line_length, TRUE); //blank
     // cleanup
     munmap(fbp, screensize);
 //don't restore screen (messes up last WS281X state):
 //    if (ioctl(fbfd, FBIOPUT_VSCREENINFO, &orig_vinfo))
 //        printf("Error re-setting variable information.\n");
-    printf("NOT restoring fb geometry; manually reset with a command like \"fbset -xres %d -yres %d -pixclock %d\"\n", orig_vinfo.xres, orig_vinfo.yres, orig_vinfo.pixclock);
+    printf("NOT restoring fb geometry; manually reset with a command like:\n \"fbset -xres %d -yres %d -pixclock %d\"\n", orig_vinfo.xres, orig_vinfo.yres, orig_vinfo.pixclock);
 
     close(fbfd);
 
