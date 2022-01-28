@@ -351,6 +351,10 @@ void setup(int fbfd, struct fb_var_screeninfo* vinfo_p)
 // application entry point
 int main(int argc, char* argv[])
 {
+printf("TODO: try config_hdmi_boost?\n");
+printf("TODO: try setting overscan* = 0 or disable_overscan=0?\n");
+printf("TODO: try setting fb depth to 8 and back 10 16?\n");
+
     struct fb_var_screeninfo orig_vinfo;
     long int screensize = 0;
     int fbfd = 0;
@@ -430,6 +434,7 @@ int main(int argc, char* argv[])
 //    if (ioctl(fbfd, FBIOPUT_VSCREENINFO, &orig_vinfo))
 //        printf("Error re-setting variable information.\n");
     printf("NOT restoring fb geometry; manually reset with a command like:\n \"fbset -xres %d -yres %d -pixclock %d\"\n", orig_vinfo.xres, orig_vinfo.yres, orig_vinfo.pixclock);
+    printf("NOT restoring GPIO modes; manually reset with a command like:\n \"gpio -g mode %d IN\" #put GPIO%d back to input mode\n", 20, 20);
 
     close(fbfd);
 
