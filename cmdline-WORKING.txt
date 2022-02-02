@@ -1,0 +1,1 @@
+console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet spidev.bufsiz=102400 snd_bcm2835.enable_hdmi=1 snd_bcm2835.enable_compat_alsa=1    net.ifnames=0 consoleblank=0 logo.nologo fbcon=map:10

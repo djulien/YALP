@@ -316,7 +316,7 @@ function yard(frnum, anim)
 for (let port = 0; port < 24; ++port)
 {
     const prop = pixels3D[frnum][port];
-    const colors = [0xFF020000, 0xFF000200, 0xFF000002, 0];
+    const colors = [0xFF020000, 0xFF000200, 0xFF000002]; //, 0];
     for (let node = 0; node < 40; ++node)
         prop[node] = colors[(anim + node) % colors.length];
 }

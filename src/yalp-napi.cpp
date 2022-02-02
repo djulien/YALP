@@ -429,7 +429,7 @@ private: //helpers
 //debug("%'d vs. %'u usec elapsed", elapsed_usec, elapsed_usec);
 //wrong        pxclock = (unsigned long long)/*clock.elapsed()*/elaps * (int)1e6 / NUMFR; //<(int)1e6>(started_usec) * 1e6 / NUMFR; //use long long for max accuracy
         scrv.pixclock = rdiv(rdiv(rdiv(elapsed_usec, NUMFR) * (int)1e3, scrv.xtotal()) * (int)1e3, scrv.ytotal()); //usec => psec; kludge: split up 1e6 factor to prevent overflow
-        debug("measured pix clock %'d psec = %'d usec / %'d frames / %'d xtotal / %'d ytotal, this@ %p", scrv.pixclock, elapsed_usec, NUMFR, scrv.xtotal(), scrv.ytotal(), this);
+//        debug("measured pix clock %'d psec = %'d usec / %'d frames / %'d xtotal / %'d ytotal, this@ %p", scrv.pixclock, elapsed_usec, NUMFR, scrv.xtotal(), scrv.ytotal(), this);
         if (!scrv.has_pixclock()) fatal("can't measure pixclock");
         m_cache[m_fbnum] = scrv.pixclock; //reuse result again later
     }
@@ -788,6 +788,15 @@ private: //helpers
         pixel_t* bp = &m_pxbuf[0]; //rewind
         pixel_t* eol = bp + xtotal(); //set first gap; NOTE: must be multiple of ppb (3)
         if (!pivot_count) debug("ws3x_pivot[%'d]: nodes1D %p, mempx buf %p %svs. mine %p%s, UNIV_LEN %'d (padded %'d), port mask 0x%x/0x%x, msb 0x%x, gaplen %d, msb rgb 0x%x, ws msb 0x%x", pivot_count, nodes1D, m_pxbuf, (m_pxbuf == m_pxbuf)? GREEN_MSG: YELLOW_MSG, m_pxbuf, ENDCOLOR_NOLINE, m_univlen, m_univ_padlen, portmask, PORT_MASK, msb(PORT_MASK), gaplen, msb(WHITE & ~BLACK), WSMSB);
+//kludge: send one off px @start so first real pixel doesn't get junk from vsync:
+//        for (int i = 0; i < 2; ++i)
+        for (uint32_t wsbit = WSMSB; wsbit; wsbit >>= 1)
+        {
+            *bp++ = WHITE; //-1; //start of bit
+            *bp++ = BLACK; //live part of bit, 1 bit for each port
+            *bp++ = BLACK; //0xff000000; //end of bit
+        }
+        if (!pivot_count) debug("sw null px: %d 0x%x 0x%x 0x%x", (bp - &m_pxbuf[0]) / 3, WHITE, BLACK, BLACK);
         for (int node = 0; node < m_univlen; ++node)
         {
             pixel_t cached[MAX_PORTS];
@@ -801,7 +810,7 @@ private: //helpers
 //                {
 //if (port >= 24) fatal("bad port: %d", port);
 //if (portofs + node >= 24 * 1616) fatal("bad node: %'d + %'d", portofs, node);
-                    cached[port++] = limit(nodes1D[portofs + node], m_brlimit.brlimit[port]); //limit brightness + localize memory access for bit loop
+                    cached[port++] = /*(node < 0)? 0:*/ limit(nodes1D[portofs + node], m_brlimit.brlimit[port]); //limit brightness + localize memory access for bit loop
 //                }
 //  if (node > 50)
 //        for (int i = 0; i < MAX_PORTS; ++i) cached[i] = 0;
