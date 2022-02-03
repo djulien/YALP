@@ -439,6 +439,18 @@ private: //helpers
 //check cached values:
 //avoids additional delay when re-opening FB
 //        using details_t = std::tuple<decltype(scrv.right_margin), decltype(scrv.hsync_len), decltype(scrv.left_margin), decltype(scrv.lower_margin), decltype(scrv.vsync_len), decltype(scrv.upper_margin)>;
+#if 1 //hard-coded; TODO: fix for use with FPP
+        if (scrv.xres == 392 && scrv.yres == 294)
+        {
+            scrv.right_margin = 0;
+            scrv.hsync_len = 1;
+            scrv.left_margin = 0;
+            scrv.lower_margin = 4;
+            scrv.vsync_len = 3;
+            scrv.upper_margin = 4;
+            return;
+        }
+#endif
         struct details_t
         {
             decltype(scrv.right_margin) xfront, xsync, xback;
@@ -788,6 +800,15 @@ private: //helpers
         pixel_t* bp = &m_pxbuf[0]; //rewind
         pixel_t* eol = bp + xtotal(); //set first gap; NOTE: must be multiple of ppb (3)
         if (!pivot_count) debug("ws3x_pivot[%'d]: nodes1D %p, mempx buf %p %svs. mine %p%s, UNIV_LEN %'d (padded %'d), port mask 0x%x/0x%x, msb 0x%x, gaplen %d, msb rgb 0x%x, ws msb 0x%x", pivot_count, nodes1D, m_pxbuf, (m_pxbuf == m_pxbuf)? GREEN_MSG: YELLOW_MSG, m_pxbuf, ENDCOLOR_NOLINE, m_univlen, m_univ_padlen, portmask, PORT_MASK, msb(PORT_MASK), gaplen, msb(WHITE & ~BLACK), WSMSB);
+//kludge: send one off px @start so first real pixel doesn't get junk from vsync:
+//        for (int i = 0; i < 2; ++i)
+        for (uint32_t wsbit = WSMSB; wsbit; wsbit >>= 1)
+        {
+            *bp++ = WHITE; //-1; //start of bit
+            *bp++ = BLACK; //live part of bit, 1 bit for each port
+            *bp++ = BLACK; //0xff000000; //end of bit
+        }
+        if (!pivot_count) debug("sw null px: %d 0x%x 0x%x 0x%x", (bp - &m_pxbuf[0]) / 3, WHITE, BLACK, BLACK);
         for (int node = 0; node < m_univlen; ++node)
         {
             pixel_t cached[MAX_PORTS];
@@ -801,7 +822,7 @@ private: //helpers
 //                {
 //if (port >= 24) fatal("bad port: %d", port);
 //if (portofs + node >= 24 * 1616) fatal("bad node: %'d + %'d", portofs, node);
-                    cached[port++] = limit(nodes1D[portofs + node], m_brlimit.brlimit[port]); //limit brightness + localize memory access for bit loop
+                    cached[port++] = /*(node < 0)? 0:*/ limit(nodes1D[portofs + node], m_brlimit.brlimit[port]); //limit brightness + localize memory access for bit loop
 //                }
 //  if (node > 50)
 //        for (int i = 0; i < MAX_PORTS; ++i) cached[i] = 0;

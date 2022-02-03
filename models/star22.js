@@ -12,92 +12,101 @@ const {debug, TODO, srcline, replace_prop} = require("../incl/utils22");
 
 //my_exports({mary: NatFig("Mary: NAT"), joseph: Natfig("Joseph: NAT"), Natfig}); //NOTE: exporting instances + ctor
 my_exports({star: Star(), Star}); //NOTE: exporting instances + ctor
+TODO("use other star projections?  should center be in middle? (depends on fx)");
 
 //star:
 //~ radial 9 main spokes, each 2-4 wide, 11-14 long
 function Star(opts) { return Object.assign(/*{}, opts || {},*/ new Model(
 {
-    maxbr: 100/100, //1-up on 20A supply
+    maxbr: 100/100, //20A supply
     order: "RGB",
-    name: "Star: NAT, env",
-    num_wired: 2*150, //2 5m strips
+    name: "Star: NAT, prop",
+    num_wired: 2*150 - 2, //~ 2 5m strips
 //map radial top-down view of spokes to X ofs (CW):
-    spikes:
-    {
-        center: Rect({X: 0, Y: 0, get H() { return this.L; }, W: 3, L: 14}),
-        get S() { const parent = this; return Rect({X: parent.center.rightE, Y: 0, W: parent.fb.W}); },
-        get SW() { const parent = this; return Rect({X: parent.S.rightE, W: parent,.S + fbW; },
-        get W() { return this.SW + diagW; },
-        get NW() { return this.W + lrW; },
-        get N() { return this.NW + diagW; },
-        get NE() { return this.N + fbW; },
-        get E() { return this.NE + diagW; },
-        get SE() { return this.E + lrW; },
-        get all() { return this.SE + diagW; },
-
-        lr: {W: 3, L: 12}, //left, right
-        fb: {W: 4, L: 12}, //front, back
-        diag: {W: 2, L: 11},
-        
-    };
-
-    
-    get body() { const full = this; return Rect({W: 12, H: 18, get X() { return full.centerX(this.W); }, Y: 0}); },
-//    get hood() { const full = this; return Rect({W: 22, H: 4, get X() { return (full.centerX(this.W); }, Y: body.topE}); }, //NOTE: front half is only 18
-//    face_trim: Rect({W: 2, H: 4}),
-//    face: Rect({W: 6, H: 2, get X() { return (18 - this.W) / 2; }, Y: /*this.head.Y*/20}), //face absent
-//    face: Rect({W: 6, H: 2, get X() { return (18 - this.W) / 2; }, Y: /*this.head.Y*/20}), //face absent
-    get hood() //NOTE: front half is only 18
-    {
-        const full = this;
-        return Rect(
-        {
-            widths: [22-4, 22-4, 22, 22],
-            get numpx() { return this.widths.reduce((numpx, w) => numpx + w, 0); },
-            get W() {return Math.max(...this.widths)}, //22
-            get H() { return this.widths.length; }, //4
-            get X() { return full.centerX(this.W); },
-            get lefts() { return this.widths.map(w => full.centerX(w)); },
-            Y: this.body.topE,
-        });
-    },
-    get width() { return Math.max(this.body.W, this.hood.W); }, //22
-    get height() { return this.body.H + this.hood.H; }, //22
+    spikes: Object.defineProperties(
+    { //enumerable:
+//TODO: use other projections?  should center be in middle? (depends on fx)
+        center: Rect({X: 0, Y: 0, W: 3, H: 14}),
+        get S() { const parent = this; return Rect({X: parent.center.rightE, Y: 0, W: parent.fb.W, H: parent.fb.L}); },
+        get SW() { const parent = this; return Rect({X: parent.S.rightE, Y: 0, W: parent.diag.W, H: parent.diag.L}); },
+        get W() { const parent = this; return Rect({X: parent.SW.rightE, Y: 0, W: parent.lr.W, H: parent.lr.L}); },
+        get NW() { const parent = this; return Rect({X: parent.W.rightE, Y: 0, W: parent.diag.W, H: parent.diag.L}); },
+        get N() { const parent = this; return Rect({X: parent.NW.rightE, Y: 0, W: parent.fb.W, H: parent.fb.L}); },
+        get NE() { const parent = this; return Rect({X: parent.N.rightE, Y: 0, W: parent.diag.W, H: parent.diag.L}); },
+        get E() { const parent = this; return Rect({X: parent.NE.rightE, Y: 0, W: parent.lr.W, H: parent.lr.L}); },
+        get SE() { const parent = this; return Rect({X: parent.E.rightE, Y: 0, W: parent.diag.W, H: parent.diag.L}); },
+    }, { // !enumerable:
+//        get all() { return this.SE + diagW; },
+        lr: {value: {W: 3, L: 12}}, //left, right
+        fb: {value: {W: 4, L: 12}}, //front, back
+        diag: {value: {W: 2, L: 11}},
+    }),
+    get width() { return Object.values(this.spikes).reduce((total, submodel) => total + submodel.W, 0); }, //25
+    get height() { return Object.values(this.spikes).reduce((total, submodel) => Math.max(total, submodel.H), 0); }, //14
     draw: function() //default texture
     {
         this.fill(PAL.OFF);
-        this.fill(PAL.RED.dim(50), this.body);
-        this.fill(PAL.WARM_WHITE.dim(50), this.hood);
+//        Object.values(this.spikes).forEach(
+        [this.spikes.center, this.spikes.N, this.spikes.S, this.spikes.E, this.spikes.W].forEach(submodel => this.fill(PAL.WARM_WHITE.dim(80), submodel));
+        [this.spikes.NW, this.spikes.SW, this.spikes.NE, this.spikes.SE].forEach(submodel => this.fill(PAL.COOL_WHITE.dim(60), submodel));
     },
     get numpx() //CAUTION: nodes must be in wiring order
     {
         let numpx = 0;
-        assert(!(this.width & 1), "width not even");
 
-//body L2RT2B2T ZZ
-//        retval.body = {x: (W - bodyW) / 2, y: 0, w: bodyW, h: bodyH};
-        for (let x = 0; x < this.body.W; ++x)
-            for (let y = 0; y < this.body.H; ++y)
+//TODO: reorder spikes L2R?
+//spikes L2RB2T (CW center outward) mostly ZZ
+//center (upright) spike:
+        for (let x = 0; x < this.spikes.center.W; ++x)
+            for (let y = 0; y < this.spikes.center.H; ++y)
             {
-                const yZZ = !(x & 1)? flip(y, this.body.H): y;
-                this.nodes2D[this.body.X + x][this.body.Y + yZZ] = numpx++;
+                const yZZ = (x & 1)? flip(y, this.spikes.center.H): y;
+                this.nodes2D[this.spikes.center.X + x][this.spikes.center.Y + yZZ] = numpx++;
             }
+//debug(numpx);
 
-//hood F2BL2R2L ZZ
-//        retval.hood = {x: (W - hoodW) / 2, y: bodyH, w: hoodW, h: hoodH};
-        for (let y = 0; y < this.hood.H; ++y)
-            for (let x = 0; x < this.hood.widths[y]; ++x)
-            {
-//                if (y < 2 && (x < 2 || x >= this.hood.W - 2)) continue; //kludge: front is shorter
-                const xZZ = !(y & 1)? flip(x, this.hood.widths[y]): x;
-                this.nodes2D[this.hood.lefts[y] + xZZ][this.hood.Y + y] = numpx++;
-            }
+//S/N (front/back) spikes:
+        [this.spikes.S, this.spikes.N].forEach(spike =>
+        {
+            for (let x = 0; x < spike.W; ++x)
+                for (let y = 0; y < spike.H; ++y)
+                {
+                    const yZZ = (x & 1)? flip(y, spike.H): y;
+                    this.nodes2D[spike.X + x][spike.Y + yZZ] = numpx++;
+                }
+        });
+//debug(numpx);
 
-        assert(numpx == this.body.numpx + this.hood.numpx, `numpx ${numpx} != body ${this.body.area} + hood ${this.hood.area} = ${this.body.numpx + this.hood.numpx}`); //check all nodes mapped
+//W/E (left/right) spikes:
+        [this.spikes.W, this.spikes.E].forEach(spike =>
+        {
+            for (let x = 0; x < spike.W; ++x)
+                for (let y = 0; y < spike.H; ++y)
+                {
+                    const yZZ = (x & 1)? flip(y, spike.H): y;
+                    this.nodes2D[spike.X + x][spike.Y + yZZ] = numpx++;
+                }
+        });
+//debug(numpx);
+
+//SW/NW/NE/SE (diag) spikes:
+        [this.spikes.SW, this.spikes.NW, this.spikes.NE, this.spikes.SE].forEach(spike =>
+        {
+            for (let x = 0; x < spike.W; ++x)
+                for (let y = 0; y < spike.H; ++y)
+                {
+                    const yZZ = (x & 1)? flip(y, spike.H): y;
+                    this.nodes2D[spike.X + x][spike.Y + yZZ] = numpx++;
+                }
+        });
+//debug(numpx);
+
+        assert(numpx == Object.values(this.spikes).reduce((total, spike) => total + spike.W * spike.H, 0), `numpx ${numpx} != center ${this.spikes.center.area} + 2 N/S ${this.spikes.N.area} + 2 W/E ${this.spikes.W.area} + 4 diag ${this.spikes.SW.area} = ${Object.values(this.spikes).reduce((total, spike) => total + spike.W * spike.H, 0)}`); //check all nodes mapped
+        assert(numpx == this.num_wired, `numpx ${numpx} != num_wired ${this.num_wired}`);
         return numpx;
     },
 }), opts || {}); }
-if (!module.parent) setImmediate(async () => await module.exports.mary.unit_test()); //unit-test; run after inline init
+if (!module.parent) setImmediate(async () => await module.exports.star.unit_test()); //unit-test; run after inline init
 
 //wisemen[0].csv();
 //run();

@@ -4,9 +4,9 @@
 "use strict"; //find bugs + typos easier
 //imports(); //hoist
 const assert = require('assert').strict; //https://nodejs.org/api/assert.html; CAUTION: SLOW; don't use in big loops!
-const {PAL} = require("../incl/color-mgmt21");
-const {Model, Rect, ZZ, flip} = require("../models/model21");
-const {debug, TODO, srcline, replace_prop} = require("../incl/utils21");
+const {PAL} = require("../incl/color-mgmt22");
+const {Model, Rect, ZZ, flip} = require("../models/model22");
+const {debug, TODO, srcline, replace_prop} = require("../incl/utils22");
 
 
 my_exports({wisemen: Array.from({length: 3}).map((_, inx) => Wiseman({name: `wisemen_${inx}: NAT`})), Wiseman}); //NOTE: exporting instances + ctor
@@ -17,7 +17,7 @@ function Wiseman(opts) { return Object.assign(/*{}, opts || {},*/ new Model(
 {
     maxbr: 50/100, //for 2-up on 20A supply
     order: "RGB",
-    name: "tbd",
+    name: "Wiseman: NAT, figure",
     num_wired: 2 * 150, //2 5m strips
 //    width: 4, height: 3,
 //    body: Rect({W: 12, H: 20, get X() { return (18 - this.W) / 2; }, Y: 0}),
