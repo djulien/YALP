@@ -301,6 +301,27 @@ void draw(int anim) //int want_blank)
 
 
 
+//change framebuffer timing to match desired fps:
+void setup()
+{
+//    pixclock / 1e9 * (vinfo.xres + vinfo.hblank()) * (vinfo.yres + vinfo.vblank()) * fps = 1 second;
+    int target_ytotal = (int)1e9 / vinfo.pixclock * (int)1e3 / (vinfo.xres + vinfo.hblank()) / FPS;
+    printf("ytotal is %d, needs to be %d for %d fps" SRCLINE, vinfo.yres + vinfo.vblank(), target_ytotal, FPS);
+//return;
+    if (target_ytotal == vinfo.yres + vinfo.vblank()) return;
+    vinfo.lower_margin = vinfo.upper_margin = 3; vinfo.vsync_len = 4; //TODO: are these the best values?
+    vinfo.xres = target_ytotal - vinfo.vblank();
+    if (ioctl(fbfd, FBIOPUT_VSCREENINFO, &vinfo)) 
+      printf("Error reading setting variable information." SRCLINE);
+    struct my_var_screeninfo chk_vinfo;
+    if (ioctl(fbfd, FBIOGET_VSCREENINFO, &chk_vinfo)) 
+      printf("Error re-reading var information." SRCLINE);
+    else if (chk_vinfo.yres != vinfo.yres || chk_vinfo.vblank() != vinfo.vblank())
+        printf("failed to set yres: got %d + %d, wanted %d + %d" SRCLINE, chk_vinfo.yres, chk_vinfo.vblank(), vinfo.yres, vinfo.vblank());
+    vinfo.pixclock = measure_pxclock(); //get updated value
+}
+
+
 #if 0
 //change framebuffer timing to match optimal WS281X rendering:
 void OBSOLETE_setup(int fbfd, struct fb_var_screeninfo* vinfo_p)
@@ -455,7 +476,7 @@ printf("TODO: try setting fb depth to 8 and back 10 16?" SRCLINE);
 // Store for reset (copy vinfo to vinfo_orig)
     struct fb_var_screeninfo orig_vinfo;
     memcpy(&orig_vinfo, &vinfo, sizeof(vinfo)); //struct fb_var_screeninfo));
-//    setup(fbfd, &vinfo);
+    setup(); //fbfd, &vinfo);
 
 // map fb to user mem 
     long int screensize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
