@@ -26,8 +26,11 @@ uint32_t* map_failed = (uint32_t*)MAP_FAILED;
 #define MAP_FAILED  map_failed //shim
 #include "/opt/fpp/src/util/bcm2835.c"
 
+/////////////////////////////////////////////////////////////////////////////////////
+//set these to show bugs:
 //#define FIRSTPX_BUG //show problem with first px after vsync
-#define EOL_BUG //show problem with last px before hsync
+//#define EOL_BUG //show problem with last px before hsync
+/////////////////////////////////////////////////////////////////////////////////////
 
 
 #define FPS  20 //40 //20
