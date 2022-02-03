@@ -1,0 +1,177 @@
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# uncomment if you get no picture on HDMI for a default "safe" mode
+#hdmi_safe=1
+
+# uncomment this if your display has a black border of unused pixels visible
+# and your display can output without overscan
+#disable_overscan=1
+
+# uncomment the following to adjust overscan. Use positive numbers if console
+# goes off screen, and negative if there is too much border
+#overscan_left=16
+#overscan_right=16
+#overscan_top=16
+#overscan_bottom=16
+
+# uncomment to force a console size. By default it will be display's size minus
+# overscan.
+#framebuffer_width=1280
+#framebuffer_height=720
+
+# uncomment if hdmi display is not detected and composite is being output
+##hdmi_force_hotplug=1
+
+# uncomment to force a specific HDMI mode (this will force VGA)
+#hdmi_group=1
+#hdmi_mode=1
+
+# uncomment to force a HDMI mode rather than DVI. This can make audio work in
+# DMT (computer monitor) modes
+#hdmi_drive=2
+
+# uncomment to increase signal to HDMI, if you have interference, blanking, or
+# no display
+#config_hdmi_boost=4
+
+# uncomment for composite PAL
+#sdtv_mode=2
+
+#uncomment to overclock the arm. 700 MHz is the default.
+#arm_freq=800
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+#dtparam=i2c_arm=on
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Uncomment this to enable infrared communication.
+#dtoverlay=gpio-ir,gpio_pin=17
+#dtoverlay=gpio-ir-tx,gpio_pin=18
+
+# Additional overlays and parameters are documented /boot/overlays/README
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+#dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+[all]
+##dtoverlay=vc4-fkms-v3d
+
+# Enable SPI in device tree
+dtparam=spi=on
+
+# Enable I2C in device tree
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
+
+# Setting kernel scaling framebuffer method
+scaling_kernel=8
+
+# Enable audio
+dtparam=audio=on
+
+# Allow more current through USB
+max_usb_current=1
+
+# Setup UART clock to allow DMX output
+init_uart_clock=16000000
+
+# Swap Pi 3 and Zero W UARTs with BT
+dtoverlay=pi3-miniuart-bt
+
+dtoverlay=dwc2
+
+# GPU memory set to 128 to deal with error in omxplayer with hi-def videos
+[pi4]
+gpu_mem=128
+[pi3]
+gpu_mem=128
+[pi0]
+gpu_mem=64
+[pi1]
+gpu_mem=64
+[pi2]
+gpu_mem=64
+
+[all]
+
+
+#use "cat /proc/cpuinfo" to get serial#
+#[serial#]
+##################################
+# DPI entries added 01/23/22 21:58:58
+##################################
+#see raspberrypi.com/documentation/computers/config_txt.html
+#TODO: [gpio4=1] #filter on GPIO (jumpers)
+
+# DPI setup:
+#obsolete dtoverlay=dpi24_masked
+gpio=4-27=a2
+# DPI display: invert clock (data valid on falling edge), data valid, RGB byte order, 24-bit 888
+dpi_output_format=0x17
+dpi_group=2
+dpi_mode=87
+#20 fps (50 msec):
+#dpi_timings=392 0 0 1 0  294 0 4 3 4  0 0 0  20 0 2400000 1
+#40 fps (25 msec):
+dpi_timings=278 0 0 1 0  209 0 2 2 2  0 0 0  40 0 2400000 1
+
+# Other settings (uncomment if needed):
+#gpu_mem=128
+# avoid conflicts:
+#dtparam=i2c_arm=off
+#dtparam=spi=off
+#dtparam=i2s=on
+#dtparam=audio=off
+
+#OBSOLETE keep screen blank during boot:
+#disable_auto_detect=1
+#disable_splash=1 #no affect
+
+#fb_pri  ig_lcd  en_lcd  def_lcd  result
+# -       -       -       -       couldn't open fb1
+# 2       -       -       -       ran @60 Hz, no output
+# -       -       1       -       DPI on fb0, 1 junk px @boot, fbws works 20 fps
+# -       -       0       -       DPI on fb0, no1 junk px, fbws no output 60 fps
+# -       -       1       x       DPI on fb0, 1 junk px, fbws works 20 fps
+# -       -       -       x       DPI on fb0, no junk px, fbws no output 60 fps
+# Enable second fb device + run HDMI on first device:
+max_framebuffers=2
+#framebuffer_priority=2
+#framebuffer_priority=0
+#send ALSA audio to headphone jack:
+#hdmi_ignore_edid_audio=1
+
+# Force display if no monitor detected:
+hdmi_force_hotplug=1
+#skip I2C detection of LCD (LCD won't be used?):
+#??ignore_lcd=1
+#enable display attached to DPI:
+enable_dpi_lcd=1
+#ensure DPI is not default display:
+display_default_lcd=0
+#default lcd frame rate:
+#lcd_framerate=60
+#disable_touchscreen=1
+
+#set FB decoration:
+# Turn off border, overscan:
+disable_overscan=1
+overscan_left=0
+overscan_right=0
+overscan_top=0
+overscan_bottom=0
+# Set framebuffer size:
+framebuffer_depth=32
+#framebuffer_ignore_alpha=1
+#framebuffer_width=
+#framebuffer_height=
+
+[all]
+#eof

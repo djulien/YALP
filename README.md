@@ -92,8 +92,8 @@ network={
 3. "sudo apt update"; "sudo apt upgrade"
 4. "sudo raspi-config" settings:
 - System -> Audio: headphones (!HDMI)
-- System -> Password   #esol21!
-- System -> Hostname   #esolpi
+- System -> Password   xxxxx
+- System -> Hostname   xxxxx
 - Interface  (SSH, !SPI, !I2C, !serial) #optional, default already?
 - Localisation -> Locale  en_GB -> en_US, en_US, 
 - Localization -> Timezone  US, Pacific (!new)
