@@ -33,7 +33,11 @@ uint32_t* map_failed = (uint32_t*)MAP_FAILED;
 /////////////////////////////////////////////////////////////////////////////////////
 
 
+<<<<<<< HEAD
+#define FPS  20 //40 // 20 //40 //20
+=======
 #define FPS  20 //40 //20
+>>>>>>> f99a4238755e41b728e6e1eea0ec1d6d98a4a47b
 #define WHICHFB  0
 #define USE_HBLANK  1 //default if not reported by ioctl
 #define USE_VBLANK  11 //default if not reported by ioctl
@@ -513,4 +517,8 @@ printf("TODO: try setting fb depth to 8 and back 10 16?" SRCLINE);
    return 0; 
 }
 
+<<<<<<< HEAD
 //eof
+=======
+//eof
+>>>>>>> f99a4238755e41b728e6e1eea0ec1d6d98a4a47b

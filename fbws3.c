@@ -21,7 +21,7 @@
 //kludge: including .c here to simplify command line when compiling
 //just pulls in the copy from fpp since it is a source-only type lib
 //#include "../fpp-djgit/src/util/bcm2835.h"
-#include "../fpp-djgit/src/util/bcm2835.c"
+#include "/opt/fpp/src/util/bcm2835.c"
 
 #define TRUE  1
 #define FALSE  0
@@ -30,6 +30,10 @@
 //#define FBDEV  "/dev/fb0"
 //#define FBDEV  "/dev/fb1"
 char FBDEV[16];
+
+#ifdef BCK2835_LIBRARY_BUILD
+ #define WANT_BCM
+#endif
 
 #define FPS  20 //40 //20
 #if FPS == 20
@@ -290,7 +294,7 @@ void draw(int fbfd, int hstride, int want_blank)
 //if (px > 5) break;
         }
         printf("" SRCLINE);
-        if (frnum < 10) system_printf("cat %s > frame-%d.dat", FBDEV, frnum++);
+//        if (frnum < 10) system_printf("cat %s > frame-%d.dat", FBDEV, frnum++);
         frame(fbfd, 20); //20 frames == 1 sec @20FPS
 //break;
         if (want_blank) break; //only need to blank 1x
@@ -441,7 +445,7 @@ printf("TODO: try setting fb depth to 8 and back 10 16?" SRCLINE);
 //TODO: how to check if kernel supports device tree?  (required by bcm lib)
 //maybe just check for /proc/device-tree/soc/ranges in the file sys?
 //TODO: check how raspi-config enables dev tree support
-#if 0
+#ifdef WANT_BCM
     if (!bcm2835_init())
     {
       printf("Error: bcm init failed." SRCLINE);

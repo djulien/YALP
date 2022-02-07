@@ -21,7 +21,7 @@
 //kludge: including .c here to simplify command line when compiling
 //just pulls in the copy from fpp since it is a source-only type lib
 //#include "../fpp-djgit/src/util/bcm2835.h"
-#include "../fpp-djgit/src/util/bcm2835.c"
+#include "/opt/fpp/src/util/bcm2835.c"
 
 #define TRUE  1
 #define FALSE  0
@@ -408,7 +408,7 @@ printf("TODO: try setting fb depth to 8 and back 10 16?" SRCLINE);
 //TODO: how to check if kernel supports device tree?  (required by bcm lib)
 //maybe just check for /proc/device-tree/soc/ranges in the file sys?
 //TODO: check how raspi-config enables dev tree support
-#if 0
+#if 1
     if (!bcm2835_init())
     {
       printf("Error: bcm init failed." SRCLINE);
