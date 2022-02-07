@@ -61,7 +61,8 @@
     "node-addon-api": "^3.0.0",
     "node-framebuffer": "git+https://github.com/djulien/node-framebuffer.git",
     "pnglib": "0.0.1",
-    "sprintf-js": "^1.1.2"
+    "sprintf-js": "^1.1.2",
+    "xmldoc": "^1.1.2"
   },
   "complex-dependencies": {
     "bindings": "^1.2.1",
@@ -101,6 +102,5 @@
     "node-gyp": "^7.1.0",
     "mocha": "^2.1.0",
     "xterm": "^4.8.1"
-  },
-  "devDependencies": {}
+  }
 }

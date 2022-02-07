@@ -88,6 +88,11 @@
 //#endif
 
 
+#define FPP_COMPAT
+#ifdef FPP_COMPAT
+ #pragma message(CYAN_MSG "FPP compatibility" ENDCOLOR_NOLINE)
+#endif
+
 #ifndef _HOIST //#ifdef NEW_YALP //streamlined API
 #pragma message(CYAN_MSG "using new (streamlined) YALP API" ENDCOLOR_NOLINE)
 
@@ -439,7 +444,7 @@ private: //helpers
 //check cached values:
 //avoids additional delay when re-opening FB
 //        using details_t = std::tuple<decltype(scrv.right_margin), decltype(scrv.hsync_len), decltype(scrv.left_margin), decltype(scrv.lower_margin), decltype(scrv.vsync_len), decltype(scrv.upper_margin)>;
-#if 1 //hard-coded; TODO: fix for use with FPP
+#ifdef FPP_COMPAT //hard-coded; TODO: fix for use with FPP
         if (scrv.xres == 392 && scrv.yres == 294)
         {
             scrv.right_margin = 0;
@@ -580,8 +585,10 @@ public: //ctors/dtors
 //ctor/dtor:
         opts_t() //: fbnum(0), /*rdwr(false), xres(0), xblank(1), yres(0), linelen(0), ppb(3),*/ brlimit(3 * 256 * 5/6), /*numbufs(0),*/ debug_level(-1) //default 85% (50 mA/pixel)
         {
+#ifndef FPP_COMPAT //FPP uses fb0
             for (fbnum = 4; fbnum > 0; --fbnum)
                 if (AutoFB<>(fbnum, false).isOpen()) break; //default: use highest FB#
+#endif
         }
 //        opts_t(int want_fbnum = -1, const char* str = 0, int want_debug = 0): fbnum(want_fbnum), timing_ovr(ifnull(str)), debug_level(want_debug) {}; //CAUTION: don't init str to NULL; use ""
     };
