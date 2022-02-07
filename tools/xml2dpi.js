@@ -93,7 +93,7 @@ models.forEach(model =>
                 virtstr.startChannel = +model.starch - 1;
                 virtstr.pixelCount = +model.numch;
                 virtstr.colorOrder = model.order;
-                virtstr.brightness = model.maxbr;
+                virtstr.brightness = +model.maxbr;
                 return;
             }
             const virtstr = JSON.parse(JSON.stringify(port.virtualStrings[0]));
@@ -101,7 +101,7 @@ models.forEach(model =>
             virtstr.startChannel = +model.starch - 1;
             virtstr.pixelCount = +model.numch;
             virtstr.colorOrder = model.order;
-            virtstr.brightness = model.maxbr;
+            virtstr.brightness = +model.maxbr;
             port.virtualStrings.push(virtstr);
             return;
         }
