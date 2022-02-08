@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 //xlate FPP Pixel Overlay Models to DPI Pixel Strings
+// scp /home/dj/Doc*s/xLights22/MyShowFolder/ESOL22-Xmas/xlights_rgbeffects.xml fpp@192.168.1.100:/home/fpp/media/config
+
 
 "use strict";
 
